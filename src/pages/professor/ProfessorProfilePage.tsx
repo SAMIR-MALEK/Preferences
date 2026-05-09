@@ -1,0 +1,207 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
+import { PROFESSOR_RANKS, HIGHEST_DEGREES, type ProfessorRank } from '../../types';
+import { Save, CheckCircle, AlertCircle, User, Award, BookOpen, GraduationCap } from 'lucide-react';
+
+export default function ProfessorProfilePage() {
+  const { user } = useAuth();
+  const prof = user?.professor;
+
+  const [form, setForm] = useState({
+    rank: prof?.rank || 'أستاذ مساعد - أ',
+    professional_experience: prof?.professional_experience || 0,
+    highest_degree: prof?.highest_degree || 'دكتوراه',
+    degree_speciality: prof?.degree_speciality || '',
+    degree_title: prof?.degree_title || '',
+    email: prof?.email || '',
+    phone: prof?.phone || '',
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    setSaving(true);
+    setError('');
+    const { error: err } = await supabase
+      .from('professors')
+      .update(form)
+      .eq('id', prof?.id);
+
+    if (err) {
+      setError('حدث خطأ أثناء الحفظ. يرجى المحاولة مجدداً.');
+    } else {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
+    setSaving(false);
+  }
+
+  const Field = ({ label, icon: Icon, children }: any) => (
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        <Icon className="w-4 h-4 text-[#1a3a6b]" />
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 animate-fade-in" dir="rtl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 font-display">المعلومات الشخصية</h2>
+          <p className="text-gray-500 text-sm">بعض المعلومات يمكنك تعديلها — البيانات المحددة من الإدارة تظهر للمراجعة فقط</p>
+        </div>
+      </div>
+
+      {/* Fixed Info Card */}
+      <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white">
+        <p className="text-[#c9a227] text-xs font-medium mb-3 flex items-center gap-1.5">
+          <User className="w-3.5 h-3.5" />
+          البيانات الثابتة (من الإدارة)
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-gray-400 text-xs mb-0.5">اللقب</p>
+            <p className="text-white font-semibold">{prof?.last_name}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs mb-0.5">الاسم</p>
+            <p className="text-white font-semibold">{prof?.first_name}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs mb-0.5">اسم المستخدم</p>
+            <p className="text-[#c9a227] font-mono text-sm">{prof?.username}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs mb-0.5">حالة الرغبات</p>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              prof?.wishes_locked_s1 
+                ? 'bg-red-500/20 text-red-300' 
+                : 'bg-green-500/20 text-green-300'
+            }`}>
+              {prof?.wishes_locked_s1 ? '🔒 مغلقة' : '✅ مفتوحة'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Editable Form */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-5">
+        <h3 className="font-semibold text-gray-800 flex items-center gap-2 font-display">
+          <span className="w-5 h-5 rounded bg-[#c9a227]/20 flex items-center justify-center text-[#c9a227] text-xs">✎</span>
+          البيانات القابلة للتعديل
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field label="الرتبة العلمية" icon={Award}>
+            <select
+              value={form.rank}
+              onChange={e => setForm({ ...form, rank: e.target.value as ProfessorRank })}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 text-gray-800"
+            >
+              {PROFESSOR_RANKS.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="الخبرة المهنية (بالسنوات)" icon={Award}>
+            <input
+              type="number"
+              min="0"
+              max="50"
+              value={form.professional_experience}
+              onChange={e => setForm({ ...form, professional_experience: parseInt(e.target.value) || 0 })}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50"
+              dir="ltr"
+            />
+          </Field>
+
+          <Field label="آخر شهادة علمية" icon={GraduationCap}>
+            <select
+              value={form.highest_degree}
+              onChange={e => setForm({ ...form, highest_degree: e.target.value })}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50"
+            >
+              {HIGHEST_DEGREES.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="تخصص الشهادة" icon={BookOpen}>
+            <input
+              type="text"
+              value={form.degree_speciality}
+              onChange={e => setForm({ ...form, degree_speciality: e.target.value })}
+              placeholder="مثال: قانون جنائي، قانون خاص..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50"
+            />
+          </Field>
+        </div>
+
+        <Field label="عنوان الشهادة (الدكتوراه / الماجيستير)" icon={BookOpen}>
+          <textarea
+            value={form.degree_title}
+            onChange={e => setForm({ ...form, degree_title: e.target.value })}
+            placeholder="أدخل عنوان أطروحة الدكتوراه أو الماجيستير..."
+            rows={3}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 resize-none leading-relaxed"
+          />
+        </Field>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field label="البريد الإلكتروني (اختياري)" icon={User}>
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+              placeholder="example@univ-bbm.dz"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50"
+              dir="ltr"
+            />
+          </Field>
+
+          <Field label="رقم الهاتف (اختياري)" icon={User}>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={e => setForm({ ...form, phone: e.target.value })}
+              placeholder="05XXXXXXXX"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50"
+              dir="ltr"
+            />
+          </Field>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 rounded-xl px-4 py-3">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        {saved && (
+          <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 rounded-xl px-4 py-3">
+            <CheckCircle className="w-4 h-4" />
+            تم حفظ المعلومات بنجاح
+          </div>
+        )}
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white font-medium px-6 py-2.5 rounded-xl transition-colors disabled:opacity-50 text-sm"
+        >
+          <Save className="w-4 h-4" />
+          {saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
+        </button>
+      </div>
+    </div>
+  );
+}
