@@ -6725,26 +6725,15 @@ elif st.session_state.user_type == "admin":
                             _recipients_tk1.append({"نوع":"أستاذ","اسم":_p,"صفة":_r,"بريد":_em})
                     # طلبة
                     _df_st_tk1 = load_students()
-                    st.caption(f"DEBUG شيت الطلبة: {list(_df_st_tk1.columns)[:12]}")
-                    # إيجاد عمود البريد في شيت الطلبة
                     _st_email_col = next((c for c in ["البريد المهني","الإيميل","البريد الإلكتروني","email"] if c in _df_st_tk1.columns), None)
-                    st.caption(f"DEBUG email col: {_st_email_col}")
-                    # إيجاد عمود اسم الطالب
-                    _st_name_cols = [c for c in ["اللقب","الاسم"] if c in _df_st_tk1.columns]
-                    for _sn in [_s1_tk1, _s2_tk1]:
+                    # البحث برقم التسجيل — عمود C في شيت الطلبة
+                    _reg1_tk1 = str(_row_tk1.get("رقم تسجيل الطالب 1","")).strip()
+                    _reg2_tk1 = str(_row_tk1.get("رقم تسجيل الطالب 2","")).strip()
+                    for _sn, _reg in [(_s1_tk1,_reg1_tk1), (_s2_tk1,_reg2_tk1)]:
                         if not _sn or _sn in ["","nan"]: continue
                         _st_email = ""
-                        if _st_email_col and _st_name_cols:
-                            # مطابقة بالاسم الكامل
-                            _df_st_tk1["_full_name"] = _df_st_tk1[_st_name_cols].apply(
-                                lambda r: normalize_text(" ".join(str(r[c]) for c in _st_name_cols)), axis=1)
-                            _st_row = _df_st_tk1[_df_st_tk1["_full_name"] == normalize_text(_sn)]
-                            if _st_row.empty:
-                                # محاولة بالاسم المعكوس
-                                _parts = _sn.strip().split()
-                                if len(_parts) >= 2:
-                                    _rev = normalize_text(" ".join(reversed(_parts)))
-                                    _st_row = _df_st_tk1[_df_st_tk1["_full_name"] == _rev]
+                        if _st_email_col and _reg and _reg not in ["","nan"]:
+                            _st_row = _df_st_tk1[_df_st_tk1.iloc[:,2].astype(str).str.strip()==_reg.strip()]
                             if not _st_row.empty:
                                 _st_email = str(_st_row.iloc[0].get(_st_email_col,"")).strip()
                         _recipients_tk1.append({"نوع":"طالب","اسم":_sn,"صفة":"طالب","بريد":_st_email})
