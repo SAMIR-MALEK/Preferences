@@ -6727,8 +6727,12 @@ elif st.session_state.user_type == "admin":
                     _df_st_tk1 = load_students()
                     _st_email_col = next((c for c in ["البريد المهني","الإيميل","البريد الإلكتروني","email"] if c in _df_st_tk1.columns), None)
                     # البحث برقم التسجيل — عمود C في شيت الطلبة
-                    _reg1_tk1 = str(_row_tk1.get("رقم تسجيل الطالب 1","")).strip()
-                    _reg2_tk1 = str(_row_tk1.get("رقم تسجيل الطالب 2","")).strip()
+                    # Q=index16, R=index17
+                    _cols_tk1 = list(sched_tk.columns)
+                    st.caption(f"DEBUG أعمدة Q،R: {_cols_tk1[16] if len(_cols_tk1)>16 else '?'} | {_cols_tk1[17] if len(_cols_tk1)>17 else '?'}")
+                    _reg1_tk1 = str(_row_tk1.iloc[16]).strip() if len(_row_tk1)>16 else ""
+                    _reg2_tk1 = str(_row_tk1.iloc[17]).strip() if len(_row_tk1)>17 else ""
+                    st.caption(f"DEBUG reg1={_reg1_tk1} | reg2={_reg2_tk1} | email_col={_st_email_col}")
                     for _sn, _reg in [(_s1_tk1,_reg1_tk1), (_s2_tk1,_reg2_tk1)]:
                         if not _sn or _sn in ["","nan"]: continue
                         _st_email = ""
