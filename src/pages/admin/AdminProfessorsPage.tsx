@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
+import { toArabicNum } from '../../lib/utils';
 import type { Professor, ProfessorRank } from '../../types';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
 import {
@@ -100,7 +101,7 @@ export default function AdminProfessorsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900 font-display">إدارة الأساتذة</h2>
-          <p className="text-gray-500 text-sm">{professors.length} أستاذ مسجّل</p>
+          <p className="text-gray-500 text-sm">{toArabicNum(professors.length)} أستاذ مسجّل</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowForm(true); }}

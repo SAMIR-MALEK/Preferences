@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
+import { toArabicNum, toArabicFixed } from '../../lib/utils';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
@@ -38,7 +39,7 @@ export default function AdminDashboard() {
   }
 
   const nav: { id: AdminTab; label: string; icon: any; badge?: number }[] = [
-    { id: 'dashboard',  label: 'لوحة التحكم',           icon: BarChart2  },
+    { id: 'dashboard',  label: 'الإدارة',           icon: BarChart2  },
     { id: 'professors', label: 'الأساتذة',           icon: Users      },
     { id: 'import',     label: 'استيراد Excel',      icon: Upload     },
     { id: 'sections',   label: 'المجموعات',          icon: Layers     },
@@ -129,7 +130,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
   return (
     <div className="space-y-5 animate-fade-in">
       <div>
-        <h2 className="font-display font-bold text-gray-900 text-xl">لوحة القيادة</h2>
+        <h2 className="font-display font-bold text-gray-900 text-xl">الإدارة</h2>
         <p className="text-gray-500 text-sm">الموسم الجامعي 2026/2027</p>
       </div>
 
@@ -144,7 +145,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
               <span className="text-[#c9a227] text-xs font-semibold">الموسم 2026/2027 — التسجيل جارٍ</span>
             </div>
             <h3 className="font-display font-bold text-xl">نسبة الإنجاز: {pct}%</h3>
-            <p className="text-gray-300 text-sm mt-1">{stats.locked} من {stats.profs} أستاذ أكملوا السداسيين</p>
+            <p className="text-gray-300 text-sm mt-1">{toArabicNum(stats.locked)} من {toArabicNum(stats.profs)} أستاذ أكملوا السداسيين</p>
           </div>
           <div className="w-16 h-16 relative flex-shrink-0">
             <svg width="64" height="64" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
@@ -177,7 +178,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
               <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2" style={{ background: s.bg }}>
                 <Icon className="w-4.5 h-4.5" style={{ color: s.c }} size={18} />
               </div>
-              <p className="font-display font-bold text-2xl text-gray-900">{s.v}</p>
+              <p className="font-display font-bold text-2xl text-gray-900">{typeof s.v === 'number' ? toArabicNum(s.v) : s.v}</p>
               <p className="text-gray-400 text-xs mt-1">{s.l}</p>
             </button>
           );

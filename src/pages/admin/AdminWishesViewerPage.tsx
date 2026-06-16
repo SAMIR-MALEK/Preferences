@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
+import { toArabicNum, toArabicFixed } from '../../lib/utils';
 import type { Professor, Wish, Module, Level } from '../../types';
 import {
   Search, Download, BarChart2, Users, BookOpen,
@@ -245,7 +246,7 @@ export default function AdminWishesViewerPage() {
         <div>
           <h2 className="font-display font-bold text-gray-900 text-xl">استعراض الرغبات الخام</h2>
           <p className="text-gray-500 text-sm mt-1">
-            {wishes.length} رغبة · {filtered.length} مطابق للفلاتر ·
+            {toArabicNum(wishes.length)} رغبة · {toArabicNum(filtered.length)} مطابق للفلاتر ·
             <span className="text-amber-600 font-semibold"> قبل أي إسناد أو خوارزمية</span>
           </p>
         </div>
@@ -371,10 +372,10 @@ export default function AdminWishesViewerPage() {
                       </span>
                     </div>
                     <div className="flex gap-4 text-xs text-gray-500 flex-wrap">
-                      <span>{profWishes.length} رغبة إجمالاً</span>
-                      <span>س١: <strong className="text-[#1a3a6b]">{s1.length}</strong></span>
-                      <span>س٢: <strong className="text-[#c9a227]">{s2.length}</strong></span>
-                      <span>ساعات محتملة: <strong>{totalH.toFixed(2)}س</strong></span>
+                      <span>{toArabicNum(profWishes.length)} رغبة إجمالاً</span>
+                      <span>س١: <strong className="text-[#1a3a6b]">{toArabicNum(s1.length)}</strong></span>
+                      <span>س٢: <strong className="text-[#c9a227]">{toArabicNum(s2.length)}</strong></span>
+                      <span>ساعات محتملة: <strong>{toArabicFixed(totalH)}س</strong></span>
                     </div>
                   </div>
                   {isExp ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
@@ -387,7 +388,7 @@ export default function AdminWishesViewerPage() {
                           <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
                             <span className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold font-display" style={{ background: col }}>{sem}</span>
                             <span className="font-display font-semibold text-gray-800 text-sm">السداسي {sem === 1 ? 'الأول' : 'الثاني'}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${col}18`, color: col }}>{list.length} رغبات</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${col}18`, color: col }}>{toArabicNum(list.length)} رغبات</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                             {list.map(w => (
@@ -444,7 +445,7 @@ export default function AdminWishesViewerPage() {
                     </div>
                     <div className="flex gap-4 text-xs text-gray-500">
                       <span>{g.level}</span>
-                      <span><strong className="text-gray-700">{g.ws.length}</strong> أستاذ طلبه</span>
+                      <span><strong className="text-gray-700">{toArabicNum(g.ws.length)}</strong> أستاذ طلبه</span>
                     </div>
                   </div>
                   {isExp ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -493,7 +494,7 @@ export default function AdminWishesViewerPage() {
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
             <Filter className="w-4 h-4 text-[#1a3a6b]" />
             <span className="font-display font-semibold text-gray-800 text-sm">الجدول الكامل</span>
-            <span className="text-gray-400 text-xs">{filtered.length} سطر</span>
+            <span className="text-gray-400 text-xs">{toArabicNum(filtered.length)} سطر</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -585,7 +586,7 @@ export default function AdminWishesViewerPage() {
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-gray-400">نقاط المعايير (تقريبي)</span>
-                            <span className="font-display font-bold text-sm" style={{color:winner===side?'#15803d':'#475569'}}>{score.toFixed(0)}</span>
+                            <span className="font-display font-bold text-sm" style={{color:winner===side?'#15803d':'#475569'}}>{toArabicNum(score.toFixed(0))}</span>
                           </div>
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div className="h-full rounded-full" style={{width:`${Math.max(score,0)}%`,background:winner===side?'#22c55e':'#94a3b8'}} />

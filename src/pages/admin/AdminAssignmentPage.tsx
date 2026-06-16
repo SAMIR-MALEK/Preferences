@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
+import { toArabicNum, toArabicFixed } from '../../lib/utils';
 import type {
   Professor, Assignment, Module, Level, LevelSemester,
   AssignmentCriterion, ProfessorHoursSummary
@@ -245,7 +246,7 @@ export default function AdminAssignmentPage() {
           className="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 text-white"
           style={{ background: 'linear-gradient(135deg,#c9a227,#a07820)' }}>
           {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          {loading ? 'جارٍ التحليل...' : !weightsOk ? `المجموع ${totalWeight.toFixed(0)}% ≠ 100%` : 'تشغيل الخوارزمية'}
+          {loading ? 'جارٍ التحليل...' : !weightsOk ? `المجموع ${toArabicNum(totalWeight.toFixed(0))}% ≠ 100%` : 'تشغيل الخوارزمية'}
         </button>
       </div>
 
@@ -289,7 +290,7 @@ export default function AdminAssignmentPage() {
               معايير الإسناد <span className="text-gray-400 font-normal text-xs">(عند التصادم فقط)</span>
             </span>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${weightsOk ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-              {totalWeight.toFixed(0)}% {weightsOk ? '✓' : '✗'}
+              {toArabicNum(totalWeight.toFixed(0))}% {weightsOk ? '✓' : '✗'}
             </span>
           </div>
           {showCriteria ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -366,7 +367,7 @@ export default function AdminAssignmentPage() {
             {!weightsOk && (
               <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 rounded-lg px-3 py-2">
                 <AlertCircle className="w-3.5 h-3.5" />
-                مجموع الأوزان النشطة = {totalWeight.toFixed(0)}% — يجب أن يساوي 100%
+                مجموع الأوزان النشطة = {toArabicNum(totalWeight.toFixed(0))}% — يجب أن يساوي 100%
               </div>
             )}
           </div>
@@ -525,12 +526,12 @@ export default function AdminAssignmentPage() {
                               style={{ width: `${pct}%`, background: barColor }} />
                           </div>
                           <span className="font-display font-bold text-xs w-12" style={{ color: barColor }}>
-                            {totalH.toFixed(2)}س
+                            {toArabicFixed(totalH)}س
                           </span>
                           <span className="text-xs" style={{ color: remaining > 0 ? '#10b981' : '#ef4444' }}>
                             {remaining > 0 ? `يبقى ${remaining.toFixed(2)}س` : '⛔ ممتلئ'}
                           </span>
-                          <span className="text-xs text-gray-400">{profAssigns.length} إسناد</span>
+                          <span className="text-xs text-gray-400">{toArabicNum(profAssigns.length)} إسناد</span>
                         </div>
                       </div>
 
@@ -589,7 +590,7 @@ export default function AdminAssignmentPage() {
                                       {a.conflict_resolved && (
                                         <span className="text-xs text-amber-600 flex items-center gap-1">
                                           <AlertCircle className="w-3 h-3" />
-                                          تصادم ({a.score?.toFixed(0)} نق)
+                                          تصادم ({toArabicNum((a.score??0).toFixed(0))} نق)
                                         </span>
                                       )}
                                     </div>
@@ -610,7 +611,7 @@ export default function AdminAssignmentPage() {
                             {remaining > 0 && remaining < MAX_WEEKLY_HOURS && (
                               <div className="flex items-center gap-2 text-xs text-green-600 mt-2 pt-2 border-t border-gray-100">
                                 <Clock className="w-3.5 h-3.5" />
-                                متبقي <strong>{remaining.toFixed(2)} ساعة</strong>
+                                متبقي <strong>{toArabicFixed(remaining)} ساعة</strong>
                                 {remaining >= HOURS_LECTURE && (
                                   <span className="text-gray-400">
                                     (يسع {Math.floor(remaining / HOURS_LECTURE)} محاضرة إضافية)
@@ -665,7 +666,7 @@ export default function AdminAssignmentPage() {
                           </div>
                           <span className="font-display font-bold text-gray-800 text-sm">{lvl?.name_ar}</span>
                           <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
-                            {lvlMods.length} مقياس ناقص
+                            {toArabicNum(lvlMods.length)} مقياس ناقص
                           </span>
                         </div>
 
@@ -704,7 +705,7 @@ export default function AdminAssignmentPage() {
                                   <div>
                                     <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
                                       <BookOpen className="w-3.5 h-3.5 text-[#1a3a6b]" />
-                                      المحاضرات — {lectureUsed.length}/{lectTotal} مشغول
+                                      المحاضرات — {toArabicNum(lectureUsed.length)}/{toArabicNum(lectTotal)} مشغول
                                     </p>
                                     <div className="flex gap-2 flex-wrap">
                                       {Array.from({ length: lectTotal }, (_, i) => {
@@ -739,7 +740,7 @@ export default function AdminAssignmentPage() {
                                     <div>
                                       <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
                                         <Users className="w-3.5 h-3.5 text-[#c9a227]" />
-                                        الأعمال الموجهة — {tdUsed.length}/{tdTotal} مشغول
+                                        الأعمال الموجهة — {toArabicNum(tdUsed.length)}/{toArabicNum(tdTotal)} مشغول
                                         {tdFree > 0 && (
                                           <span className="text-amber-600">({tdFree} فارغ)</span>
                                         )}
@@ -791,18 +792,18 @@ export default function AdminAssignmentPage() {
             <div className="flex gap-4 text-xs text-gray-500 flex-wrap">
               <span className="flex items-center gap-1">
                 <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                {assignments.length} إسناد مؤقت
+                {toArabicNum(assignments.length)} إسناد مؤقت
               </span>
               {incompleteModules.length > 0 && (
                 <span className="flex items-center gap-1 text-red-600">
                   <AlertCircle className="w-3.5 h-3.5" />
-                  {incompleteModules.length} مقياس بـslots فارغة
+                  {toArabicNum(incompleteModules.length)} مقياس بـslots فارغة
                 </span>
               )}
               {Object.values(profHours).filter(h => h >= MAX_WEEKLY_HOURS).length > 0 && (
                 <span className="flex items-center gap-1 text-amber-600">
                   <Clock className="w-3.5 h-3.5" />
-                  {Object.values(profHours).filter(h => h >= MAX_WEEKLY_HOURS).length} أستاذ وصل الحد
+                  {toArabicNum(Object.values(profHours).filter(h => h >= MAX_WEEKLY_HOURS).length)} أستاذ وصل الحد
                 </span>
               )}
             </div>

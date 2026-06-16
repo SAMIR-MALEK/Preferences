@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { toArabicNum } from '../../lib/utils';
 import type { Level, Module, LevelSemester } from '../../types';
 import { Plus, Trash2, Save, X, BookOpen, ChevronDown, ChevronUp, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -123,7 +124,7 @@ export default function AdminModulesPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-display font-bold text-gray-900 text-xl">المقاييس والمستويات</h2>
-          <p className="text-gray-500 text-sm">{levels.length} مستوى — سداسيان مستقلان لكل مستوى</p>
+          <p className="text-gray-500 text-sm">{toArabicNum(levels.length)} مستوى — سداسيان مستقلان لكل مستوى</p>
         </div>
         <button onClick={() => setAddingLevel(true)}
           className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
@@ -192,7 +193,7 @@ export default function AdminModulesPage() {
                 <div>
                   <p className="font-display font-bold text-gray-800 text-sm">{level.name_ar}</p>
                   <p className="text-gray-400 text-xs">
-                    {modules[level.id]?.s1.length || 0}م س١ · {modules[level.id]?.s2.length || 0}م س٢
+                    {toArabicNum(modules[level.id]?.s1.length || 0)}م س١ · {toArabicNum(modules[level.id]?.s2.length || 0)}م س٢
                   </p>
                 </div>
               </div>
@@ -216,7 +217,7 @@ export default function AdminModulesPage() {
                     <button key={s} onClick={() => setActiveSem(prev => ({ ...prev, [level.id]: s }))}
                       className="px-4 py-2 rounded-xl text-xs font-medium transition-all"
                       style={{ background: sem===s?(s===1?'#1a3a6b':'#c9a227'):'#f1f5f9', color: sem===s?'white':'#64748b' }}>
-                      السداسي {s===1?'الأول':'الثاني'} ({modules[level.id]?.[`s${s}` as 's1'|'s2']?.length || 0})
+                      السداسي {s===1?'الأول':'الثاني'} ({toArabicNum(modules[level.id]?.[`s${s}` as 's1'|'s2']?.length || 0)})
                       {ls && <span className="mr-1.5 opacity-70 text-xs">· {getLs(level.id, s)?.num_sections}م</span>}
                     </button>
                   ))}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { toArabicNum, toArabicFixed } from '../../lib/utils';
 import type { Level, LevelSemester } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import {
@@ -180,7 +181,7 @@ export default function AdminSectionsPage() {
               <span className="text-gray-400"> ({editForm.num_sections} × {editForm.num_groups})</span>
             </span>
             <span className="text-xs">
-              ⏱ حجم ساعي للمحاضرات: <strong className="text-emerald-600">{(previewLect * HOURS_LECTURE).toFixed(2)}س</strong>
+              ⏱ حجم ساعي للمحاضرات: <strong className="text-emerald-600">{toArabicFixed(previewLect * HOURS_LECTURE)}س</strong>
             </span>
           </div>
         </div>
