@@ -373,8 +373,8 @@ export default function AdminWishesViewerPage() {
                     </div>
                     <div className="flex gap-4 text-xs text-gray-500 flex-wrap">
                       <span>{toArabicNum(profWishes.length)} رغبة إجمالاً</span>
-                      <span>س١: <strong className="text-[#1a3a6b]">{toArabicNum(s1.length)}</strong></span>
-                      <span>س٢: <strong className="text-[#c9a227]">{toArabicNum(s2.length)}</strong></span>
+                      <span>سداسي1: <strong className="text-[#1a3a6b]">{toArabicNum(s1.length)}</strong></span>
+                      <span>سداسي2: <strong className="text-[#c9a227]">{toArabicNum(s2.length)}</strong></span>
                       <span>ساعات محتملة: <strong>{toArabicFixed(totalH)}س</strong></span>
                     </div>
                   </div>
@@ -704,7 +704,7 @@ export default function AdminWishesViewerPage() {
                   <div key={prof.id} className="flex items-center gap-3 py-2 border-b border-gray-50">
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:prof.wishes_locked_s2?'#22c55e':'#f59e0b'}} />
                     <span className="flex-1 text-sm text-gray-800 font-medium truncate">{prof.last_name} {prof.first_name}</span>
-                    <span className="text-xs text-gray-400">س١:{s1} · س٢:{s2}</span>
+                    <span className="text-xs text-gray-400">سداسي1:{s1} · سداسي2:{s2}</span>
                     <span className="font-display font-bold text-xs text-[#1a3a6b] w-10 text-center">{count}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${prof.wishes_locked_s2?'bg-green-50 text-green-700':'bg-amber-50 text-amber-700'}`}>
                       {prof.wishes_locked_s2?'✓':'⏳'}
