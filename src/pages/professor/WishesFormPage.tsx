@@ -1,29 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
-import type { Level, Module, Wish, TeachingType } from '../../types';
-import { PREVIOUS_YEARS, HOURS_LECTURE, HOURS_TD } from '../../types';
+import { toArabicNum } from '../../lib/utils';
+import type { Module, Level, Wish, TeachingType } from '../../types';
+import { PREVIOUS_YEARS } from '../../types';
 import {
-  Plus, Trash2, Lock, CheckCircle, AlertCircle,
-  ChevronDown, ChevronUp, BookOpen, Info, Save, ArrowLeft
+  Plus, Trash2, Save, CheckCircle, AlertCircle,
+  Lock, Info, BookOpen, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 interface WishForm {
-  wish_order: number;
-  level_id: string;
   module_id: string;
+  level_id: string;
   teaching_type: TeachingType;
   taught_before: boolean;
   previous_years: string[];
   notes: string;
 }
 
-
-const emptyWish = (order: number): WishForm => ({
-  wish_order: order,
-  level_id: '',
+const emptyWish = (): WishForm => ({
   module_id: '',
-  teaching_type: 'محاضرة' as TeachingType,
+  level_id: '',
+  teaching_type: 'محاضرة',
   taught_before: false,
   previous_years: [],
   notes: '',
@@ -31,479 +29,450 @@ const emptyWish = (order: number): WishForm => ({
 
 interface Props {
   semester: 1 | 2;
-  onConfirmed: () => void;
+  onConfirmed?: () => void;
 }
 
 export default function WishesFormPage({ semester, onConfirmed }: Props) {
   const { user } = useAuth();
   const prof = user?.professor;
 
+  const [modules, setModules] = useState<Module[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
-  const [allModules, setAllModules] = useState<Module[]>([]);
-  const [existingWishes, setExistingWishes] = useState<Wish[]>([]);
-  const [wishes, setWishes] = useState<WishForm[]>([emptyWish(1), emptyWish(2)]);
-  const [expanded, setExpanded] = useState<number>(1);
-  const [saving, setSaving] = useState(false);
-  const [tempSaved, setTempSaved] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState('');
+  const [wishes, setWishes] = useState<WishForm[]>([emptyWish(), emptyWish()]);
+  const [savedWishes, setSavedWishes] = useState<Wish[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [expandedWish, setExpandedWish] = useState<number | null>(null);
 
   const isLocked = semester === 1 ? prof?.wishes_locked_s1 : prof?.wishes_locked_s2;
-  const semLabel = semester === 1 ? 'الأول' : 'الثاني';
-  const semColor = semester === 1 ? '#1a3a6b' : '#c9a227';
-  const semBg = semester === 1 ? 'rgba(26,58,107,.08)' : 'rgba(201,162,39,.1)';
+  const academicYear = '2026-2027';
 
-  useEffect(() => { loadData(); }, [semester]);
+  useEffect(() => {
+    loadData();
+  }, [semester]);
 
   async function loadData() {
     setLoading(true);
-    const [{ data: lvls }, { data: mods }, { data: wsh }] = await Promise.all([
+    const [{ data: mods }, { data: lvls }, { data: existingWishes }] = await Promise.all([
+      supabase.from('modules').select('*, level:levels(*)').eq('semester', semester).eq('is_active', true).order('display_order'),
       supabase.from('levels').select('*').eq('is_active', true).order('display_order'),
-      supabase.from('modules').select('*, level:levels(*)').eq('is_active', true).eq('semester', semester),
-      supabase.from('wishes')
-        .select('*, module:modules(*), level:levels(*)')
-        .eq('professor_id', prof?.id)
-        .eq('academic_year', '2026-2027')
-        .eq('semester', semester)
-        .order('wish_order'),
+      supabase.from('wishes').select('*, module:modules(*), level:levels(*)').eq('professor_id', prof?.id).eq('semester', semester).eq('academic_year', academicYear).order('wish_order'),
     ]);
+    if (mods) setModules(mods);
     if (lvls) setLevels(lvls);
-    if (mods) setAllModules(mods);
-    if (wsh && wsh.length > 0) {
-      setExistingWishes(wsh);
-      const filled = wsh.map((w: Wish) => ({
-        wish_order: w.wish_order,
-        level_id: w.level_id,
+    if (existingWishes && existingWishes.length > 0) {
+      setSavedWishes(existingWishes);
+      const forms = existingWishes.map(w => ({
         module_id: w.module_id,
-        teaching_type: w.teaching_type,
-        taught_before: w.taught_before ?? false,
+        level_id: w.level_id,
+        teaching_type: w.teaching_type as TeachingType,
+        taught_before: w.taught_before,
         previous_years: w.previous_years || [],
         notes: w.notes || '',
       }));
-      while (filled.length < 2) filled.push(emptyWish(filled.length + 1));
-      setWishes(filled);
+      // اضمن وجود رغبتين على الأقل
+      while (forms.length < 2) forms.push(emptyWish());
+      setWishes(forms);
     }
     setLoading(false);
   }
 
-  const modulesForLevel = (levelId: string) =>
-    allModules.filter(m => m.level_id === levelId);
-
   function updateWish(index: number, field: Partial<WishForm>) {
-    setWishes(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], ...field };
-      if (field.level_id) { updated[index].module_id = ''; updated[index].teaching_type = 'محاضرة' as TeachingType; }
-      if (field.module_id) { updated[index].teaching_type = 'محاضرة' as TeachingType; }
-      return updated;
-    });
-    setError('');
+    setWishes(prev => prev.map((w, i) => i === index ? { ...w, ...field } : w));
   }
 
   function addWish() {
-    if (wishes.length < 5) {
-      setWishes(prev => [...prev, emptyWish(prev.length + 1)]);
-      setExpanded(wishes.length + 1);
-    }
+    if (wishes.length >= 5) return;
+    setWishes(prev => [...prev, emptyWish()]);
   }
 
   function removeWish(index: number) {
-    if (wishes.length <= 2) return;
-    setWishes(prev =>
-      prev.filter((_, i) => i !== index).map((w, i) => ({ ...w, wish_order: i + 1 }))
-    );
+    if (index < 2) return; // الأوليان إجباريتان
+    setWishes(prev => prev.filter((_, i) => i !== index));
   }
 
-  function isDuplicate(index: number): boolean {
-    const w = wishes[index];
-    if (!w.module_id || !w.teaching_type) return false;
-    return wishes.some((x, i) =>
-      i !== index && x.module_id === w.module_id && x.teaching_type === w.teaching_type
-    );
-  }
-
-  function validate(): string | null {
-    for (let i = 0; i < wishes.length; i++) {
-      const w = wishes[i];
-      if (!w.level_id)       return `الرغبة ${i + 1}: يرجى اختيار المستوى`;
-      if (!w.module_id)      return `الرغبة ${i + 1}: يرجى اختيار المقياس`;
-      if (!w.teaching_type)  return `الرغبة ${i + 1}: يرجى اختيار نوع التدريس`;
-      if (isDuplicate(i))    return `الرغبة ${i + 1}: مكررة مع رغبة أخرى`;
-      if (w.taught_before === null) return `الرغبة ${i + 1}: هل درّست هذا المقياس سابقاً؟`;
-      if (w.taught_before && w.previous_years.length === 0)
-        return `الرغبة ${i + 1}: يرجى تحديد السنوات السابقة`;
+  // الحفظ المؤقت
+  async function handleSave() {
+    const valid = wishes.filter(w => w.module_id && w.level_id);
+    if (valid.length < 2) {
+      setMessage({ type: 'error', text: 'يجب تعبئة رغبتين على الأقل (رقم المقياس والمستوى)' });
+      return;
     }
-    return null;
-  }
-
-  async function saveWishes(lock: boolean) {
-    const validErr = validate();
-    if (validErr) { setError(validErr); return; }
-
-    if (lock) {
-      const msg = semester === 2
-        ? '⚠️ سيُقفل السداسيان معاً نهائياً. لا يمكن التعديل بعد ذلك إلا بإذن الإدارة.\n\nتأكيد؟'
-        : '⚠️ ستُقفل رغبات السداسي الأول وتنتقل للسداسي الثاني.\n\nتأكيد؟';
-      if (!window.confirm(msg)) return;
-    }
-
     setSaving(true);
-    setError('');
+    setMessage(null);
 
-    try {
-      await supabase.from('wishes')
-        .delete()
-        .eq('professor_id', prof?.id)
-        .eq('academic_year', '2026-2027')
-        .eq('semester', semester);
+    // حذف الرغبات القديمة وإعادة إدراجها
+    await supabase.from('wishes').delete().eq('professor_id', prof?.id).eq('semester', semester).eq('academic_year', academicYear);
 
-      const toInsert = wishes.map(w => ({
-        professor_id: prof?.id,
-        academic_year: '2026-2027',
-        semester,
-        wish_order: w.wish_order,
-        module_id: w.module_id,
-        level_id: w.level_id,
-        teaching_type: (w.teaching_type || 'lecture') as TeachingType,
-        taught_before: w.taught_before || false,
-        previous_years: w.previous_years,
-        notes: w.notes,
-      }));
+    const toInsert = valid.map((w, i) => ({
+      professor_id: prof?.id,
+      academic_year: academicYear,
+      semester,
+      wish_order: i + 1,
+      module_id: w.module_id,
+      level_id: w.level_id,
+      teaching_type: w.teaching_type,
+      taught_before: w.taught_before,
+      previous_years: w.previous_years,
+      notes: w.notes,
+    }));
 
-      const { error: insertErr } = await supabase.from('wishes').insert(toInsert);
-      if (insertErr) throw insertErr;
-
-      if (lock) {
-        const lockField = semester === 1
-          ? { wishes_locked_s1: true }
-          : { wishes_locked_s1: true, wishes_locked_s2: true, wishes_locked_at: new Date().toISOString() };
-
-        await supabase.from('professors').update(lockField).eq('id', prof?.id);
-        onConfirmed();
-      } else {
-        setTempSaved(true);
-        setTimeout(() => setTempSaved(false), 3000);
-        await loadData();
-      }
-    } catch {
-      setError('خطأ في الحفظ. يرجى المحاولة مجدداً.');
+    const { error } = await supabase.from('wishes').insert(toInsert);
+    if (error) {
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء الحفظ' });
+    } else {
+      setMessage({ type: 'success', text: 'تم حفظ الرغبات مؤقتاً — يمكنك التعديل قبل التأكيد النهائي' });
+      loadData();
     }
     setSaving(false);
   }
 
-  const wLabels = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+  // التأكيد النهائي
+  async function handleConfirm() {
+    setConfirming(true);
+    setShowConfirmDialog(false);
+
+    // حفظ أولاً
+    await handleSave();
+
+    // قفل السداسي
+    const lockField = semester === 1 ? 'wishes_locked_s1' : 'wishes_locked_s2';
+    const { error } = await supabase.from('professors').update({
+      [lockField]: true,
+      wishes_locked_at: new Date().toISOString(),
+    }).eq('id', prof?.id);
+
+    if (error) {
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء التأكيد' });
+    } else {
+      setMessage({ type: 'success', text: `تم تأكيد رغبات السداسي ${semester === 1 ? 'الأول' : 'الثاني'} وقفلها نهائياً` });
+      onConfirmed?.();
+    }
+    setConfirming(false);
+  }
+
+  // مستويات المقياس المختار
+  function getLevelsForModule(moduleId: string) {
+    const mod = modules.find(m => m.id === moduleId);
+    if (!mod) return levels;
+    return levels.filter(l => l.id === mod.level_id);
+  }
+
+  // أنواع التدريس المتاحة للمقياس
+  function getTeachingTypes(moduleId: string): TeachingType[] {
+    const mod = modules.find(m => m.id === moduleId);
+    if (!mod) return ['محاضرة', 'أعمال موجهة'];
+    const types: TeachingType[] = [];
+    if (mod.has_lectures) types.push('محاضرة');
+    if (mod.has_td) types.push('أعمال موجهة');
+    return types;
+  }
 
   if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-      <svg className="animate-spin h-6 w-6 text-[#1a3a6b]" viewBox="0 0 24 24" fill="none">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
+    <div className="flex items-center justify-center py-20">
+      <div className="w-8 h-8 border-4 border-[#1a3a6b]/20 border-t-[#1a3a6b] rounded-full animate-spin" />
     </div>
   );
 
+  // ── واجهة مقفولة ──
   if (isLocked) return (
-    <div className="animate-fade-in" dir="rtl">
-      <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
-        <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
-          <Lock className="w-7 h-7 text-amber-600" />
+    <div className="space-y-5 animate-fade-in" dir="rtl">
+      <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-6 text-white">
+        <div className="flex items-center gap-3 mb-4">
+          <Lock className="w-6 h-6 text-[#c9a227]" />
+          <h2 className="text-lg font-bold font-display">
+            رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'} — مؤكدة ومقفولة
+          </h2>
         </div>
-        <h3 className="font-display font-bold text-gray-800 text-lg mb-2">
-          رغبات السداسي {semLabel} مؤكدة ومقفلة
-        </h3>
-        <p className="text-gray-500 text-sm">للتعديل، تواصل مع نيابة العمادة المكلفة بالبيداغوجيا</p>
+        <p className="text-gray-300 text-sm">تم تأكيد رغباتك نهائياً ولا يمكن تعديلها. للاستفسار تواصل مع نيابة العمادة.</p>
+      </div>
+
+      {/* عرض الرغبات المحفوظة */}
+      <div className="space-y-3">
+        {savedWishes.map((w, i) => (
+          <div key={w.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+            <div className="flex items-start gap-3">
+              <span className="w-7 h-7 rounded-full bg-[#1a3a6b] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                {toArabicNum(i + 1)}
+              </span>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-800">{w.module?.name_ar}</p>
+                <p className="text-sm text-gray-500">{w.level?.name_ar} — {w.teaching_type}</p>
+                {w.taught_before && (
+                  <p className="text-xs text-[#c9a227] mt-1">✓ سبق تدريسه {w.previous_years?.join('، ')}</p>
+                )}
+                {w.notes && <p className="text-xs text-gray-400 mt-1">{w.notes}</p>}
+              </div>
+              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 
+  // ── واجهة التسجيل ──
   return (
-    <div className="space-y-4 animate-fade-in" dir="rtl">
+    <div className="space-y-5 animate-fade-in pb-8" dir="rtl">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: semBg }}>
-            <BookOpen className="w-5 h-5" style={{ color: semColor }} />
-          </div>
-          <div>
-            <h2 className="font-display font-bold text-gray-900 text-lg">
-              رغبات السداسي {semLabel}
-            </h2>
-            <p className="text-gray-500 text-xs">
-              رغبتان إجباريتان + حتى 3 اختيارية · {wishes.length}/5
-              {semester === 2 && (
-                <span className="text-amber-600 font-semibold mr-2">
-                  · التأكيد هنا يُقفل السداسيين معاً
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border"
-          style={{ background: semBg, borderColor: `${semColor}40`, color: semColor }}>
-          <Info className="w-3.5 h-3.5" />
-          محاضرة = {HOURS_LECTURE}س · أعمال موجهة = {HOURS_TD}س
+      <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white">
+        <h2 className="text-lg font-bold font-display mb-1">
+          رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'}
+        </h2>
+        <p className="text-gray-300 text-sm">سجّل من رغبتين إلى خمس رغبات مرتبة حسب الأولوية — الرغبتان الأولى والثانية إجباريتان</p>
+      </div>
+
+      {/* Info */}
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
+        <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <div className="text-xs text-blue-600 space-y-0.5">
+          <p>يمكنك حفظ الرغبات مؤقتاً والعودة للتعديل في أي وقت قبل التأكيد النهائي.</p>
+          <p>بعد الضغط على <strong>تأكيد نهائي</strong> لا يمكن التعديل.</p>
+          {semester === 2 && <p className="text-amber-600 font-medium">⚠ التأكيد النهائي للسداسي الثاني يقفل السداسيين معاً.</p>}
         </div>
       </div>
 
-      {/* Wishes */}
-      {wishes.map((w, i) => {
-        const mods = modulesForLevel(w.level_id);
-        const selMod = allModules.find(m => m.id === w.module_id);
-        const selLvl = levels.find(l => l.id === w.level_id);
-        const dup = isDuplicate(i);
-        const done = w.level_id && w.module_id && w.teaching_type && w.taught_before !== null;
-        const isOpt = i >= 2;
-        const open = expanded === w.wish_order;
+      {/* Message */}
+      {message && (
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${
+          message.type === 'success'
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {message.text}
+        </div>
+      )}
 
-        return (
-          <div key={w.wish_order}
-            className="bg-white rounded-2xl overflow-hidden transition-all"
-            style={{
-              border: `2px solid ${dup ? '#fca5a5' : done ? '#bbf7d0' : open ? semColor + '44' : '#e5e7eb'}`
-            }}>
-            {/* Header */}
-            <button
-              onClick={() => setExpanded(open ? 0 : w.wish_order)}
-              className="w-full flex items-center justify-between p-4 text-right hover:bg-gray-50/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm font-display"
-                  style={{
-                    background: dup ? '#fee2e2' : done ? '#dcfce7' : isOpt ? '#f1f5f9' : semBg,
-                    color: dup ? '#dc2626' : done ? '#15803d' : isOpt ? '#64748b' : semColor
-                  }}>
-                  {w.wish_order}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-display font-bold text-gray-800 text-sm">
-                      الرغبة {wLabels[i]}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${isOpt ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-600'}`}>
-                      {isOpt ? 'اختيارية' : 'إجبارية'}
-                    </span>
-                    {dup && <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full">⚠ مكرر</span>}
-                  </div>
-                  {done && !dup && (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {selLvl?.name_ar} — {selMod?.name_ar} ({w.teaching_type})
+      {/* Wishes List */}
+      <div className="space-y-3">
+        {wishes.map((wish, index) => {
+          const isRequired = index < 2;
+          const isExpanded = expandedWish === index;
+          const levelOptions = wish.module_id ? getLevelsForModule(wish.module_id) : levels;
+          const teachingTypes = getTeachingTypes(wish.module_id);
+          const selectedModule = modules.find(m => m.id === wish.module_id);
+
+          return (
+            <div key={index} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Wish Header */}
+              <div
+                className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => setExpandedWish(isExpanded ? null : index)}>
+                <span className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                  isRequired ? 'bg-[#1a3a6b]' : 'bg-gray-400'
+                }`}>
+                  {toArabicNum(index + 1)}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {wish.module_id ? (
+                    <div>
+                      <p className="font-medium text-gray-800 text-sm truncate">{selectedModule?.name_ar}</p>
+                      <p className="text-xs text-gray-400">{wish.teaching_type} — {levels.find(l => l.id === wish.level_id)?.name_ar}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">
+                      {isRequired ? 'رغبة إجبارية — يرجى تعبئتها' : 'رغبة اختيارية'}
                     </p>
                   )}
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {done && !dup && <CheckCircle className="w-4 h-4 text-green-500" />}
-                {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                {i >= 2 && (
-                  <button onClick={e => { e.stopPropagation(); removeWish(i); }}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </button>
-
-            {/* Body */}
-            {open && (
-              <div className="px-4 pb-4 space-y-4 border-t border-gray-50 pt-3 animate-slide-up">
-                {/* المستوى */}
-                <div>
-                  <label className="text-xs text-gray-600 flex items-center gap-1.5 mb-1.5">
-                    <span className="w-4 h-4 rounded-full text-white text-xs flex items-center justify-center font-bold"
-                      style={{ background: semColor, fontSize: '9px' }}>١</span>
-                    المستوى
-                  </label>
-                  <select value={w.level_id} onChange={e => updateWish(i, { level_id: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none bg-gray-50">
-                    <option value="">— اختر المستوى —</option>
-                    <optgroup label="ليسانس">
-                      {levels.filter(l => l.degree_type === 'ليسانس').map(l =>
-                        <option key={l.id} value={l.id}>{l.name_ar}</option>
-                      )}
-                    </optgroup>
-                    <optgroup label="ماستر">
-                      {levels.filter(l => l.degree_type === 'ماستر').map(l =>
-                        <option key={l.id} value={l.id}>{l.name_ar}</option>
-                      )}
-                    </optgroup>
-                  </select>
+                <div className="flex items-center gap-2">
+                  {!isRequired && (
+                    <button
+                      onClick={e => { e.stopPropagation(); removeWish(index); }}
+                      className="p-1 text-gray-300 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </div>
+              </div>
 
-                {/* المقياس */}
-                {w.level_id && (
-                  <div className="animate-slide-up">
-                    <label className="text-xs text-gray-600 flex items-center gap-1.5 mb-1.5">
-                      <span className="w-4 h-4 rounded-full text-white text-xs flex items-center justify-center font-bold"
-                        style={{ background: semColor, fontSize: '9px' }}>٢</span>
-                      المقياس
-                      {mods.length === 0 && <span className="text-red-500">(لا توجد مقاييس في هذا السداسي)</span>}
+              {/* Wish Form */}
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-4 border-t border-gray-100 pt-4">
+                  {/* المقياس */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <BookOpen className="w-4 h-4 text-[#1a3a6b]" />
+                      المقياس {isRequired && <span className="text-red-500">*</span>}
                     </label>
-                    <select value={w.module_id} onChange={e => updateWish(i, { module_id: e.target.value })}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none bg-gray-50">
+                    <select
+                      value={wish.module_id}
+                      onChange={e => {
+                        const mod = modules.find(m => m.id === e.target.value);
+                        updateWish(index, {
+                          module_id: e.target.value,
+                          level_id: mod?.level_id || '',
+                          teaching_type: mod?.has_lectures ? 'محاضرة' : 'أعمال موجهة',
+                        });
+                      }}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
                       <option value="">— اختر المقياس —</option>
-                      {mods.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.name_ar} {m.has_td ? '(م+ت)' : '(م فقط)'}
-                        </option>
-                      ))}
+                      {levels.map(level => {
+                        const levelMods = modules.filter(m => m.level_id === level.id);
+                        if (!levelMods.length) return null;
+                        return (
+                          <optgroup key={level.id} label={level.name_ar}>
+                            {levelMods.map(m => (
+                              <option key={m.id} value={m.id}>{m.name_ar}</option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
                     </select>
                   </div>
-                )}
 
-                {/* نوع التدريس */}
-                {w.module_id && selMod && (
-                  <div className="animate-slide-up">
-                    <label className="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
-                      <span className="w-4 h-4 rounded-full text-white text-xs flex items-center justify-center font-bold"
-                        style={{ background: semColor, fontSize: '9px' }}>٣</span>
-                      نوع التدريس
-                    </label>
-                    <div className="flex gap-3 flex-wrap">
-                      {selMod.has_lectures && (
-                        <button onClick={() => updateWish(i, { teaching_type: 'محاضرة' })}
-                          className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all"
-                          style={{
-                            borderColor: w.teaching_type === 'محاضرة' ? semColor : '#e2e8f0',
-                            background: w.teaching_type === 'محاضرة' ? semColor : 'white',
-                            color: w.teaching_type === 'محاضرة' ? 'white' : '#475569',
-                          }}>
-                          <BookOpen className="w-4 h-4" />
-                          محاضرة
-                          <span className="text-xs opacity-75">{HOURS_LECTURE}س</span>
-                        </button>
-                      )}
-                      {selMod.has_td && (
-                        <button onClick={() => updateWish(i, { teaching_type: 'أعمال موجهة' })}
-                          className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all"
-                          style={{
-                            borderColor: w.teaching_type === 'أعمال موجهة' ? semColor : '#e2e8f0',
-                            background: w.teaching_type === 'أعمال موجهة' ? semColor : 'white',
-                            color: w.teaching_type === 'أعمال موجهة' ? 'white' : '#475569',
-                          }}>
-                          <BookOpen className="w-4 h-4" />
-                          أعمال موجهة
-                          <span className="text-xs opacity-75">{HOURS_TD}س</span>
-                        </button>
-                      )}
-                      {!selMod.has_td && (
-                        <p className="text-xs text-gray-400 flex items-center gap-1">
-                          <Info className="w-3.5 h-3.5" /> يُدرَّس كمحاضرات فقط
-                        </p>
-                      )}
+                  {/* المستوى ونوع التدريس */}
+                  {wish.module_id && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">المستوى</label>
+                        <select
+                          value={wish.level_id}
+                          onChange={e => updateWish(index, { level_id: e.target.value })}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
+                          <option value="">— اختر —</option>
+                          {levelOptions.map(l => (
+                            <option key={l.id} value={l.id}>{l.name_ar}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">نوع التدريس</label>
+                        <select
+                          value={wish.teaching_type}
+                          onChange={e => updateWish(index, { teaching_type: e.target.value as TeachingType })}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
+                          {teachingTypes.map(t => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* التدريس السابق */}
-                {w.teaching_type && (
-                  <div className="animate-slide-up">
-                    <label className="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
-                      <span className="w-4 h-4 rounded-full text-white text-xs flex items-center justify-center font-bold"
-                        style={{ background: semColor, fontSize: '9px' }}>٤</span>
-                      هل درّست هذا المقياس في آخر 3 مواسم؟
+                  {/* سبق تدريسه */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={wish.taught_before}
+                        onChange={e => updateWish(index, {
+                          taught_before: e.target.checked,
+                          previous_years: e.target.checked ? wish.previous_years : [],
+                        })}
+                        className="w-4 h-4 accent-[#1a3a6b]"
+                      />
+                      <span className="text-sm text-gray-700">سبق لي تدريس هذا المقياس</span>
                     </label>
-                    <div className="flex gap-3 mb-3">
-                      {['نعم', 'لا'].map(v => (
-                        <button key={v}
-                          onClick={() => updateWish(i, { taught_before: v === 'نعم', previous_years: [] })}
-                          className="px-5 py-2 rounded-xl border-2 text-sm font-medium transition-all"
-                          style={{
-                            borderColor: (v === 'نعم' && w.taught_before) || (v === 'لا' && w.taught_before === false)
-                              ? v === 'نعم' ? '#22c55e' : '#475569' : '#e2e8f0',
-                            background: (v === 'نعم' && w.taught_before) ? '#22c55e'
-                              : (v === 'لا' && w.taught_before === false) ? '#475569' : 'white',
-                            color: ((v === 'نعم' && w.taught_before) || (v === 'لا' && w.taught_before === false))
-                              ? 'white' : '#475569',
-                          }}>
-                          {v}
-                        </button>
-                      ))}
-                    </div>
-                    {w.taught_before && (
-                      <div className="flex gap-2 flex-wrap animate-slide-up">
+                    {wish.taught_before && (
+                      <div className="mr-6 flex flex-wrap gap-2">
                         {PREVIOUS_YEARS.map(year => (
-                          <label key={year}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 text-xs cursor-pointer transition-all"
-                            style={{
-                              borderColor: w.previous_years.includes(year) ? semColor : '#e2e8f0',
-                              background: w.previous_years.includes(year) ? `${semColor}12` : 'white',
-                              color: w.previous_years.includes(year) ? semColor : '#475569',
-                            }}>
-                            <input type="checkbox" className="hidden"
-                              checked={w.previous_years.includes(year)}
-                              onChange={e => updateWish(i, {
-                                previous_years: e.target.checked
-                                  ? [...w.previous_years, year]
-                                  : w.previous_years.filter(y => y !== year)
-                              })} />
-                            {year}
+                          <label key={year} className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={wish.previous_years.includes(year)}
+                              onChange={e => {
+                                const years = e.target.checked
+                                  ? [...wish.previous_years, year]
+                                  : wish.previous_years.filter(y => y !== year);
+                                updateWish(index, { previous_years: years });
+                              }}
+                              className="w-3.5 h-3.5 accent-[#c9a227]"
+                            />
+                            <span className="text-xs text-gray-600">{year}</span>
                           </label>
                         ))}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
 
-      {/* Add wish */}
+                  {/* ملاحظات */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">ملاحظات (اختياري)</label>
+                    <textarea
+                      value={wish.notes}
+                      onChange={e => updateWish(index, { notes: e.target.value })}
+                      rows={2}
+                      placeholder="أي ملاحظات إضافية..."
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add wish button */}
       {wishes.length < 5 && (
-        <button onClick={addWish}
-          className="w-full py-3 rounded-2xl text-sm font-medium transition-all flex items-center justify-center gap-2"
-          style={{
-            border: `2px dashed ${semColor}44`,
-            color: semColor,
-            background: 'transparent',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = semBg)}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+        <button
+          onClick={addWish}
+          className="flex items-center gap-2 text-[#1a3a6b] text-sm hover:underline font-medium">
           <Plus className="w-4 h-4" />
-          إضافة رغبة ({wishes.length}/5)
+          إضافة رغبة اختيارية ({toArabicNum(wishes.length)}/٥)
         </button>
       )}
 
-      {/* Error / Success */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
-      {tempSaved && (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-700 text-sm flex items-center gap-2">
-          <CheckCircle className="w-4 h-4" /> تم الحفظ المؤقت
-        </div>
-      )}
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-3 pt-2">
-        <button onClick={() => saveWishes(false)} disabled={saving}
-          className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
+      {/* Actions */}
+      <div className="flex items-center gap-3 flex-wrap pt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 bg-white border border-[#1a3a6b] text-[#1a3a6b] px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#1a3a6b]/5 transition-colors disabled:opacity-50">
           <Save className="w-4 h-4" />
-          حفظ مؤقت
+          {saving ? 'جارٍ الحفظ...' : 'حفظ مؤقت'}
         </button>
         <button
-          onClick={() => saveWishes(true)} disabled={saving}
-          className="flex items-center gap-2 font-bold px-6 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 text-white"
-          style={{ background: `linear-gradient(135deg,${semColor},${semester === 1 ? '#0d2040' : '#a07820'})` }}>
-          {semester === 1
-            ? <><ArrowLeft className="w-4 h-4" /> تأكيد والانتقال للسداسي الثاني</>
-            : <><Lock className="w-4 h-4" /> تأكيد نهائي وقفل السداسيين</>
-          }
+          onClick={() => setShowConfirmDialog(true)}
+          disabled={saving || confirming}
+          className="flex items-center gap-2 bg-[#1a3a6b] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040] transition-colors disabled:opacity-50">
+          <Lock className="w-4 h-4" />
+          {confirming ? 'جارٍ التأكيد...' : 'تأكيد نهائي'}
         </button>
       </div>
 
-      <p className="text-xs text-gray-400 flex items-center gap-1.5">
-        <Info className="w-3.5 h-3.5" />
-        {semester === 1
-          ? '"حفظ مؤقت" يحفظ دون قفل — "تأكيد" يقفل السداسي الأول وينتقل للثاني'
-          : '"تأكيد نهائي" يُقفل السداسيان معاً ولا يمكن التعديل إلا بإذن الإدارة'
-        }
-      </p>
+      {/* Confirm Dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" dir="rtl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <Lock className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 font-display">تأكيد نهائي</h3>
+                <p className="text-xs text-gray-500">هذا الإجراء لا يمكن التراجع عنه</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              ستُقفل رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'} نهائياً ولن تتمكن من تعديلها.
+            </p>
+            {semester === 2 && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-4">
+                ⚠ سيُقفل كلا السداسيين معاً بعد هذا التأكيد.
+              </p>
+            )}
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setShowConfirmDialog(false)}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+                إلغاء
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="flex-1 bg-[#1a3a6b] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040] transition-colors">
+                تأكيد
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
