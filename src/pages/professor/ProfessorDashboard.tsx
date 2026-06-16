@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
+import { toArabicNum, toArabicFixed } from '../../lib/utils';
 import {
   GraduationCap, User, LogOut, Home, Award,
   Bell, ChevronRight, CheckCircle, Lock, Clock,
@@ -307,7 +308,7 @@ function WishCard({ prof }: any) {
           السداسي {sem === 1 ? 'الأول' : 'الثاني'}
         </span>
         <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${color}1a`, color }}>
-          {list.length} رغبات
+          {toArabicNum(list.length)} رغبات
         </span>
       </div>
       {list.map((w, i) => (

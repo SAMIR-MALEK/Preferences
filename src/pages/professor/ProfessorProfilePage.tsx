@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES, type ProfessorRank } from '../../types';
-import { Save, CheckCircle, AlertCircle, User, Award, BookOpen, GraduationCap } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, User, Award, BookOpen, GraduationCap, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function ProfessorProfilePage() {
   const { user } = useAuth();
@@ -22,6 +22,13 @@ export default function ProfessorProfilePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
+  // تغيير كلمة المرور
+  const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwSaved, setPwSaved] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [showPw, setShowPw] = useState({ current: false, newPw: false, confirm: false });
+
   async function handleSave() {
     setSaving(true);
     setError('');
@@ -37,6 +44,33 @@ export default function ProfessorProfilePage() {
       setTimeout(() => setSaved(false), 3000);
     }
     setSaving(false);
+  }
+
+  async function handlePasswordChange() {
+    setPwError('');
+    if (!pwForm.current) { setPwError('أدخل كلمة المرور الحالية'); return; }
+    if (pwForm.newPw.length < 4) { setPwError('كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل'); return; }
+    if (pwForm.newPw !== pwForm.confirm) { setPwError('كلمة المرور الجديدة وتأكيدها غير متطابقتين'); return; }
+
+    setPwSaving(true);
+    // التحقق من كلمة المرور الحالية بمحاولة تسجيل دخول
+    const { data: { session } } = await supabase.auth.getSession();
+    const email = session?.user?.email || '';
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: pwForm.current });
+    if (signInErr) {
+      setPwError('كلمة المرور الحالية غير صحيحة');
+      setPwSaving(false);
+      return;
+    }
+    const { error: updateErr } = await supabase.auth.updateUser({ password: pwForm.newPw });
+    if (updateErr) {
+      setPwError('حدث خطأ أثناء تغيير كلمة المرور');
+    } else {
+      setPwSaved(true);
+      setPwForm({ current: '', newPw: '', confirm: '' });
+      setTimeout(() => setPwSaved(false), 4000);
+    }
+    setPwSaving(false);
   }
 
   const Field = ({ label, icon: Icon, children }: any) => (
@@ -200,6 +234,65 @@ export default function ProfessorProfilePage() {
         >
           <Save className="w-4 h-4" />
           {saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
+        </button>
+      </div>
+      {/* Password Change Section */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-5">
+        <h3 className="font-semibold text-gray-800 flex items-center gap-2 font-display">
+          <span className="w-5 h-5 rounded bg-[#1a3a6b]/10 flex items-center justify-center">
+            <Lock className="w-3 h-3 text-[#1a3a6b]" />
+          </span>
+          تغيير كلمة المرور
+        </h3>
+        <p className="text-gray-400 text-xs">يمكنك الاحتفاظ بكلمة المرور التي أعطتك إياها الإدارة، أو تغييرها حسب رغبتك.</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { key: 'current', label: 'كلمة المرور الحالية' },
+            { key: 'newPw',   label: 'كلمة المرور الجديدة' },
+            { key: 'confirm', label: 'تأكيد كلمة المرور الجديدة' },
+          ].map(({ key, label }) => (
+            <div key={key} className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">{label}</label>
+              <div className="relative">
+                <input
+                  type={showPw[key as keyof typeof showPw] ? 'text' : 'password'}
+                  value={pwForm[key as keyof typeof pwForm]}
+                  onChange={e => setPwForm({ ...pwForm, [key]: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 pl-10"
+                  dir="ltr"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showPw[key as keyof typeof showPw]
+                    ? <EyeOff className="w-4 h-4" />
+                    : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {pwError && (
+          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 rounded-xl px-4 py-3">
+            <AlertCircle className="w-4 h-4" /> {pwError}
+          </div>
+        )}
+        {pwSaved && (
+          <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 rounded-xl px-4 py-3">
+            <CheckCircle className="w-4 h-4" /> تم تغيير كلمة المرور بنجاح
+          </div>
+        )}
+
+        <button
+          onClick={handlePasswordChange}
+          disabled={pwSaving || !pwForm.current || !pwForm.newPw || !pwForm.confirm}
+          className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white font-medium px-6 py-2.5 rounded-xl transition-colors disabled:opacity-40 text-sm">
+          <Lock className="w-4 h-4" />
+          {pwSaving ? 'جارٍ التغيير...' : 'تغيير كلمة المرور'}
         </button>
       </div>
     </div>
