@@ -1,9 +1,9 @@
-// تحويل الأرقام اللاتينية إلى عربية
+// إرجاع الأرقام كما هي (لاتينية)
 export function toArabicNum(n: number | string): string {
-  return String(n).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
+  return String(n);
 }
 
-// تنسيق الأعداد العشرية بالأرقام العربية
+// تنسيق الأعداد العشرية
 export function toArabicFixed(n: number, decimals = 2): string {
-  return toArabicNum(n.toFixed(decimals));
+  return n.toFixed(decimals);
 }
