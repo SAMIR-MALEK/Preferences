@@ -217,7 +217,7 @@ export default function AdminModulesPage() {
                     <button key={s} onClick={() => setActiveSem(prev => ({ ...prev, [level.id]: s }))}
                       className="px-4 py-2 rounded-xl text-xs font-medium transition-all"
                       style={{ background: sem===s?(s===1?'#1a3a6b':'#c9a227'):'#f1f5f9', color: sem===s?'white':'#64748b' }}>
-                      السداسي {s===1?'الأول':'الثاني'} ({modules[level.id]?.[ as 's1'|'s2']?.length || 0}|{modules[level.id]?.[ as 's1'|'s2']?.length || 0})
+                      السداسي {s===1?'الأول':'الثاني'} ({modules[level.id]?.[`s${s}` as 's1'|'s2']?.length || 0})
                       {ls && <span className="mr-1.5 opacity-70 text-xs">· {getLs(level.id, s)?.num_sections}م</span>}
                     </button>
                   ))}
