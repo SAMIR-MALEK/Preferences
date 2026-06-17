@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
-import { toArabicNum, toArabicFixed } from '../../lib/utils';
+
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
@@ -145,7 +145,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
               <span className="text-[#c9a227] text-xs font-semibold">الموسم 2026/2027 — التسجيل جارٍ</span>
             </div>
             <h3 className="font-display font-bold text-xl">نسبة الإنجاز: {pct}%</h3>
-            <p className="text-gray-300 text-sm mt-1">{toArabicNum(stats.locked)} من {toArabicNum(stats.profs)} أستاذ أكملوا السداسيين</p>
+            <p className="text-gray-300 text-sm mt-1">{stats.locked} من {stats.profs} أستاذ أكملوا السداسيين</p>
           </div>
           <div className="w-16 h-16 relative flex-shrink-0">
             <svg width="64" height="64" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
@@ -178,7 +178,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
               <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2" style={{ background: s.bg }}>
                 <Icon className="w-4.5 h-4.5" style={{ color: s.c }} size={18} />
               </div>
-              <p className="font-display font-bold text-2xl text-gray-900">{typeof s.v === 'number' ? toArabicNum(s.v) : s.v}</p>
+              <p className="font-display font-bold text-2xl text-gray-900">{s.v}</p>
               <p className="text-gray-400 text-xs mt-1">{s.l}</p>
             </button>
           );
@@ -192,12 +192,12 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
         </h3>
         <div className="space-y-3">
           {[
-            { n: '١', t: 'استيراد الأساتذة من Excel', done: stats.profs > 0, tab: 'import', c: '#1a3a6b' },
-            { n: '٢', t: 'ضبط المجموعات والأفواج لكل مستوى', done: false, tab: 'sections', c: '#7c3aed' },
-            { n: '٣', t: 'إدخال المقاييس في كل سداسي', done: stats.modules > 0, tab: 'modules', c: '#0891b2' },
-            { n: '٤', t: 'انتظار تسجيل الأساتذة رغباتهم', done: stats.wishes > 0, tab: 'wishes', c: '#059669' },
-            { n: '٥', t: 'استعراض الرغبات الخام وتحليلها', done: false, tab: 'wishes', c: '#d97706' },
-            { n: '٦', t: 'تشغيل خوارزمية الإسناد', done: false, tab: 'assignment', c: '#dc2626' },
+            { n: '1', t: 'استيراد الأساتذة من Excel', done: stats.profs > 0, tab: 'import', c: '#1a3a6b' },
+            { n: '2', t: 'ضبط المجموعات والأفواج لكل مستوى', done: false, tab: 'sections', c: '#7c3aed' },
+            { n: '3', t: 'إدخال المقاييس في كل سداسي', done: stats.modules > 0, tab: 'modules', c: '#0891b2' },
+            { n: '4', t: 'انتظار تسجيل الأساتذة رغباتهم', done: stats.wishes > 0, tab: 'wishes', c: '#059669' },
+            { n: '5', t: 'استعراض الرغبات الخام وتحليلها', done: false, tab: 'wishes', c: '#d97706' },
+            { n: '6', t: 'تشغيل خوارزمية الإسناد', done: false, tab: 'assignment', c: '#dc2626' },
           ].map((s, i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
