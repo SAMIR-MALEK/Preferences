@@ -135,11 +135,11 @@ export default function ProfessorDashboard() {
 // ─────────────────────────────────────────────────────────────────────
 function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, setTab }: any) {
   const steps = [
-    { n: '١', t: 'أكمل معلوماتك الشخصية', done: false, c: '#dbeafe', tc: '#1d4ed8', tab: 'profile' },
-    { n: '٢', t: 'سجّل رغبات السداسي الأول', done: s1Locked, c: 'rgba(26,58,107,.1)', tc: '#1a3a6b', tab: 's1' },
-    { n: '٣', t: 'سجّل رغبات السداسي الثاني', done: s2Locked, c: 'rgba(201,162,39,.15)', tc: '#92400e', tab: 's2', locked: !s2Unlocked },
-    { n: '٤', t: 'تأكيد واحد يُقفل السداسيين معاً', done: s2Locked, c: '#dcfce7', tc: '#15803d' },
-    { n: '٥', t: 'اطبع بطاقتك الموحّدة', done: false, c: '#fee2e2', tc: '#991b1b', tab: 'card', locked: !s1Locked },
+    { n: '1', t: 'أكمل معلوماتك الشخصية', done: false, c: '#dbeafe', tc: '#1d4ed8', tab: 'profile' },
+    { n: '2', t: 'سجّل رغبات السداسي الأول', done: s1Locked, c: 'rgba(26,58,107,.1)', tc: '#1a3a6b', tab: 's1' },
+    { n: '3', t: 'سجّل رغبات السداسي الثاني', done: s2Locked, c: 'rgba(201,162,39,.15)', tc: '#92400e', tab: 's2', locked: !s2Unlocked },
+    { n: '4', t: 'تأكيد واحد يُقفل السداسيين معاً', done: s2Locked, c: '#dcfce7', tc: '#15803d' },
+    { n: '5', t: 'اطبع بطاقتك الموحّدة', done: false, c: '#fee2e2', tc: '#991b1b', tab: 'card', locked: !s1Locked },
   ];
 
   return (

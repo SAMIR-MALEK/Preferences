@@ -415,7 +415,7 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
           onClick={addWish}
           className="flex items-center gap-2 text-[#1a3a6b] text-sm hover:underline font-medium">
           <Plus className="w-4 h-4" />
-          إضافة رغبة اختيارية ({toArabicNum(wishes.length)}/٥)
+          إضافة رغبة اختيارية ({toArabicNum(wishes.length)}/5)
         </button>
       )}
 
