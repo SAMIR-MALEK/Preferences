@@ -4,29 +4,37 @@ import { toArabicNum } from '../../lib/utils';
 import type { Professor, ProfessorRank } from '../../types';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
 import {
-  UserPlus, Search, Lock, Unlock,
-  CheckCircle, AlertCircle, X, Save, RefreshCw, Download
+  UserPlus, Search, Lock, Unlock, Pencil,
+  CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2
 } from 'lucide-react';
+
+const emptyForm = {
+  last_name: '',
+  first_name: '',
+  rank: 'أستاذ مساعد - أ' as ProfessorRank,
+  professional_experience: 0,
+  highest_degree: 'دكتوراه',
+  degree_speciality: '',
+  degree_title: '',
+  email: '',
+};
 
 export default function AdminProfessorsPage() {
   const [professors, setProfessors] = useState<Professor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [newCredentials, setNewCredentials] = useState<{ username: string; password: string } | null>(null);
 
-  const [form, setForm] = useState({
-    last_name: '',
-    first_name: '',
-    rank: 'أستاذ مساعد - أ' as ProfessorRank,
-    professional_experience: 0,
-    highest_degree: 'دكتوراه',
-    degree_speciality: '',
-    degree_title: '',
-    email: '',
-  });
+  const [form, setForm] = useState(emptyForm);
+
+  // تحديد متعدد
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; label: string } | null>(null);
 
   useEffect(() => { loadProfessors(); }, []);
 
@@ -38,9 +46,26 @@ export default function AdminProfessorsPage() {
   }
 
   function resetForm() {
-    setForm({ last_name: '', first_name: '', rank: 'أستاذ مساعد - أ', professional_experience: 0, highest_degree: 'دكتوراه', degree_speciality: '', degree_title: '', email: '' });
+    setForm(emptyForm);
     setShowForm(false);
+    setEditingId(null);
     setNewCredentials(null);
+  }
+
+  function startEdit(prof: Professor) {
+    setForm({
+      last_name: prof.last_name,
+      first_name: prof.first_name,
+      rank: prof.rank,
+      professional_experience: prof.professional_experience,
+      highest_degree: prof.highest_degree,
+      degree_speciality: prof.degree_speciality || '',
+      degree_title: prof.degree_title || '',
+      email: prof.email || '',
+    });
+    setEditingId(prof.id);
+    setNewCredentials(null);
+    setShowForm(true);
   }
 
   async function handleCreate() {
@@ -70,6 +95,34 @@ export default function AdminProfessorsPage() {
     setSaving(false);
   }
 
+  async function handleUpdate() {
+    if (!editingId) return;
+    if (!form.last_name.trim() || !form.first_name.trim()) {
+      setMessage({ type: 'error', text: 'اللقب والاسم مطلوبان' });
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from('professors').update({
+      last_name: form.last_name.trim(),
+      first_name: form.first_name.trim(),
+      rank: form.rank,
+      professional_experience: form.professional_experience,
+      highest_degree: form.highest_degree,
+      degree_speciality: form.degree_speciality,
+      degree_title: form.degree_title,
+      email: form.email,
+    }).eq('id', editingId);
+
+    if (error) {
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء التعديل' });
+    } else {
+      setMessage({ type: 'success', text: 'تم تعديل بيانات الأستاذ بنجاح' });
+      resetForm();
+      await loadProfessors();
+    }
+    setSaving(false);
+  }
+
   async function handleToggleLock(prof: Professor) {
     const newVal = !prof.wishes_locked_s1;
     const { error } = await supabase
@@ -89,6 +142,52 @@ export default function AdminProfessorsPage() {
       setMessage({ type: 'success', text: 'تم إعادة تعيين كلمة المرور' });
     } catch (e: any) {
       setMessage({ type: 'error', text: e.message });
+    }
+  }
+
+  // ── الحذف ──
+  function askDeleteOne(prof: Professor) {
+    setConfirmDelete({ ids: [prof.id], label: `${prof.last_name} ${prof.first_name}` });
+  }
+
+  function askDeleteSelected() {
+    if (selected.size === 0) return;
+    setConfirmDelete({ ids: Array.from(selected), label: `${toArabicNum(selected.size)} أستاذ محدّد` });
+  }
+
+  function askDeleteAll() {
+    if (filtered.length === 0) return;
+    setConfirmDelete({ ids: filtered.map(p => p.id), label: `جميع الأساتذة المعروضين (${toArabicNum(filtered.length)})` });
+  }
+
+  async function confirmDeleteAction() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await callEdgeFunction('delete-professor', { professor_ids: confirmDelete.ids });
+      setMessage({ type: 'success', text: `تم حذف ${confirmDelete.label} بنجاح` });
+      setSelected(new Set());
+      await loadProfessors();
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e.message || 'حدث خطأ أثناء الحذف' });
+    }
+    setDeleting(false);
+    setConfirmDelete(null);
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map(p => p.id)));
     }
   }
 
@@ -147,7 +246,8 @@ export default function AdminProfessorsPage() {
       {showForm && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-[#1a3a6b]/20 animate-slide-up">
           <h3 className="font-bold text-gray-800 mb-4 font-display flex items-center gap-2">
-            <UserPlus className="w-5 h-5 text-[#1a3a6b]" /> إضافة أستاذ جديد
+            {editingId ? <Pencil className="w-5 h-5 text-[#1a3a6b]" /> : <UserPlus className="w-5 h-5 text-[#1a3a6b]" />}
+            {editingId ? 'تعديل بيانات أستاذ' : 'إضافة أستاذ جديد'}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {[
@@ -193,9 +293,10 @@ export default function AdminProfessorsPage() {
               rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 resize-none" />
           </div>
           <div className="flex gap-3">
-            <button onClick={handleCreate} disabled={saving}
+            <button onClick={editingId ? handleUpdate : handleCreate} disabled={saving}
               className="flex items-center gap-2 bg-[#1a3a6b] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors disabled:opacity-50">
-              <Save className="w-4 h-4" /> {saving ? 'جارٍ الإنشاء...' : 'إنشاء الحساب'}
+              <Save className="w-4 h-4" />
+              {saving ? 'جارٍ الحفظ...' : editingId ? 'حفظ التعديلات' : 'إنشاء الحساب'}
             </button>
             <button onClick={resetForm}
               className="flex items-center gap-2 bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
@@ -205,11 +306,27 @@ export default function AdminProfessorsPage() {
         </div>
       )}
 
-      <div className="relative">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="بحث بالاسم أو اسم المستخدم..."
-          className="w-full border border-gray-200 rounded-xl pr-10 pl-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white" />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="بحث بالاسم أو اسم المستخدم..."
+            className="w-full border border-gray-200 rounded-xl pr-10 pl-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white" />
+        </div>
+
+        {selected.size > 0 && (
+          <button onClick={askDeleteSelected}
+            className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors">
+            <Trash2 className="w-4 h-4" /> حذف المحدّدين ({toArabicNum(selected.size)})
+          </button>
+        )}
+
+        {filtered.length > 0 && (
+          <button onClick={askDeleteAll}
+            className="flex items-center gap-2 text-gray-400 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 hover:text-red-500 hover:border-red-200 transition-colors">
+            <Trash2 className="w-4 h-4" /> حذف الكل
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -225,6 +342,12 @@ export default function AdminProfessorsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-3 w-10">
+                    <input type="checkbox"
+                      checked={filtered.length > 0 && selected.size === filtered.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 accent-[#1a3a6b]" />
+                  </th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الأستاذ</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الرتبة</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">رقم المستخدم</th>
@@ -234,7 +357,13 @@ export default function AdminProfessorsPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(prof => (
-                  <tr key={prof.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={prof.id} className={`hover:bg-gray-50/50 transition-colors ${selected.has(prof.id) ? 'bg-[#1a3a6b]/5' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input type="checkbox"
+                        checked={selected.has(prof.id)}
+                        onChange={() => toggleSelect(prof.id)}
+                        className="w-4 h-4 accent-[#1a3a6b]" />
+                    </td>
                     <td className="px-4 py-3">
                       <p className="font-semibold text-gray-800">{prof.last_name} {prof.first_name}</p>
                       <p className="text-gray-400 text-xs">{prof.degree_speciality || '—'}</p>
@@ -257,7 +386,12 @@ export default function AdminProfessorsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => startEdit(prof)}
+                          title="تعديل البيانات"
+                          className="p-1.5 text-gray-400 hover:text-[#1a3a6b] hover:bg-[#1a3a6b]/5 rounded-lg transition-colors">
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <button onClick={() => handleToggleLock(prof)}
                           title={prof.wishes_locked_s1 ? 'فتح الرغبات' : 'إغلاق الرغبات'}
                           className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
@@ -267,6 +401,11 @@ export default function AdminProfessorsPage() {
                           title="إعادة تعيين كلمة المرور"
                           className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
                           <RefreshCw className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => askDeleteOne(prof)}
+                          title="حذف الأستاذ"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -278,6 +417,39 @@ export default function AdminProfessorsPage() {
           </div>
         )}
       </div>
+
+      {/* Confirm Delete Dialog */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" dir="rtl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 font-display">تأكيد الحذف</h3>
+                <p className="text-xs text-gray-500">هذا الإجراء لا يمكن التراجع عنه</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-5">
+              هل أنت متأكد من حذف <strong>{confirmDelete.label}</strong>؟ سيُحذف الحساب وكل رغباته وإسناداته نهائياً.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+                إلغاء
+              </button>
+              <button
+                onClick={confirmDeleteAction}
+                disabled={deleting}
+                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-50">
+                {deleting ? 'جارٍ الحذف...' : 'حذف نهائياً'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
