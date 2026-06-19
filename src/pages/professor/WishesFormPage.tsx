@@ -405,14 +405,19 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         })}
       </div>
 
-      {/* Add wish button */}
+      {/* Add wish button - بارز وواضح */}
       {wishes.length < 5 && (
         <button
           onClick={addWish}
-          className="flex items-center gap-2 text-[#1a3a6b] text-sm hover:underline font-medium">
-          <Plus className="w-4 h-4" />
-          إضافة رغبة اختيارية ({toArabicNum(wishes.length)}/5)
+          className="w-full flex items-center justify-center gap-2.5 bg-white border-2 border-dashed border-[#1a3a6b]/30 hover:border-[#1a3a6b] hover:bg-[#1a3a6b]/5 text-[#1a3a6b] py-4 rounded-2xl text-sm font-bold transition-all">
+          <Plus className="w-5 h-5" />
+          إضافة رغبة إضافية (اختيارية) — {toArabicNum(wishes.length)} من ٥
         </button>
+      )}
+      {wishes.length >= 5 && (
+        <div className="w-full flex items-center justify-center gap-2 bg-gray-50 text-gray-400 py-3 rounded-2xl text-sm font-medium">
+          <CheckCircle className="w-4 h-4" /> تم الوصول للحد الأقصى (٥ رغبات)
+        </div>
       )}
 
       {/* Actions */}

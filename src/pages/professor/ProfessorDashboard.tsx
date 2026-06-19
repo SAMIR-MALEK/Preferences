@@ -16,14 +16,33 @@ import jsPDF from 'jspdf';
 
 type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card';
 
+function isProfileComplete(p: any): boolean {
+  if (!p) return false;
+  return Boolean(
+    p.degree_speciality?.trim() &&
+    p.degree_title?.trim() &&
+    p.email?.trim() &&
+    p.phone?.trim()
+  );
+}
+
 export default function ProfessorDashboard() {
   const { user, signOut } = useAuth();
-  const [tab, setTab] = useState<ProfTab>('home');
   const prof = user?.professor;
 
   // Reload prof data after changes
   const [profData, setProfData] = useState(prof);
   useEffect(() => { setProfData(prof); }, [prof]);
+
+  const profileComplete = isProfileComplete(profData);
+  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'home' : 'profile');
+
+  // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
+  useEffect(() => {
+    if (!profileComplete && tab !== 'profile') {
+      setTab('profile');
+    }
+  }, [profileComplete, tab]);
 
   async function reloadProf() {
     const { data } = await supabase.from('professors').select('*').eq('id', prof?.id).single();
@@ -35,11 +54,11 @@ export default function ProfessorDashboard() {
   const s2Unlocked = s1Locked; // السداسي الثاني يُفتح بعد تأكيد الأول
 
   const tabs = [
-    { id: 'home' as ProfTab, label: 'الرئيسية', icon: Home },
+    { id: 'home' as ProfTab, label: 'الرئيسية', icon: Home, disabled: !profileComplete },
     { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User },
-    { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock },
-    { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !s2Unlocked },
-    { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !s1Locked },
+    { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock, disabled: !profileComplete },
+    { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete || !s2Unlocked },
+    { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
   ];
 
   return (
@@ -110,10 +129,16 @@ export default function ProfessorDashboard() {
             s1Locked={s1Locked}
             s2Locked={s2Locked}
             s2Unlocked={s2Unlocked}
+            profileComplete={profileComplete}
             setTab={setTab}
           />
         )}
-        {tab === 'profile' && <ProfessorProfilePage />}
+        {tab === 'profile' && (
+          <ProfessorProfilePage
+            forceComplete={!profileComplete}
+            onSaved={async () => { await reloadProf(); }}
+          />
+        )}
         {tab === 's1' && (
           <WishesFormPage
             semester={1}
@@ -133,9 +158,9 @@ export default function ProfessorDashboard() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, setTab }: any) {
+function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTab }: any) {
   const steps = [
-    { n: '1', t: 'أكمل معلوماتك الشخصية', done: false, c: '#dbeafe', tc: '#1d4ed8', tab: 'profile' },
+    { n: '1', t: 'أكمل معلوماتك الشخصية', done: profileComplete, c: '#dbeafe', tc: '#1d4ed8', tab: 'profile' },
     { n: '2', t: 'سجّل رغبات السداسي الأول', done: s1Locked, c: 'rgba(26,58,107,.1)', tc: '#1a3a6b', tab: 's1' },
     { n: '3', t: 'سجّل رغبات السداسي الثاني', done: s2Locked, c: 'rgba(201,162,39,.15)', tc: '#92400e', tab: 's2', locked: !s2Unlocked },
     { n: '4', t: 'تأكيد واحد يُقفل السداسيين معاً', done: s2Locked, c: '#dcfce7', tc: '#15803d' },
