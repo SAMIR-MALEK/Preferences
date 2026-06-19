@@ -38,7 +38,7 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
 
   const [modules, setModules] = useState<Module[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
-  const [wishes, setWishes] = useState<WishForm[]>([emptyWish(), emptyWish()]);
+  const [wishes, setWishes] = useState<WishForm[]>([emptyWish(), emptyWish(), emptyWish()]);
   const [savedWishes, setSavedWishes] = useState<Wish[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,8 +73,8 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         previous_years: w.previous_years || [],
         notes: w.notes || '',
       }));
-      // اضمن وجود رغبتين على الأقل
-      while (forms.length < 2) forms.push(emptyWish());
+      // اضمن وجود ثلاث رغبات على الأقل
+      while (forms.length < 3) forms.push(emptyWish());
       setWishes(forms);
     }
     setLoading(false);
@@ -90,15 +90,15 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
   }
 
   function removeWish(index: number) {
-    if (index < 2) return; // الأوليان إجباريتان
+    if (index < 3) return; // الثلاث الأولى إجبارية
     setWishes(prev => prev.filter((_, i) => i !== index));
   }
 
   // الحفظ المؤقت
   async function handleSave() {
     const valid = wishes.filter(w => w.module_id && w.level_id);
-    if (valid.length < 2) {
-      setMessage({ type: 'error', text: 'يجب تعبئة رغبتين على الأقل (رقم المقياس والمستوى)' });
+    if (valid.length < 3) {
+      setMessage({ type: 'error', text: 'يجب تعبئة ثلاث رغبات على الأقل (المستوى والمقياس ونوع التدريس)' });
       return;
     }
     setSaving(true);
@@ -152,13 +152,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       onConfirmed?.();
     }
     setConfirming(false);
-  }
-
-  // مستويات المقياس المختار
-  function getLevelsForModule(moduleId: string) {
-    const mod = modules.find(m => m.id === moduleId);
-    if (!mod) return levels;
-    return levels.filter(l => l.id === mod.level_id);
   }
 
   // أنواع التدريس المتاحة للمقياس
@@ -222,7 +215,7 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         <h2 className="text-lg font-bold font-display mb-1">
           رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'}
         </h2>
-        <p className="text-gray-300 text-sm">سجّل من رغبتين إلى خمس رغبات مرتبة حسب الأولوية — الرغبتان الأولى والثانية إجباريتان</p>
+        <p className="text-gray-300 text-sm">سجّل من ثلاث إلى خمس رغبات مرتبة حسب الأولوية — الرغبات الثلاث الأولى إجبارية</p>
       </div>
 
       {/* Info */}
@@ -250,9 +243,8 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       {/* Wishes List */}
       <div className="space-y-3">
         {wishes.map((wish, index) => {
-          const isRequired = index < 2;
+          const isRequired = index < 3;
           const isExpanded = expandedWish === index;
-          const levelOptions = wish.module_id ? getLevelsForModule(wish.module_id) : levels;
           const teachingTypes = getTeachingTypes(wish.module_id);
           const selectedModule = modules.find(m => m.id === wish.module_id);
 
@@ -294,55 +286,55 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
               {/* Wish Form */}
               {isExpanded && (
                 <div className="px-4 pb-4 space-y-4 border-t border-gray-100 pt-4">
-                  {/* المقياس */}
+                  {/* المستوى */}
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                       <BookOpen className="w-4 h-4 text-[#1a3a6b]" />
-                      المقياس {isRequired && <span className="text-red-500">*</span>}
+                      المستوى {isRequired && <span className="text-red-500">*</span>}
                     </label>
                     <select
-                      value={wish.module_id}
-                      onChange={e => {
-                        const mod = modules.find(m => m.id === e.target.value);
-                        updateWish(index, {
-                          module_id: e.target.value,
-                          level_id: mod?.level_id || '',
-                          teaching_type: mod?.has_lectures ? 'محاضرة' : 'أعمال موجهة',
-                        });
-                      }}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
-                      <option value="">— اختر المقياس —</option>
-                      {levels.map(level => {
-                        const levelMods = modules.filter(m => m.level_id === level.id);
-                        if (!levelMods.length) return null;
-                        return (
-                          <optgroup key={level.id} label={level.name_ar}>
-                            {levelMods.map(m => (
-                              <option key={m.id} value={m.id}>{m.name_ar}</option>
-                            ))}
-                          </optgroup>
-                        );
+                      value={wish.level_id}
+                      onChange={e => updateWish(index, {
+                        level_id: e.target.value,
+                        module_id: '',
                       })}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
+                      <option value="">— اختر المستوى —</option>
+                      {levels.map(level => (
+                        <option key={level.id} value={level.id}>{level.name_ar}</option>
+                      ))}
                     </select>
                   </div>
 
-                  {/* المستوى ونوع التدريس */}
+                  {/* المقياس (مفلتر حسب المستوى المختار) */}
+                  {wish.level_id && (
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-gray-700">
+                        المقياس {isRequired && <span className="text-red-500">*</span>}
+                      </label>
+                      <select
+                        value={wish.module_id}
+                        onChange={e => {
+                          const mod = modules.find(m => m.id === e.target.value);
+                          updateWish(index, {
+                            module_id: e.target.value,
+                            teaching_type: mod?.has_lectures ? 'محاضرة' : 'أعمال موجهة',
+                          });
+                        }}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
+                        <option value="">— اختر المقياس —</option>
+                        {modules.filter(m => m.level_id === wish.level_id).map(m => (
+                          <option key={m.id} value={m.id}>{m.name_ar}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* نوع التدريس (يظهر فقط ما هو متاح لهذا المقياس) */}
                   {wish.module_id && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-gray-700">المستوى</label>
-                        <select
-                          value={wish.level_id}
-                          onChange={e => updateWish(index, { level_id: e.target.value })}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
-                          <option value="">— اختر —</option>
-                          {levelOptions.map(l => (
-                            <option key={l.id} value={l.id}>{l.name_ar}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-gray-700">نوع التدريس</label>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-gray-700">نوع التدريس</label>
+                      {teachingTypes.length > 1 ? (
                         <select
                           value={wish.teaching_type}
                           onChange={e => updateWish(index, { teaching_type: e.target.value as TeachingType })}
@@ -351,7 +343,11 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                             <option key={t} value={t}>{t}</option>
                           ))}
                         </select>
-                      </div>
+                      ) : (
+                        <div className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-100 text-gray-600">
+                          {teachingTypes[0]} <span className="text-xs text-gray-400">(الوحيد المتاح لهذا المقياس)</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
