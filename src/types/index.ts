@@ -70,6 +70,9 @@ export interface LevelSemester {
   num_groups: number;   // عدد الأفواج لكل مجموعة — فرص TD
 }
 
+export type UEType = 'أساسية' | 'منهجية' | 'استكشافية' | 'أفقية';
+export type DeliveryMode = 'حضوري' | 'عن بعد';
+
 export interface Module {
   id: string;
   level_id: string;
@@ -81,10 +84,15 @@ export interface Module {
   weekly_hours_lecture: number;
   weekly_hours_td: number;
   specialty_match: string[];
+  ue_type: UEType;
+  delivery_mode: DeliveryMode;
   is_active: boolean;
   display_order: number;
   level?: Level;
 }
+
+export const UE_TYPES: UEType[] = ['أساسية', 'منهجية', 'استكشافية', 'أفقية'];
+export const DELIVERY_MODES: DeliveryMode[] = ['حضوري', 'عن بعد'];
 
 export type TeachingType = 'محاضرة' | 'أعمال موجهة';
 
