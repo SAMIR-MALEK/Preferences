@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import type { ProfessorRank, Level } from '../../types';
-import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
+import type { ProfessorRank, Level, UEType, DeliveryMode } from '../../types';
+import { PROFESSOR_RANKS, HIGHEST_DEGREES, UE_TYPES, DELIVERY_MODES } from '../../types';
 import {
   Upload, Download, Save, X, AlertCircle, CheckCircle,
   FileSpreadsheet, Trash2, Plus, RefreshCw, Info, Users, BookOpen
@@ -35,6 +35,8 @@ interface ModuleRow {
   has_lectures: boolean;
   has_td: boolean;
   specialty_match: string;
+  ue_type: UEType;
+  delivery_mode: DeliveryMode;
   status: 'pending' | 'saving' | 'done' | 'error';
   error?: string;
 }
@@ -141,13 +143,13 @@ export default function AdminImportPage() {
   function exportCredentials() {
     const doneRows = rows.filter(r => r.status === 'done');
     const ws = XLSX.utils.aoa_to_sheet([
-      ['اللقب', 'الاسم', 'رقم المستخدم', 'كلمة المرور'],
-      ...doneRows.map(r => [r.last_name, r.first_name, r.username, r.password]),
+      ['اللقب', 'الاسم', 'الرتبة', 'البريد الإلكتروني', 'اسم المستخدم', 'كلمة المرور'],
+      ...doneRows.map(r => [r.last_name, r.first_name, r.rank, r.email || '—', r.username, r.password]),
     ]);
-    ws['!cols'] = [15, 15, 15, 15].map(w => ({ wch: w }));
+    ws['!cols'] = [15, 15, 22, 25, 15, 15].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'بيانات الدخول');
-    XLSX.writeFile(wb, 'بيانات_دخول_الأساتذة.xlsx');
+    XLSX.writeFile(wb, `بيانات_دخول_الأساتذة_${new Date().toISOString().slice(0,10)}.xlsx`);
   }
 
   const pendingCount = rows.filter(r => r.status === 'pending').length;
@@ -161,13 +163,16 @@ export default function AdminImportPage() {
   function downloadModTemplate() {
     const levelCodes = levels.map(l => l.code).join(' / ') || 'L1 / L2 / L3P / L3G / M1CJ / M2CJ ...';
     const ws = XLSX.utils.aoa_to_sheet([
-      ['رمز المستوى', 'اسم المقياس بالعربية', 'السداسي (1 أو 2)', 'محاضرة (نعم/لا)', 'أعمال موجهة (نعم/لا)', 'التخصص المطابق (اختياري)'],
-      ['L1', 'مدخل للقانون', '1', 'نعم', 'نعم', 'قانون خاص,قانون عام'],
-      ['L2', 'القانون الدستوري', '1', 'نعم', 'نعم', 'قانون عام'],
-      ['M1CJ', 'الإجراءات الجزائية', '2', 'نعم', 'نعم', 'قانون جنائي'],
-      ['', `رموز المستويات المتاحة: ${levelCodes}`, '', '', '', ''],
+      ['رمز المستوى', 'اسم المقياس بالعربية', 'السداسي (1 أو 2)', 'الوحدة (أساسية/منهجية/استكشافية/أفقية)', 'نمط الحضور (حضوري/عن بعد)', 'محاضرة (نعم/لا)', 'أعمال موجهة (نعم/لا)', 'التخصص المطابق (اختياري)'],
+      ['L1', 'مدخل للقانون', '1', 'أساسية', 'حضوري', 'نعم', 'نعم', 'قانون خاص,قانون عام'],
+      ['L2', 'القانون الدستوري', '1', 'أساسية', 'حضوري', 'نعم', 'نعم', 'قانون عام'],
+      ['M1CJ', 'الإجراءات الجزائية', '2', 'منهجية', 'حضوري', 'نعم', 'نعم', 'قانون جنائي'],
+      ['L3G', 'حقوق الإنسان', '1', 'استكشافية', 'عن بعد', 'نعم', 'لا', 'قانون عام'],
+      ['', `رموز المستويات المتاحة: ${levelCodes}`, '', '', '', '', '', ''],
+      ['', 'الوحدات: أساسية / منهجية / استكشافية / أفقية', '', '', '', '', '', ''],
+      ['', 'نمط الحضور: حضوري / عن بعد (عن بعد عادة بدون أعمال موجهة)', '', '', '', '', '', ''],
     ]);
-    ws['!cols'] = [12, 30, 12, 16, 18, 28].map(w => ({ wch: w }));
+    ws['!cols'] = [12, 30, 12, 20, 20, 16, 18, 28].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'المقاييس');
     XLSX.writeFile(wb, 'قالب_استيراد_المقاييس.xlsx');
@@ -182,16 +187,24 @@ export default function AdminImportPage() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
       const dataRows = raw.slice(1).filter(r => r[0] && r[1]);
-      setModRows(dataRows.map((r, i) => ({
-        id: `mod_${i}_${Date.now()}`,
-        level_code: String(r[0] || '').trim().toUpperCase(),
-        name_ar: String(r[1] || '').trim(),
-        semester: (parseInt(String(r[2] || '1')) === 2 ? 2 : 1) as 1 | 2,
-        has_lectures: String(r[3] || 'نعم').trim() !== 'لا',
-        has_td: String(r[4] || 'نعم').trim() !== 'لا',
-        specialty_match: String(r[5] || '').trim(),
-        status: 'pending',
-      })));
+      setModRows(dataRows.map((r, i) => {
+        const ueRaw = String(r[3] || 'أساسية').trim();
+        const ue: UEType = (UE_TYPES as string[]).includes(ueRaw) ? ueRaw as UEType : 'أساسية';
+        const dmRaw = String(r[4] || 'حضوري').trim();
+        const dm: DeliveryMode = (DELIVERY_MODES as string[]).includes(dmRaw) ? dmRaw as DeliveryMode : 'حضوري';
+        return {
+          id: `mod_${i}_${Date.now()}`,
+          level_code: String(r[0] || '').trim().toUpperCase(),
+          name_ar: String(r[1] || '').trim(),
+          semester: (parseInt(String(r[2] || '1')) === 2 ? 2 : 1) as 1 | 2,
+          ue_type: ue,
+          delivery_mode: dm,
+          has_lectures: String(r[5] || 'نعم').trim() !== 'لا',
+          has_td: dm === 'عن بعد' ? false : String(r[6] || 'نعم').trim() !== 'لا',
+          specialty_match: String(r[7] || '').trim(),
+          status: 'pending' as const,
+        };
+      }));
       setModDone(false); setModMessage(null);
     };
     reader.readAsBinaryString(file);
@@ -240,6 +253,8 @@ export default function AdminImportPage() {
           weekly_hours_lecture: 2.25,
           weekly_hours_td: row.has_td ? 1.5 : 0,
           specialty_match: specialty,
+          ue_type: row.ue_type,
+          delivery_mode: row.delivery_mode,
           is_active: true,
           display_order: maxOrder + 1,
         });
@@ -537,6 +552,8 @@ export default function AdminImportPage() {
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">المستوى *</th>
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">اسم المقياس *</th>
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">السداسي</th>
+                      <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الوحدة</th>
+                      <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">نمط الحضور</th>
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">محاضرة</th>
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">أعمال موجهة</th>
                       <th className="px-3 py-3"></th>
@@ -584,6 +601,25 @@ export default function AdminImportPage() {
                             </select>
                           </td>
                           <td className="px-3 py-2.5">
+                            <select value={row.ue_type}
+                              onChange={e => updateModRow(row.id, { ue_type: e.target.value as UEType })}
+                              disabled={row.status === 'done'}
+                              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 disabled:bg-gray-50">
+                              {UE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <select value={row.delivery_mode}
+                              onChange={e => {
+                                const dm = e.target.value as DeliveryMode;
+                                updateModRow(row.id, { delivery_mode: dm, has_td: dm === 'عن بعد' ? false : row.has_td });
+                              }}
+                              disabled={row.status === 'done'}
+                              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 disabled:bg-gray-50">
+                              {DELIVERY_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2.5">
                             <input type="checkbox" checked={row.has_lectures}
                               onChange={e => updateModRow(row.id, { has_lectures: e.target.checked })}
                               disabled={row.status === 'done'}
@@ -592,8 +628,8 @@ export default function AdminImportPage() {
                           <td className="px-3 py-2.5">
                             <input type="checkbox" checked={row.has_td}
                               onChange={e => updateModRow(row.id, { has_td: e.target.checked })}
-                              disabled={row.status === 'done'}
-                              className="w-4 h-4 accent-[#1a3a6b]" />
+                              disabled={row.status === 'done' || row.delivery_mode === 'عن بعد'}
+                              className="w-4 h-4 accent-[#1a3a6b] disabled:opacity-40" />
                           </td>
                           <td className="px-3 py-2.5">
                             {row.status !== 'done' && (
@@ -616,6 +652,7 @@ export default function AdminImportPage() {
                       id: `mod_${Date.now()}`,
                       level_code: levels[0]?.code || 'L1',
                       name_ar: '', semester: 1,
+                      ue_type: 'أساسية', delivery_mode: 'حضوري',
                       has_lectures: true, has_td: true,
                       specialty_match: '', status: 'pending',
                     }])} className="flex items-center gap-2 text-[#1a3a6b] text-sm hover:underline">
