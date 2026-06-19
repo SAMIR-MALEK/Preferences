@@ -20,6 +20,8 @@ interface ProfRow {
   degree_title: string;
   professional_experience: number;
   email: string;
+  custom_username: string;
+  custom_password: string;
   status: 'pending' | 'saving' | 'done' | 'error';
   error?: string;
   username?: string;
@@ -71,11 +73,12 @@ export default function AdminImportPage() {
 
   function downloadProfTemplate() {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['اللقب', 'الاسم', 'الرتبة العلمية', 'آخر شهادة', 'تخصص الشهادة', 'عنوان الشهادة', 'الخبرة (سنوات)', 'البريد الإلكتروني'],
-      ['بن علي', 'محمد', 'أستاذ محاضر - أ', 'دكتوراه', 'قانون جنائي', 'أطروحة في القانون الجنائي', '10', 'exemple@univ-bbm.dz'],
-      ['عمر', 'فاطمة', 'أستاذ مساعد - أ', 'دكتوراه', 'قانون دولي', 'القانون الدولي العام', '5', ''],
+      ['اللقب', 'الاسم', 'الرتبة العلمية', 'آخر شهادة', 'تخصص الشهادة', 'عنوان الشهادة', 'الخبرة (سنوات)', 'البريد الإلكتروني', 'اسم المستخدم (اختياري)', 'كلمة المرور (اختياري)'],
+      ['بن علي', 'محمد', 'أستاذ محاضر - أ', 'دكتوراه', 'قانون جنائي', 'أطروحة في القانون الجنائي', '10', 'exemple@univ-bbm.dz', 'benali.m', 'Pass2026'],
+      ['عمر', 'فاطمة', 'أستاذ مساعد - أ', 'دكتوراه', 'قانون دولي', 'القانون الدولي العام', '5', '', '', ''],
+      ['', 'إن تركت اسم المستخدم/كلمة المرور فارغين، سيولّدهما النظام تلقائياً', '', '', '', '', '', '', '', ''],
     ]);
-    ws['!cols'] = [15, 12, 22, 12, 20, 28, 10, 25].map(w => ({ wch: w }));
+    ws['!cols'] = [15, 12, 22, 12, 20, 28, 10, 25, 20, 18].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'الأساتذة');
     XLSX.writeFile(wb, 'قالب_استيراد_الأساتذة.xlsx');
@@ -101,6 +104,8 @@ export default function AdminImportPage() {
         degree_title: String(r[5] || '').trim(),
         professional_experience: parseInt(String(r[6] || '0')) || 0,
         email: String(r[7] || '').trim(),
+        custom_username: String(r[8] || '').trim(),
+        custom_password: String(r[9] || '').trim(),
         status: 'pending',
       })));
       setDone(false); setGlobalMessage(null);
@@ -116,12 +121,29 @@ export default function AdminImportPage() {
   async function handleImport() {
     const valid = rows.filter(r => r.status === 'pending' && r.last_name && r.first_name);
     if (!valid.length) { setGlobalMessage({ type: 'error', text: 'لا توجد صفوف صالحة للاستيراد' }); return; }
+
+    // تحقق محلي من تكرار اسم المستخدم بين الصفوف نفسها قبل الإرسال
+    const usernamesInBatch = valid.map(r => r.custom_username).filter(Boolean);
+    const dupesInBatch = usernamesInBatch.filter((u, i) => usernamesInBatch.indexOf(u) !== i);
+    if (dupesInBatch.length > 0) {
+      setGlobalMessage({ type: 'error', text: `أسماء مستخدمين مكررة في الملف نفسه: ${[...new Set(dupesInBatch)].join('، ')}` });
+      return;
+    }
+
     setImporting(true);
     const { data: profs } = await supabase.from('professors').select('username');
+    const existingUsernames = new Set(profs?.map(p => p.username) || []);
     const maxNum = profs ? Math.max(0, ...profs.map(p => parseInt(p.username)).filter(n => !isNaN(n))) : 0;
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       if (!row.last_name || !row.first_name || row.status !== 'pending') continue;
+
+      // تحقق سريع قبل الاستدعاء
+      if (row.custom_username && existingUsernames.has(row.custom_username)) {
+        updateRow(row.id, { status: 'error', error: `اسم المستخدم "${row.custom_username}" مستخدم بالفعل من أستاذ آخر` });
+        continue;
+      }
+
       updateRow(row.id, { status: 'saving' });
       try {
         const result = await callEdgeFunction('create-professor', {
@@ -130,8 +152,11 @@ export default function AdminImportPage() {
           degree_speciality: row.degree_speciality, degree_title: row.degree_title,
           professional_experience: row.professional_experience, email: row.email,
           username_index: maxNum + i + 1,
+          custom_username: row.custom_username || undefined,
+          custom_password: row.custom_password || undefined,
         });
         updateRow(row.id, { status: 'done', username: result.username, password: result.password });
+        if (row.custom_username) existingUsernames.add(row.custom_username);
       } catch (e: any) {
         updateRow(row.id, { status: 'error', error: e.message });
       }
@@ -324,7 +349,7 @@ export default function AdminImportPage() {
 
           <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
             <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <p className="text-blue-600 text-xs">حمّل القالب → أدخل بيانات الأساتذة → ارفع الملف → راجع البيانات → اضغط حفظ. سيُنشأ حساب لكل أستاذ تلقائياً مع اسم مستخدم وكلمة مرور.</p>
+            <p className="text-blue-600 text-xs">حمّل القالب → أدخل بيانات الأساتذة → ارفع الملف → راجع البيانات → اضغط حفظ. اترك خانتي "اسم المستخدم" و"كلمة المرور" فارغتين ليولّدهما النظام تلقائياً، أو أدخلهما بنفسك — وفي حالة استخدام اسم موجود مسبقاً سيظهر تنبيه واضح.</p>
           </div>
 
           {rows.length === 0 && (
@@ -370,8 +395,8 @@ export default function AdminImportPage() {
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الشهادة</th>
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">التخصص</th>
                       <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الخبرة</th>
-                      <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">م.مستخدم</th>
-                      <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">ك.مرور</th>
+                      <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">م.مستخدم (اختياري)</th>
+                      <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">ك.مرور (اختياري)</th>
                       <th className="px-3 py-3"></th>
                     </tr>
                   </thead>
@@ -427,12 +452,20 @@ export default function AdminImportPage() {
                         <td className="px-3 py-2.5">
                           {row.status === 'done'
                             ? <code className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{row.username}</code>
-                            : <span className="text-xs text-gray-300">—</span>}
+                            : <input value={row.custom_username} onChange={e => updateRow(row.id, { custom_username: e.target.value })}
+                                placeholder="تلقائي"
+                                disabled={row.status !== 'pending'}
+                                className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 disabled:bg-gray-50 placeholder:text-gray-300"
+                                dir="ltr" />}
                         </td>
                         <td className="px-3 py-2.5">
                           {row.status === 'done'
                             ? <code className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{row.password}</code>
-                            : <span className="text-xs text-gray-300">—</span>}
+                            : <input value={row.custom_password} onChange={e => updateRow(row.id, { custom_password: e.target.value })}
+                                placeholder="تلقائي"
+                                disabled={row.status !== 'pending'}
+                                className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 disabled:bg-gray-50 placeholder:text-gray-300"
+                                dir="ltr" />}
                         </td>
                         <td className="px-3 py-2.5">
                           {row.status !== 'done' && (
@@ -454,7 +487,7 @@ export default function AdminImportPage() {
                       id: `row_${Date.now()}`, last_name: '', first_name: '',
                       rank: 'أستاذ مساعد - أ', highest_degree: 'دكتوراه',
                       degree_speciality: '', degree_title: '', professional_experience: 0,
-                      email: '', status: 'pending',
+                      email: '', custom_username: '', custom_password: '', status: 'pending',
                     }])} className="flex items-center gap-2 text-[#1a3a6b] text-sm hover:underline">
                       <Plus className="w-4 h-4" /> إضافة صف
                     </button>
