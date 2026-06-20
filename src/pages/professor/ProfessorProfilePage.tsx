@@ -9,6 +9,18 @@ interface Props {
   onSaved?: () => void;
 }
 
+function Field({ label, icon: Icon, children }: any) {
+  return (
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        <Icon className="w-4 h-4 text-[#1a3a6b]" />
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 export default function ProfessorProfilePage({ forceComplete = false, onSaved }: Props) {
   const { user } = useAuth();
   const prof = user?.professor;
@@ -96,16 +108,6 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved }:
     }
     setPwSaving(false);
   }
-
-  const Field = ({ label, icon: Icon, children }: any) => (
-    <div className="space-y-1.5">
-      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-        <Icon className="w-4 h-4 text-[#1a3a6b]" />
-        {label}
-      </label>
-      {children}
-    </div>
-  );
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
