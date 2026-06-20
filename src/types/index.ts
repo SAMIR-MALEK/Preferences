@@ -47,6 +47,10 @@ export interface Professor {
   wishes_locked_s1: boolean;
   wishes_locked_s2: boolean;
   wishes_locked_at?: string;
+  wants_extra_hours_s1?: boolean;
+  extra_hours_count_s1?: number | null;
+  wants_extra_hours_s2?: boolean;
+  extra_hours_count_s2?: number | null;
   created_at: string;
   updated_at: string;
 }
