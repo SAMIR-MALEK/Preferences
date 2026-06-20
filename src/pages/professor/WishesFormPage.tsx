@@ -47,6 +47,10 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [expandedWish, setExpandedWish] = useState<number | null>(null);
 
+  // رغبة الساعات الإضافية
+  const [wantsExtraHours, setWantsExtraHours] = useState(false);
+  const [extraHoursCount, setExtraHoursCount] = useState<number | null>(null);
+
   const isLocked = semester === 1 ? prof?.wishes_locked_s1 : prof?.wishes_locked_s2;
   const academicYear = '2026-2027';
 
@@ -77,6 +81,16 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       while (forms.length < 3) forms.push(emptyWish());
       setWishes(forms);
     }
+
+    // تحميل رغبة الساعات الإضافية لهذا السداسي
+    if (semester === 1) {
+      setWantsExtraHours(prof?.wants_extra_hours_s1 || false);
+      setExtraHoursCount(prof?.extra_hours_count_s1 ?? null);
+    } else {
+      setWantsExtraHours(prof?.wants_extra_hours_s2 || false);
+      setExtraHoursCount(prof?.extra_hours_count_s2 ?? null);
+    }
+
     setLoading(false);
   }
 
@@ -94,6 +108,17 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     setWishes(prev => prev.filter((_, i) => i !== index));
   }
 
+  // التحقق من أن مجموع الرغبات المسجَّلة (3 إلى 5) يحتوي على 3 مستويات مختلفة على الأقل
+  function validateDistinctLevels(allWishes: WishForm[]): string | null {
+    const filled = allWishes.filter(w => w.module_id && w.level_id);
+    if (filled.length < 3) return null; // سيُرفض لاحقاً بفحص آخر (نقص تعبئة)
+    const uniqueLevels = new Set(filled.map(w => w.level_id));
+    if (uniqueLevels.size < 3) {
+      return 'يجب أن تشمل رغباتك على الأقل ثلاثة مستويات مختلفة (وليس بالضرورة في الرغبات الثلاث الأولى) — يلتزم الأساتذة باختيار ثلاث مقاييس على الأقل في تخصصات مختلفة';
+    }
+    return null;
+  }
+
   // الحفظ المؤقت
   async function handleSave() {
     const valid = wishes.filter(w => w.module_id && w.level_id);
@@ -101,8 +126,26 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       setMessage({ type: 'error', text: 'يجب تعبئة ثلاث رغبات على الأقل (المستوى والمقياس ونوع التدريس)' });
       return;
     }
+
+    const levelError = validateDistinctLevels(wishes);
+    if (levelError) {
+      setMessage({ type: 'error', text: levelError });
+      return;
+    }
+
+    if (wantsExtraHours && !extraHoursCount) {
+      setMessage({ type: 'error', text: 'يرجى تحديد عدد الساعات الإضافية المرغوبة' });
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
+
+    // حفظ رغبة الساعات الإضافية لهذا السداسي
+    const extraHoursField = semester === 1
+      ? { wants_extra_hours_s1: wantsExtraHours, extra_hours_count_s1: wantsExtraHours ? extraHoursCount : null }
+      : { wants_extra_hours_s2: wantsExtraHours, extra_hours_count_s2: wantsExtraHours ? extraHoursCount : null };
+    await supabase.from('professors').update(extraHoursField).eq('id', prof?.id);
 
     // حذف الرغبات القديمة وإعادة إدراجها
     await supabase.from('wishes').delete().eq('professor_id', prof?.id).eq('semester', semester).eq('academic_year', academicYear);
@@ -203,6 +246,16 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* عرض رغبة الساعات الإضافية */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <p className="text-sm text-gray-600">
+          الساعات الإضافية المرغوبة لهذا السداسي:{' '}
+          {wantsExtraHours
+            ? <strong className="text-[#1a3a6b]">{toArabicNum(extraHoursCount || 0)} {extraHoursCount === 1 ? 'ساعة' : 'ساعات'}</strong>
+            : <strong className="text-gray-400">لا يرغب</strong>}
+        </p>
       </div>
     </div>
   );
@@ -419,6 +472,48 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
           <CheckCircle className="w-4 h-4" /> تم الوصول للحد الأقصى (٥ رغبات)
         </div>
       )}
+
+      {/* رغبة الساعات الإضافية */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+        <h3 className="font-semibold text-gray-800 font-display">
+          هل ترغب في تدريس ساعات إضافية في السداسي {semester === 1 ? 'الأول' : 'الثاني'}؟
+        </h3>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setWantsExtraHours(true)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${
+              wantsExtraHours
+                ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+            }`}>
+            نعم
+          </button>
+          <button
+            onClick={() => { setWantsExtraHours(false); setExtraHoursCount(null); }}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${
+              !wantsExtraHours
+                ? 'bg-gray-600 text-white border-gray-600'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+            }`}>
+            لا
+          </button>
+        </div>
+
+        {wantsExtraHours && (
+          <div className="space-y-1.5 animate-slide-up">
+            <label className="text-sm font-medium text-gray-700">عدد الساعات الإضافية المرغوبة</label>
+            <select
+              value={extraHoursCount ?? ''}
+              onChange={e => setExtraHoursCount(e.target.value ? parseInt(e.target.value) : null)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
+              <option value="">— اختر العدد —</option>
+              {[1,2,3,4,5,6,7,8,9].map(n => (
+                <option key={n} value={n}>{toArabicNum(n)} {n === 1 ? 'ساعة' : 'ساعات'}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       {/* Actions */}
       <div className="flex items-center gap-3 flex-wrap pt-2">
