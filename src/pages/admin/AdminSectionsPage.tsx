@@ -19,6 +19,126 @@ function maxHoursIfAllLectures(ls: LevelSemester) {
   return ls.num_sections * HOURS_LECTURE;
 }
 
+// ── Capacity Calculator ────────────────────────────────────────────
+function CapacityCard({ ls }: { ls: LevelSemester }) {
+  const lectSlots = totalLectureSlots(ls);
+  const tdSlots   = totalTDSlots(ls);
+  const maxLect   = maxHoursIfAllLectures(ls);
+
+  return (
+    <div className="grid grid-cols-3 gap-3 mt-3">
+      <div className="bg-[#1a3a6b]/5 rounded-xl p-3 text-center">
+        <p className="text-xs text-gray-500 mb-1">فرص المحاضرات</p>
+        <p className="text-xl font-bold text-[#1a3a6b] font-display">{lectSlots}</p>
+        <p className="text-xs text-gray-400">أستاذ × مجموعة</p>
+      </div>
+      <div className="bg-[#c9a227]/10 rounded-xl p-3 text-center">
+        <p className="text-xs text-gray-500 mb-1">فرص الأعمال الموجهة</p>
+        <p className="text-xl font-bold text-[#a07820] font-display">{tdSlots}</p>
+        <p className="text-xs text-gray-400">{ls.num_sections} × {ls.num_groups} فوج</p>
+      </div>
+      <div className="bg-emerald-50 rounded-xl p-3 text-center">
+        <p className="text-xs text-gray-500 mb-1">حجم ساعي لو محاضرات كلها</p>
+        <p className="text-xl font-bold text-emerald-600 font-display">{maxLect}س</p>
+        <p className="text-xs text-gray-400">{lectSlots} × {HOURS_LECTURE}س</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Form ──────────────────────────────────────────────────────
+interface EditFormProps {
+  levelId: string;
+  sem: 1 | 2;
+  editForm: { num_sections: number; num_groups: number };
+  setEditForm: React.Dispatch<React.SetStateAction<{ num_sections: number; num_groups: number }>>;
+  isSaving: boolean;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+function EditForm({ levelId, sem, editForm, setEditForm, isSaving, onSave, onCancel }: EditFormProps) {
+  // Live preview
+  const previewLect = editForm.num_sections;
+  const previewTD   = editForm.num_sections * editForm.num_groups;
+
+  return (
+    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4 animate-slide-up">
+      <h4 className="text-sm font-semibold text-[#1a3a6b] mb-3 font-display">
+        تعديل هيكل السداسي {sem === 1 ? 'الأول' : 'الثاني'}
+      </h4>
+      <div className="grid grid-cols-2 gap-4 mb-3">
+        <div>
+          <label className="text-xs text-gray-600 block mb-1.5 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-[#1a3a6b]" />
+            عدد المجموعات (sections)
+            <span className="text-gray-400 font-normal">— للمحاضرات</span>
+          </label>
+          <input
+            type="number" min="1" max="20"
+            value={editForm.num_sections}
+            onChange={e => setEditForm(f => ({ ...f, num_sections: Math.max(1, parseInt(e.target.value) || 1) }))}
+            className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white"
+            dir="ltr"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600 block mb-1.5 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-[#c9a227]" />
+            عدد الأفواج / مجموعة (groups)
+            <span className="text-gray-400 font-normal">— للأعمال الموجهة</span>
+          </label>
+          <input
+            type="number" min="1" max="20"
+            value={editForm.num_groups}
+            onChange={e => setEditForm(f => ({ ...f, num_groups: Math.max(1, parseInt(e.target.value) || 1) }))}
+            className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white"
+            dir="ltr"
+          />
+        </div>
+      </div>
+
+      {/* Live Preview */}
+      <div className="bg-white rounded-lg border border-blue-200 p-3 mb-3">
+        <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5 text-blue-500" />
+          معاينة فورية
+        </p>
+        <div className="flex gap-4 flex-wrap">
+          <span className="text-xs">
+            📚 فرص محاضرات: <strong className="text-[#1a3a6b]">{previewLect}</strong>
+          </span>
+          <span className="text-xs">
+            ✍️ فرص أعمال موجهة: <strong className="text-[#a07820]">{previewTD}</strong>
+            <span className="text-gray-400"> ({editForm.num_sections} × {editForm.num_groups})</span>
+          </span>
+          <span className="text-xs">
+            ⏱ حجم ساعي للمحاضرات: <strong className="text-emerald-600">{toArabicFixed(previewLect * HOURS_LECTURE)}س</strong>
+          </span>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={onSave}
+          disabled={isSaving}
+          className="flex items-center gap-1.5 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+        >
+          <Save className="w-3.5 h-3.5" />
+          {isSaving ? 'جارٍ الحفظ...' : 'حفظ'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
+          إلغاء
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────
 export default function AdminSectionsPage() {
   const [levels, setLevels] = useState<Level[]>([]);
@@ -92,119 +212,6 @@ export default function AdminSectionsPage() {
     setSaving(null);
     setEditing(null);
     setTimeout(() => setMessage(null), 3000);
-  }
-
-  // ── Capacity Calculator ────────────────────────────────────────────
-  function CapacityCard({ ls }: { ls: LevelSemester }) {
-    const lectSlots = totalLectureSlots(ls);
-    const tdSlots   = totalTDSlots(ls);
-    const maxLect   = maxHoursIfAllLectures(ls);
-
-    return (
-      <div className="grid grid-cols-3 gap-3 mt-3">
-        <div className="bg-[#1a3a6b]/5 rounded-xl p-3 text-center">
-          <p className="text-xs text-gray-500 mb-1">فرص المحاضرات</p>
-          <p className="text-xl font-bold text-[#1a3a6b] font-display">{lectSlots}</p>
-          <p className="text-xs text-gray-400">أستاذ × مجموعة</p>
-        </div>
-        <div className="bg-[#c9a227]/10 rounded-xl p-3 text-center">
-          <p className="text-xs text-gray-500 mb-1">فرص الأعمال الموجهة</p>
-          <p className="text-xl font-bold text-[#a07820] font-display">{tdSlots}</p>
-          <p className="text-xs text-gray-400">{ls.num_sections} × {ls.num_groups} فوج</p>
-        </div>
-        <div className="bg-emerald-50 rounded-xl p-3 text-center">
-          <p className="text-xs text-gray-500 mb-1">حجم ساعي لو محاضرات كلها</p>
-          <p className="text-xl font-bold text-emerald-600 font-display">{maxLect}س</p>
-          <p className="text-xs text-gray-400">{lectSlots} × {HOURS_LECTURE}س</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Edit Form ──────────────────────────────────────────────────────
-  function EditForm({ levelId, sem }: { levelId: string; sem: 1 | 2 }) {
-    const key = `${levelId}_${sem}`;
-    const isSaving = saving === key;
-
-    // Live preview
-    const previewLect = editForm.num_sections;
-    const previewTD   = editForm.num_sections * editForm.num_groups;
-
-    return (
-      <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4 animate-slide-up">
-        <h4 className="text-sm font-semibold text-[#1a3a6b] mb-3 font-display">
-          تعديل هيكل السداسي {sem === 1 ? 'الأول' : 'الثاني'}
-        </h4>
-        <div className="grid grid-cols-2 gap-4 mb-3">
-          <div>
-            <label className="text-xs text-gray-600 block mb-1.5 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-[#1a3a6b]" />
-              عدد المجموعات (sections)
-              <span className="text-gray-400 font-normal">— للمحاضرات</span>
-            </label>
-            <input
-              type="number" min="1" max="20"
-              value={editForm.num_sections}
-              onChange={e => setEditForm(f => ({ ...f, num_sections: Math.max(1, parseInt(e.target.value) || 1) }))}
-              className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white"
-              dir="ltr"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 block mb-1.5 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-[#c9a227]" />
-              عدد الأفواج / مجموعة (groups)
-              <span className="text-gray-400 font-normal">— للأعمال الموجهة</span>
-            </label>
-            <input
-              type="number" min="1" max="20"
-              value={editForm.num_groups}
-              onChange={e => setEditForm(f => ({ ...f, num_groups: Math.max(1, parseInt(e.target.value) || 1) }))}
-              className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white"
-              dir="ltr"
-            />
-          </div>
-        </div>
-
-        {/* Live Preview */}
-        <div className="bg-white rounded-lg border border-blue-200 p-3 mb-3">
-          <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
-            <Info className="w-3.5 h-3.5 text-blue-500" />
-            معاينة فورية
-          </p>
-          <div className="flex gap-4 flex-wrap">
-            <span className="text-xs">
-              📚 فرص محاضرات: <strong className="text-[#1a3a6b]">{previewLect}</strong>
-            </span>
-            <span className="text-xs">
-              ✍️ فرص أعمال موجهة: <strong className="text-[#a07820]">{previewTD}</strong>
-              <span className="text-gray-400"> ({editForm.num_sections} × {editForm.num_groups})</span>
-            </span>
-            <span className="text-xs">
-              ⏱ حجم ساعي للمحاضرات: <strong className="text-emerald-600">{toArabicFixed(previewLect * HOURS_LECTURE)}س</strong>
-            </span>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={() => saveEdit(levelId, sem)}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            <Save className="w-3.5 h-3.5" />
-            {isSaving ? 'جارٍ الحفظ...' : 'حفظ'}
-          </button>
-          <button
-            onClick={() => setEditing(null)}
-            className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            إلغاء
-          </button>
-        </div>
-      </div>
-    );
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -361,7 +368,17 @@ export default function AdminSectionsPage() {
                       {ls && !isEditingThis && <CapacityCard ls={ls} />}
 
                       {/* Edit Form */}
-                      {isEditingThis && <EditForm levelId={level.id} sem={sem} />}
+                      {isEditingThis && (
+                        <EditForm
+                          levelId={level.id}
+                          sem={sem}
+                          editForm={editForm}
+                          setEditForm={setEditForm}
+                          isSaving={saving === editKey}
+                          onSave={() => saveEdit(level.id, sem)}
+                          onCancel={() => setEditing(null)}
+                        />
+                      )}
 
                       {/* Hint: visual grid of slots */}
                       {ls && !isEditingThis && (
