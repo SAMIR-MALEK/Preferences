@@ -199,14 +199,23 @@ export interface AcademicSettings {
   hours_per_td: number;
 }
 
+export type AdminDepartment = 'عام' | 'خاص';
+
 export interface Admin {
   id: string;
   user_id: string;
   username: string;
   full_name: string;
-  role: 'super_admin' | 'admin' | 'viewer';
+  role: 'super_admin' | 'admin' | 'viewer' | 'dept_head';
+  department?: AdminDepartment | null;
   is_active: boolean;
 }
+
+// رموز المستويات التابعة لكل قسم (لحصر صلاحيات رئيس القسم)
+export const DEPARTMENT_LEVEL_CODES: Record<AdminDepartment, string[]> = {
+  'خاص': ['L2', 'L3P', 'M1AFF', 'M2AFF', 'M1SAN', 'M2SAN'],
+  'عام': ['L1', 'L3G', 'M1URB', 'M2URB', 'M1INFO', 'M2INFO', 'M1CJ', 'M2CJ'],
+};
 
 export type UserRole = 'professor' | 'admin' | null;
 
