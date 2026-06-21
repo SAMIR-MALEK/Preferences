@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { DEPARTMENT_LEVEL_CODES } from '../../types';
@@ -6,7 +6,7 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload
+  Layers, Eye, AlertTriangle, Upload, Menu, X
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -23,9 +23,35 @@ type AdminTab =
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
   const [tab, setTab] = useState<AdminTab>('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
     profs: 0, locked: 0, modules: 0, wishes: 0, conflicts: 0,
   });
+
+  // إغلاق القائمة تلقائياً عند اختيار تبويب (على الهاتف)
+  function selectTab(t: AdminTab) {
+    setTab(t);
+    setSidebarOpen(false);
+  }
+
+  // دعم السحب باللمس لفتح/إغلاق القائمة على الهاتف
+  const touchStartX = useRef<number | null>(null);
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    // RTL: السحب من حافة الشاشة اليمنى نحو اليسار (deltaX سالب) يفتح القائمة
+    if (!sidebarOpen && touchStartX.current > window.innerWidth - 40 && deltaX < -50) {
+      setSidebarOpen(true);
+    }
+    // السحب من داخل القائمة نحو اليمين (deltaX إيجابي) يغلقها
+    if (sidebarOpen && deltaX > 50) {
+      setSidebarOpen(false);
+    }
+    touchStartX.current = null;
+  }
 
   useEffect(() => { loadStats(); }, []);
 
@@ -60,10 +86,46 @@ export default function AdminDashboard() {
     : allNav;
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
+    <div
+      className="flex h-screen overflow-hidden relative"
+      dir="rtl"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* شريط علوي ثابت — يظهر فقط على الهاتف والشاشات الصغيرة */}
+      <div className="lg:hidden fixed top-0 right-0 left-0 z-30 h-14 bg-[#0d2040] flex items-center justify-between px-4 shadow-md">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="text-white p-1.5 -mr-1.5"
+          aria-label="فتح القائمة">
+          <Menu className="w-6 h-6" />
+        </button>
+        <div className="flex items-center gap-2">
+          <p className="text-white font-display font-bold text-sm">لوحة الإدارة</p>
+          <div className="w-7 h-7 rounded-lg bg-[#c9a227] flex items-center justify-center">
+            <GraduationCap className="w-3.5 h-3.5 text-white" />
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay عند فتح القائمة على الهاتف */}
+      {sidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-52 bg-gradient-to-b from-[#060e1d] to-[#0d2040] flex flex-col flex-shrink-0 shadow-2xl">
-        <div className="p-4 border-b border-white/8">
+      <aside
+        className={`
+          w-64 lg:w-52 bg-gradient-to-b from-[#060e1d] to-[#0d2040] flex flex-col flex-shrink-0 shadow-2xl
+          fixed lg:static top-0 right-0 h-full z-50
+          transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
+        `}
+      >
+        <div className="p-4 border-b border-white/8 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#c9a227] flex items-center justify-center">
               <GraduationCap className="w-4 h-4 text-white" />
@@ -73,6 +135,11 @@ export default function AdminDashboard() {
               <p className="text-[#c9a227] text-[10px]">2026/2027</p>
             </div>
           </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-white/50 hover:text-white p-1">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-3 border-b border-white/5">
@@ -95,7 +162,7 @@ export default function AdminDashboard() {
           {nav.map(item => {
             const Icon = item.icon;
             return (
-              <button key={item.id} onClick={() => setTab(item.id)}
+              <button key={item.id} onClick={() => selectTab(item.id)}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-right"
                 style={{
                   background: tab === item.id ? '#c9a227' : 'transparent',
@@ -123,7 +190,7 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto bg-[#eef1f7] p-5">
+      <main className="flex-1 overflow-y-auto bg-[#eef1f7] p-5 pt-20 lg:pt-5">
         {tab === 'dashboard'  && <AdminHome stats={stats} setTab={setTab} />}
         {tab === 'professors' && <AdminProfessorsPage />}
         {tab === 'import'     && <AdminImportPage allowedLevelCodes={allowedLevelCodes} />}
