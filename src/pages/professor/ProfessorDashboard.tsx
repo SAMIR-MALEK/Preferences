@@ -137,6 +137,7 @@ export default function ProfessorDashboard() {
           <ProfessorProfilePage
             forceComplete={!profileComplete}
             onSaved={async () => { await reloadProf(); }}
+            onGoToWishes={() => setTab('s1')}
           />
         )}
         {tab === 's1' && (

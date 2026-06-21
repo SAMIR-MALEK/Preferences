@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES, type ProfessorRank } from '../../types';
-import { Save, CheckCircle, AlertCircle, User, Award, BookOpen, GraduationCap, Lock, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, User, Award, BookOpen, GraduationCap, Lock, Eye, EyeOff, ShieldAlert, ArrowLeft } from 'lucide-react';
 
 interface Props {
   forceComplete?: boolean; // إن كانت true، يُفرض إكمال كل الحقول قبل الحفظ
   onSaved?: () => void;
+  onGoToWishes?: () => void;
 }
 
 function Field({ label, icon: Icon, children }: any) {
@@ -21,7 +22,7 @@ function Field({ label, icon: Icon, children }: any) {
   );
 }
 
-export default function ProfessorProfilePage({ forceComplete = false, onSaved }: Props) {
+export default function ProfessorProfilePage({ forceComplete = false, onSaved, onGoToWishes }: Props) {
   const { user } = useAuth();
   const prof = user?.professor;
 
@@ -40,6 +41,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved }:
   const [error, setError] = useState('');
 
   // تغيير كلمة المرور
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
   const [pwSaving, setPwSaving] = useState(false);
   const [pwSaved, setPwSaved] = useState(false);
@@ -272,67 +274,101 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved }:
           {saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
         </button>
       </div>
+
+      {/* زر واضح وبارز للانتقال إلى تسجيل الرغبات */}
+      {onGoToWishes && (
+        <button
+          onClick={onGoToWishes}
+          className="w-full flex items-center justify-center gap-3 bg-gradient-to-l from-[#1a3a6b] to-[#0d2040] hover:opacity-90 text-white font-bold py-4 rounded-2xl transition-all shadow-md text-base">
+          الانتقال إلى تسجيل الرغبات البيداغوجية
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+      )}
       {/* Password Change Section */}
-      {!forceComplete && (
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-5">
         <h3 className="font-semibold text-gray-800 flex items-center gap-2 font-display">
           <span className="w-5 h-5 rounded bg-[#1a3a6b]/10 flex items-center justify-center">
             <Lock className="w-3 h-3 text-[#1a3a6b]" />
           </span>
-          تغيير كلمة المرور
+          هل تريد تغيير كلمة المرور؟
         </h3>
-        <p className="text-gray-400 text-xs">يمكنك الاحتفاظ بكلمة المرور التي أعطتك إياها الإدارة، أو تغييرها حسب رغبتك.</p>
+        <p className="text-gray-400 text-xs">يمكنك الاحتفاظ بكلمة المرور التي أعطتك إياها الإدارة، أو تغييرها في أي وقت تشاء.</p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { key: 'current', label: 'كلمة المرور الحالية' },
-            { key: 'newPw',   label: 'كلمة المرور الجديدة' },
-            { key: 'confirm', label: 'تأكيد كلمة المرور الجديدة' },
-          ].map(({ key, label }) => (
-            <div key={key} className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">{label}</label>
-              <div className="relative">
-                <input
-                  type={showPw[key as keyof typeof showPw] ? 'text' : 'password'}
-                  value={pwForm[key as keyof typeof pwForm]}
-                  onChange={e => setPwForm({ ...pwForm, [key]: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 pl-10"
-                  dir="ltr"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showPw[key as keyof typeof showPw]
-                    ? <EyeOff className="w-4 h-4" />
-                    : <Eye className="w-4 h-4" />}
-                </button>
+        {!showPasswordSection && (
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowPasswordSection(true)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium border-2 bg-white text-gray-500 border-gray-200 hover:border-[#1a3a6b] hover:text-[#1a3a6b] transition-all">
+              نعم
+            </button>
+            <button
+              onClick={() => {}}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium border-2 bg-gray-600 text-white border-gray-600 cursor-default">
+              لا، الاحتفاظ بكلمتي الحالية
+            </button>
+          </div>
+        )}
+
+        {showPasswordSection && (
+        <div className="space-y-5 animate-slide-up">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { key: 'current', label: 'كلمة المرور الحالية' },
+              { key: 'newPw',   label: 'كلمة المرور الجديدة' },
+              { key: 'confirm', label: 'تأكيد كلمة المرور الجديدة' },
+            ].map(({ key, label }) => (
+              <div key={key} className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">{label}</label>
+                <div className="relative">
+                  <input
+                    type={showPw[key as keyof typeof showPw] ? 'text' : 'password'}
+                    value={pwForm[key as keyof typeof pwForm]}
+                    onChange={e => setPwForm({ ...pwForm, [key]: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 pl-10"
+                    dir="ltr"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showPw[key as keyof typeof showPw]
+                      ? <EyeOff className="w-4 h-4" />
+                      : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
+            ))}
+          </div>
+
+          {pwError && (
+            <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 rounded-xl px-4 py-3">
+              <AlertCircle className="w-4 h-4" /> {pwError}
             </div>
-          ))}
+          )}
+          {pwSaved && (
+            <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 rounded-xl px-4 py-3">
+              <CheckCircle className="w-4 h-4" /> تم تغيير كلمة المرور بنجاح
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={handlePasswordChange}
+              disabled={pwSaving || !pwForm.current || !pwForm.newPw || !pwForm.confirm}
+              className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white font-medium px-6 py-2.5 rounded-xl transition-colors disabled:opacity-40 text-sm">
+              <Lock className="w-4 h-4" />
+              {pwSaving ? 'جارٍ التغيير...' : 'تغيير كلمة المرور'}
+            </button>
+            <button
+              onClick={() => { setShowPasswordSection(false); setPwForm({ current: '', newPw: '', confirm: '' }); setPwError(''); }}
+              className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium px-5 py-2.5 rounded-xl transition-colors text-sm">
+              إلغاء
+            </button>
+          </div>
         </div>
-
-        {pwError && (
-          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 rounded-xl px-4 py-3">
-            <AlertCircle className="w-4 h-4" /> {pwError}
-          </div>
         )}
-        {pwSaved && (
-          <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 rounded-xl px-4 py-3">
-            <CheckCircle className="w-4 h-4" /> تم تغيير كلمة المرور بنجاح
-          </div>
-        )}
-
-        <button
-          onClick={handlePasswordChange}
-          disabled={pwSaving || !pwForm.current || !pwForm.newPw || !pwForm.confirm}
-          className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white font-medium px-6 py-2.5 rounded-xl transition-colors disabled:opacity-40 text-sm">
-          <Lock className="w-4 h-4" />
-          {pwSaving ? 'جارٍ التغيير...' : 'تغيير كلمة المرور'}
-        </button>
       </div>
-      )}
     </div>
   );
 }
