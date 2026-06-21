@@ -38,7 +38,11 @@ const RANK_SCORE: Record<string, number> = {
   'أستاذ مساعد - ب': 1,
 };
 
-export default function AdminWishesViewerPage() {
+interface WishesViewerProps {
+  allowedLevelCodes?: string[] | null;
+}
+
+export default function AdminWishesViewerPage({ allowedLevelCodes }: WishesViewerProps) {
   const [wishes, setWishes] = useState<WishFull[]>([]);
   const [professors, setProfessors] = useState<Professor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +66,12 @@ export default function AdminWishesViewerPage() {
         .order('wish_order'),
       supabase.from('professors').select('*').eq('is_active', true),
     ]);
-    if (ws) setWishes(ws);
+    if (ws) {
+      const filteredWs = allowedLevelCodes
+        ? ws.filter((w: WishFull) => w.level?.code && allowedLevelCodes.includes(w.level.code))
+        : ws;
+      setWishes(filteredWs);
+    }
     if (profs) setProfessors(profs);
     setLoading(false);
   }

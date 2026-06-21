@@ -140,7 +140,11 @@ function EditForm({ levelId, sem, editForm, setEditForm, isSaving, onSave, onCan
 }
 
 // ─────────────────────────────────────────────────────────────────────
-export default function AdminSectionsPage() {
+interface SectionsPageProps {
+  allowedLevelCodes?: string[] | null;
+}
+
+export default function AdminSectionsPage({ allowedLevelCodes }: SectionsPageProps) {
   const [levels, setLevels] = useState<Level[]>([]);
   const [semesterData, setSemesterData] = useState<Record<string, LevelSemester>>({});
   // key = `${level_id}_${semester}`
@@ -159,7 +163,12 @@ export default function AdminSectionsPage() {
       supabase.from('levels').select('*').eq('is_active', true).order('display_order'),
       supabase.from('level_semesters').select('*'),
     ]);
-    if (lvls) setLevels(lvls);
+    if (lvls) {
+      const filtered = allowedLevelCodes
+        ? lvls.filter((l: Level) => allowedLevelCodes.includes(l.code))
+        : lvls;
+      setLevels(filtered);
+    }
     if (ls) {
       const map: Record<string, LevelSemester> = {};
       ls.forEach(item => { map[`${item.level_id}_${item.semester}`] = item; });

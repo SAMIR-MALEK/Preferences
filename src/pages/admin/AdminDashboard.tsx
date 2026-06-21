@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
+import { DEPARTMENT_LEVEL_CODES } from '../../types';
 
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
@@ -38,7 +39,11 @@ export default function AdminDashboard() {
     setStats({ profs: p||0, locked: l||0, modules: m||0, wishes: w||0, conflicts: 0 });
   }
 
-  const nav: { id: AdminTab; label: string; icon: any; badge?: number }[] = [
+  const isDeptHead = user?.admin?.role === 'dept_head';
+  const department = user?.admin?.department;
+  const allowedLevelCodes = isDeptHead && department ? DEPARTMENT_LEVEL_CODES[department] : null;
+
+  const allNav: { id: AdminTab; label: string; icon: any; badge?: number }[] = [
     { id: 'dashboard',  label: 'الإدارة',           icon: BarChart2  },
     { id: 'professors', label: 'الأساتذة',           icon: Users      },
     { id: 'import',     label: 'استيراد Excel',      icon: Upload     },
@@ -48,6 +53,11 @@ export default function AdminDashboard() {
     { id: 'assignment', label: 'الإسناد',            icon: Award      },
     { id: 'settings',   label: 'الإعدادات',          icon: Settings   },
   ];
+
+  // رئيس القسم لا يرى تبويبي الإسناد والإعدادات (حكر على العميد/نائب العميد)
+  const nav = isDeptHead
+    ? allNav.filter(item => item.id !== 'assignment' && item.id !== 'settings')
+    : allNav;
 
   return (
     <div className="flex h-screen overflow-hidden" dir="rtl">
@@ -72,7 +82,11 @@ export default function AdminDashboard() {
             </div>
             <div>
               <p className="text-white text-xs font-medium">{user?.admin?.full_name}</p>
-              <p className="text-gray-500 text-[10px]">{user?.admin?.role === 'super_admin' ? 'مشرف عام' : 'مشرف'}</p>
+              <p className="text-gray-500 text-[10px]">
+                {user?.admin?.role === 'super_admin' ? 'مشرف عام'
+                  : user?.admin?.role === 'dept_head' ? `رئيس قسم القانون ${department}`
+                  : 'مشرف'}
+              </p>
             </div>
           </div>
         </div>
@@ -112,12 +126,12 @@ export default function AdminDashboard() {
       <main className="flex-1 overflow-y-auto bg-[#eef1f7] p-5">
         {tab === 'dashboard'  && <AdminHome stats={stats} setTab={setTab} />}
         {tab === 'professors' && <AdminProfessorsPage />}
-        {tab === 'import'     && <AdminImportPage />}
-        {tab === 'sections'   && <AdminSectionsPage />}
-        {tab === 'modules'    && <AdminModulesPage />}
-        {tab === 'wishes'     && <AdminWishesViewerPage />}
-        {tab === 'assignment' && <AdminAssignmentPage />}
-        {tab === 'settings'   && <AdminSettingsPage />}
+        {tab === 'import'     && <AdminImportPage allowedLevelCodes={allowedLevelCodes} />}
+        {tab === 'sections'   && <AdminSectionsPage allowedLevelCodes={allowedLevelCodes} />}
+        {tab === 'modules'    && <AdminModulesPage allowedLevelCodes={allowedLevelCodes} />}
+        {tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
+        {!isDeptHead && tab === 'assignment' && <AdminAssignmentPage />}
+        {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
       </main>
     </div>
   );

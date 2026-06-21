@@ -7,7 +7,11 @@ import { Plus, Trash2, Save, X, BookOpen, ChevronDown, ChevronUp, CheckCircle, A
 
 const emptyModForm = { name: '', hasTD: false, spec: '', ue: 'أساسية' as UEType, mode: 'حضوري' as DeliveryMode };
 
-export default function AdminModulesPage() {
+interface Props {
+  allowedLevelCodes?: string[] | null; // إن وُجدت، يُحصر العرض بهذه الرموز فقط (لرئيس القسم)
+}
+
+export default function AdminModulesPage({ allowedLevelCodes }: Props) {
   const [levels, setLevels] = useState<Level[]>([]);
   const [modules, setModules] = useState<Record<string, { s1: Module[]; s2: Module[] }>>({});
   const [lsData, setLsData] = useState<LevelSemester[]>([]);
@@ -36,9 +40,12 @@ export default function AdminModulesPage() {
       supabase.from('level_semesters').select('*'),
     ]);
     if (lvls) {
-      setLevels(lvls);
+      const filteredLvls = allowedLevelCodes
+        ? lvls.filter((l: Level) => allowedLevelCodes.includes(l.code))
+        : lvls;
+      setLevels(filteredLvls);
       const grouped: Record<string, { s1: Module[]; s2: Module[] }> = {};
-      lvls.forEach((l: Level) => { grouped[l.id] = { s1: [], s2: [] }; });
+      filteredLvls.forEach((l: Level) => { grouped[l.id] = { s1: [], s2: [] }; });
       (mods || []).forEach((m: Module) => {
         if (grouped[m.level_id]) {
           if (m.semester === 1) grouped[m.level_id].s1.push(m);
@@ -235,10 +242,12 @@ export default function AdminModulesPage() {
           <h2 className="font-display font-bold text-gray-900 text-xl">المقاييس والمستويات</h2>
           <p className="text-gray-500 text-sm">{toArabicNum(levels.length)} مستوى — سداسيان مستقلان لكل مستوى</p>
         </div>
-        <button onClick={() => setAddingLevel(true)}
-          className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
-          <Plus className="w-4 h-4" /> مستوى جديد
-        </button>
+        {!allowedLevelCodes && (
+          <button onClick={() => setAddingLevel(true)}
+            className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+            <Plus className="w-4 h-4" /> مستوى جديد
+          </button>
+        )}
       </div>
 
       {msg && (

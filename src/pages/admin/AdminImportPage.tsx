@@ -43,8 +43,12 @@ interface ModuleRow {
   error?: string;
 }
 
-export default function AdminImportPage() {
-  const [activeTab, setActiveTab] = useState<'professors' | 'modules'>('professors');
+interface ImportPageProps {
+  allowedLevelCodes?: string[] | null;
+}
+
+export default function AdminImportPage({ allowedLevelCodes }: ImportPageProps) {
+  const [activeTab, setActiveTab] = useState<'professors' | 'modules'>(allowedLevelCodes ? 'modules' : 'professors');
 
   // ── حالة الأساتذة
   const [rows, setRows] = useState<ProfRow[]>([]);
@@ -63,7 +67,12 @@ export default function AdminImportPage() {
 
   useEffect(() => {
     supabase.from('levels').select('*').order('display_order').then(({ data }) => {
-      if (data) setLevels(data);
+      if (data) {
+        const filtered = allowedLevelCodes
+          ? data.filter((l: Level) => allowedLevelCodes.includes(l.code))
+          : data;
+        setLevels(filtered);
+      }
     });
   }, []);
 
@@ -311,20 +320,24 @@ export default function AdminImportPage() {
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-gray-900 font-display">الاستيراد من Excel</h2>
-        <p className="text-gray-500 text-sm mt-1">استيراد الأساتذة والمقاييس من ملفات Excel</p>
+        <p className="text-gray-500 text-sm mt-1">
+          {allowedLevelCodes ? 'استيراد مقاييس مستويات قسمك من ملف Excel' : 'استيراد الأساتذة والمقاييس من ملفات Excel'}
+        </p>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
-        <button
-          onClick={() => setActiveTab('professors')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'professors'
-              ? 'bg-white text-[#1a3a6b] shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}>
-          <Users className="w-4 h-4" /> استيراد الأساتذة
-        </button>
+        {!allowedLevelCodes && (
+          <button
+            onClick={() => setActiveTab('professors')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'professors'
+                ? 'bg-white text-[#1a3a6b] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            <Users className="w-4 h-4" /> استيراد الأساتذة
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('modules')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
