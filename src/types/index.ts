@@ -74,6 +74,18 @@ export interface LevelSemester {
   num_groups: number;   // عدد الأفواج لكل مجموعة — فرص TD
 }
 
+export type SpecialtyBranch = 'قانون عام' | 'قانون خاص' | 'قانون جنائي' | 'أخرى' | 'علوم سياسية' | 'علم الاجتماع';
+
+export interface Specialty {
+  id: string;
+  name_ar: string;
+  branch: SpecialtyBranch;
+  display_order: number;
+  is_active: boolean;
+}
+
+export const SPECIALTY_BRANCHES: SpecialtyBranch[] = ['قانون عام', 'قانون خاص', 'قانون جنائي', 'أخرى', 'علوم سياسية', 'علم الاجتماع'];
+
 export type UEType = 'أساسية' | 'منهجية' | 'استكشافية' | 'أفقية';
 export type DeliveryMode = 'حضوري' | 'عن بعد';
 
