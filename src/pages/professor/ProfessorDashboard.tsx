@@ -51,13 +51,13 @@ export default function ProfessorDashboard() {
 
   const s1Locked = profData?.wishes_locked_s1 || false;
   const s2Locked = profData?.wishes_locked_s2 || false;
-  const s2Unlocked = s1Locked; // السداسي الثاني يُفتح بعد تأكيد الأول
+  const s2Unlocked = true; // حرية تنقّل كاملة بين السداسيين — لا إلزام بتأكيد الأول قبل الوصول للثاني
 
   const tabs = [
     { id: 'home' as ProfTab, label: 'الرئيسية', icon: Home, disabled: !profileComplete },
     { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User },
     { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock, disabled: !profileComplete },
-    { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete || !s2Unlocked },
+    { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete },
     { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
   ];
 
@@ -163,7 +163,7 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
   const steps = [
     { n: '1', t: 'أكمل معلوماتك الشخصية', done: profileComplete, c: '#dbeafe', tc: '#1d4ed8', tab: 'profile' },
     { n: '2', t: 'سجّل رغبات السداسي الأول', done: s1Locked, c: 'rgba(26,58,107,.1)', tc: '#1a3a6b', tab: 's1' },
-    { n: '3', t: 'سجّل رغبات السداسي الثاني', done: s2Locked, c: 'rgba(201,162,39,.15)', tc: '#92400e', tab: 's2', locked: !s2Unlocked },
+    { n: '3', t: 'سجّل رغبات السداسي الثاني (متاح في أي وقت)', done: s2Locked, c: 'rgba(201,162,39,.15)', tc: '#92400e', tab: 's2' },
     { n: '4', t: 'تأكيد واحد يُقفل السداسيين معاً', done: s2Locked, c: '#dcfce7', tc: '#15803d' },
     { n: '5', t: 'اطبع بطاقتك الموحّدة', done: false, c: '#fee2e2', tc: '#991b1b', tab: 'card', locked: !s1Locked },
   ];
@@ -236,13 +236,12 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
       <div className="grid grid-cols-2 gap-3">
         {[
           { sem: 1, tab: 's1', color: '#1a3a6b', bg: 'rgba(26,58,107,.07)', locked: s1Locked },
-          { sem: 2, tab: 's2', color: '#c9a227', bg: 'rgba(201,162,39,.1)', locked: s2Locked, disabled: !s2Unlocked },
+          { sem: 2, tab: 's2', color: '#c9a227', bg: 'rgba(201,162,39,.1)', locked: s2Locked },
         ].map(s => (
           <div key={s.sem}
             className="bg-white rounded-2xl p-4 border-2 shadow-sm transition-all"
             style={{
-              borderColor: s.locked ? '#bbf7d0' : s.disabled ? '#f1f5f9' : `${s.color}33`,
-              opacity: s.disabled ? 0.5 : 1,
+              borderColor: s.locked ? '#bbf7d0' : `${s.color}33`,
             }}>
             <div className="flex justify-between items-start mb-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: s.bg }}>
@@ -252,29 +251,21 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
                 ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" /> مكتمل
                   </span>
-                : s.disabled
-                ? <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> مقفل
-                  </span>
                 : <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full animate-pulse">● جارٍ</span>
               }
             </div>
             <h3 className="font-display font-bold text-gray-800 text-sm mb-1">
               السداسي {s.sem === 1 ? 'الأول' : 'الثاني'}
             </h3>
-            <p className="text-gray-400 text-xs mb-3">
-              {s.disabled ? 'أكمل السداسي الأول أولاً' : 'حتى 5 رغبات — رغبتان إجباريتان'}
-            </p>
+            <p className="text-gray-400 text-xs mb-3">خمس رغبات إجبارية — متاح في أي وقت</p>
             <button
-              onClick={() => !s.disabled && setTab(s.tab)}
-              disabled={!!s.disabled}
+              onClick={() => setTab(s.tab)}
               className="w-full py-2 rounded-xl text-xs font-medium transition-all"
               style={{
-                background: s.disabled ? '#f1f5f9' : s.locked ? 'rgba(26,58,107,.08)' : `linear-gradient(135deg,${s.color},${s.sem === 1 ? '#0d2040' : '#a07820'})`,
-                color: s.disabled ? '#94a3b8' : s.locked ? s.color : 'white',
-                cursor: s.disabled ? 'not-allowed' : 'pointer',
+                background: s.locked ? 'rgba(26,58,107,.08)' : `linear-gradient(135deg,${s.color},${s.sem === 1 ? '#0d2040' : '#a07820'})`,
+                color: s.locked ? s.color : 'white',
               }}>
-              {s.locked ? 'مراجعة' : s.disabled ? 'مقفل' : 'ابدأ التسجيل'}
+              {s.locked ? 'مراجعة' : 'ابدأ التسجيل'}
             </button>
           </div>
         ))}
