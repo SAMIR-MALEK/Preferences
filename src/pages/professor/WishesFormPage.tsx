@@ -53,6 +53,10 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
   const [wantsExtraHours, setWantsExtraHours] = useState(false);
   const [extraHoursCount, setExtraHoursCount] = useState<number | null>(null);
 
+  // رغبة إلزامية سادسة خاصة بأستاذ التعليم العالي (بروفيسور): مقياس محاضرة من السنة أولى
+  const isProfessorRank = prof?.rank === 'أستاذ التعليم العالي';
+  const [profModuleId, setProfModuleId] = useState('');
+
   const isLocked = semester === 1 ? prof?.wishes_locked_s1 : prof?.wishes_locked_s2;
   const academicYear = '2026-2027';
 
@@ -81,6 +85,10 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       }));
       while (forms.length < WISH_COUNT) forms.push(emptyWish());
       setWishes(forms.slice(0, WISH_COUNT));
+
+      // الرغبة السادسة الخاصة بالبروفيسور (wish_order = 6)
+      const profWish = existingWishes.find(w => w.wish_order === 6);
+      if (profWish) setProfModuleId(profWish.module_id);
     }
 
     // تحميل رغبة الساعات الإضافية لهذا السداسي
@@ -137,6 +145,11 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       return;
     }
 
+    if (isProfessorRank && !profModuleId) {
+      setMessage({ type: 'error', text: 'بصفتك أستاذ التعليم العالي، يجب اختيار مقياس محاضرة من السنة أولى ليسانس (رغبة إلزامية سادسة)' });
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
 
@@ -161,6 +174,23 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       previous_years: w.previous_years,
       notes: w.notes,
     }));
+
+    // الرغبة السادسة الإلزامية الخاصة بالبروفيسور (L1 + محاضرة)
+    if (isProfessorRank && profModuleId) {
+      const l1Level = levels.find(l => l.code === 'L1');
+      toInsert.push({
+        professor_id: prof?.id,
+        academic_year: academicYear,
+        semester,
+        wish_order: 6,
+        module_id: profModuleId,
+        level_id: l1Level?.id || '',
+        teaching_type: 'محاضرة',
+        taught_before: false,
+        previous_years: [],
+        notes: 'رغبة إلزامية خاصة بأستاذ التعليم العالي',
+      });
+    }
 
     const { error } = await supabase.from('wishes').insert(toInsert);
     if (error) {
@@ -226,11 +256,11 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       </div>
 
       <div className="space-y-3">
-        {savedWishes.map((w, i) => (
-          <div key={w.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        {savedWishes.map((w) => (
+          <div key={w.id} className={`bg-white rounded-2xl p-4 shadow-sm border ${w.wish_order === 6 ? 'border-amber-200 bg-amber-50/30' : 'border-gray-100'}`}>
             <div className="flex items-start gap-3">
-              <span className="w-7 h-7 rounded-full bg-[#1a3a6b] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
-                {toArabicNum(i + 1)}
+              <span className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0 ${w.wish_order === 6 ? 'bg-amber-500' : 'bg-[#1a3a6b]'}`}>
+                {toArabicNum(w.wish_order)}
               </span>
               <div className="flex-1">
                 <p className="font-semibold text-gray-800">{w.module?.name_ar}</p>
@@ -496,6 +526,39 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
           );
         })}
       </div>
+
+      {/* رغبة إلزامية سادسة خاصة بأستاذ التعليم العالي */}
+      {isProfessorRank && (
+        <div className="bg-amber-50 rounded-2xl p-5 border-2 border-amber-200 space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold flex items-center justify-center flex-shrink-0">
+              ٦
+            </span>
+            <div>
+              <h3 className="font-bold text-amber-800 font-display">رغبة إلزامية إضافية — أستاذ التعليم العالي</h3>
+              <p className="text-amber-700 text-xs mt-0.5">بصفتك بروفيسوراً، يجب عليك اختيار مقياس محاضرة واحد من السنة أولى ليسانس، بالإضافة إلى رغباتك الخمس أعلاه.</p>
+            </div>
+          </div>
+          <select
+            value={profModuleId}
+            onChange={e => setProfModuleId(e.target.value)}
+            className="w-full border-2 border-amber-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-amber-500 bg-white">
+            <option value="">— اختر مقياس محاضرة من أولى ليسانس —</option>
+            {modules.filter(m => {
+              const lvl = levels.find(l => l.id === m.level_id);
+              return lvl?.code === 'L1' && m.has_lectures;
+            }).map(m => (
+              <option key={m.id} value={m.id}>{m.name_ar}</option>
+            ))}
+          </select>
+          {modules.filter(m => {
+            const lvl = levels.find(l => l.id === m.level_id);
+            return lvl?.code === 'L1' && m.has_lectures;
+          }).length === 0 && (
+            <p className="text-xs text-amber-600">لا توجد مقاييس محاضرة متاحة في أولى ليسانس لهذا السداسي بعد.</p>
+          )}
+        </div>
+      )}
 
       {/* رغبة الساعات الإضافية */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
