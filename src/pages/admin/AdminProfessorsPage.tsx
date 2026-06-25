@@ -5,7 +5,7 @@ import type { Professor, ProfessorRank } from '../../types';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
 import {
   UserPlus, Search, Lock, Unlock, Pencil,
-  CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2
+  CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2, FileText
 } from 'lucide-react';
 
 const emptyForm = {
@@ -143,6 +143,11 @@ export default function AdminProfessorsPage() {
     } catch (e: any) {
       setMessage({ type: 'error', text: e.message });
     }
+  }
+
+  async function handleViewDiploma(diplomaPath: string) {
+    const { data } = await supabase.storage.from('diplomas').createSignedUrl(diplomaPath, 60);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
   }
 
   // ── الحذف ──
@@ -387,6 +392,13 @@ export default function AdminProfessorsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
+                        {prof.diploma_url && (
+                          <button onClick={() => handleViewDiploma(prof.diploma_url!)}
+                            title="عرض الشهادة المرفوعة"
+                            className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-lg transition-colors">
+                            <FileText className="w-4 h-4" />
+                          </button>
+                        )}
                         <button onClick={() => startEdit(prof)}
                           title="تعديل البيانات"
                           className="p-1.5 text-gray-400 hover:text-[#1a3a6b] hover:bg-[#1a3a6b]/5 rounded-lg transition-colors">
