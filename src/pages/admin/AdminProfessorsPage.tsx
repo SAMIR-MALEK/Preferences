@@ -3,6 +3,7 @@ import { supabase, callEdgeFunction } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
 import type { Professor, ProfessorRank } from '../../types';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
+import * as XLSX from 'xlsx';
 import {
   UserPlus, Search, Lock, Unlock, Pencil,
   CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2, FileText
@@ -148,6 +149,25 @@ export default function AdminProfessorsPage() {
   async function handleViewDiploma(diplomaPath: string) {
     const { data } = await supabase.storage.from('diplomas').createSignedUrl(diplomaPath, 60);
     if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }
+
+  function exportProfessorsTable() {
+    const rows = filtered.map(p => ([
+      p.last_name, p.first_name, p.username, p.rank,
+      p.highest_degree, p.degree_speciality, p.degree_title,
+      p.professional_experience, p.email || '', p.phone || '',
+      p.wishes_locked_s1 ? 'مؤكدة' : 'مفتوحة',
+      p.wishes_locked_s2 ? 'مؤكدة' : 'مفتوحة',
+      p.diploma_url ? 'نعم' : 'لا',
+    ]));
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['اللقب', 'الاسم', 'اسم المستخدم', 'الرتبة', 'آخر شهادة', 'تخصص الشهادة', 'عنوان الشهادة', 'الخبرة (سنوات)', 'البريد', 'الهاتف', 'رغبات س1', 'رغبات س2', 'شهادة مرفوعة'],
+      ...rows,
+    ]);
+    ws['!cols'] = [14, 14, 12, 22, 12, 22, 30, 10, 25, 14, 10, 10, 12].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'الأساتذة');
+    XLSX.writeFile(wb, `الأساتذة_${new Date().toISOString().slice(0,10)}.xlsx`);
   }
 
   // ── الحذف ──
@@ -318,6 +338,13 @@ export default function AdminProfessorsPage() {
             placeholder="بحث بالاسم أو اسم المستخدم..."
             className="w-full border border-gray-200 rounded-xl pr-10 pl-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white" />
         </div>
+
+        {filtered.length > 0 && (
+          <button onClick={exportProfessorsTable}
+            className="flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-green-100 transition-colors">
+            <Download className="w-4 h-4" /> تصدير Excel
+          </button>
+        )}
 
         {selected.size > 0 && (
           <button onClick={askDeleteSelected}

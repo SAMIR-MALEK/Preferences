@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
 import type { Level, Module, LevelSemester, UEType, DeliveryMode } from '../../types';
 import { UE_TYPES, DELIVERY_MODES } from '../../types';
-import { Plus, Trash2, Save, X, BookOpen, ChevronDown, ChevronUp, CheckCircle, AlertCircle, Pencil } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Plus, Trash2, Save, X, BookOpen, ChevronDown, ChevronUp, CheckCircle, AlertCircle, Pencil, Download } from 'lucide-react';
 
 const emptyModForm = { name: '', hasTD: false, spec: '', ue: 'أساسية' as UEType, mode: 'حضوري' as DeliveryMode };
 
@@ -229,6 +230,31 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
     showMsg('s', 'تم الحذف');
   }
 
+  function exportModulesTable() {
+    const rows: any[][] = [];
+    levels.forEach(level => {
+      ([1, 2] as (1|2)[]).forEach(sem => {
+        const mods = modules[level.id]?.[`s${sem}` as 's1'|'s2'] || [];
+        mods.forEach(m => {
+          rows.push([
+            level.code, level.name_ar, sem === 1 ? 'الأول' : 'الثاني',
+            m.name_ar, m.ue_type, m.delivery_mode,
+            m.has_lectures ? 'نعم' : 'لا', m.has_td ? 'نعم' : 'لا',
+            (m.specialty_match || []).join('، '),
+          ]);
+        });
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['رمز المستوى', 'اسم المستوى', 'السداسي', 'اسم المقياس', 'الوحدة', 'نمط الحضور', 'محاضرة', 'أعمال موجهة', 'تخصص الأستاذ المفضّل للإسناد'],
+      ...rows,
+    ]);
+    ws['!cols'] = [12, 28, 10, 30, 14, 12, 10, 14, 30].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'المقاييس');
+    XLSX.writeFile(wb, `المقاييس_${new Date().toISOString().slice(0,10)}.xlsx`);
+  }
+
   if (loading) return (
     <div className="flex justify-center py-10">
       <div className="w-6 h-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full animate-spin" />
@@ -242,12 +268,20 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
           <h2 className="font-display font-bold text-gray-900 text-xl">المقاييس والمستويات</h2>
           <p className="text-gray-500 text-sm">{toArabicNum(levels.length)} مستوى — سداسيان مستقلان لكل مستوى</p>
         </div>
-        {!allowedLevelCodes && (
-          <button onClick={() => setAddingLevel(true)}
-            className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
-            <Plus className="w-4 h-4" /> مستوى جديد
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {levels.length > 0 && (
+            <button onClick={exportModulesTable}
+              className="flex items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+              <Download className="w-4 h-4" /> تصدير Excel
+            </button>
+          )}
+          {!allowedLevelCodes && (
+            <button onClick={() => setAddingLevel(true)}
+              className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+              <Plus className="w-4 h-4" /> مستوى جديد
+            </button>
+          )}
+        </div>
       </div>
 
       {msg && (
