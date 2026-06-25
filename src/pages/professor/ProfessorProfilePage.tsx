@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES, type ProfessorRank } from '../../types';
-import { Save, CheckCircle, AlertCircle, User, Award, BookOpen, GraduationCap, Lock, Eye, EyeOff, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, User, Award, BookOpen, GraduationCap, Lock, Eye, EyeOff, ShieldAlert, ArrowLeft, Upload, FileText, Trash2 } from 'lucide-react';
 
 interface Props {
   forceComplete?: boolean; // إن كانت true، يُفرض إكمال كل الحقول قبل الحفظ
@@ -40,6 +40,11 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
+  // رفع الشهادة
+  const [diplomaUrl, setDiplomaUrl] = useState<string | null>(prof?.diploma_url || null);
+  const [uploadingDiploma, setUploadingDiploma] = useState(false);
+  const [diplomaError, setDiplomaError] = useState('');
+
   // تغيير كلمة المرور
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
@@ -54,7 +59,61 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
     if (!form.degree_title.trim()) missing.push('عنوان الشهادة');
     if (!form.email.trim()) missing.push('البريد الإلكتروني');
     if (!form.phone.trim()) missing.push('رقم الهاتف');
+    if (!diplomaUrl) missing.push('نسخة من الشهادة');
     return missing;
+  }
+
+  async function handleDiplomaUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !prof?.id) return;
+    setDiplomaError('');
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      setDiplomaError('الصيغ المقبولة فقط: صورة (JPG/PNG) أو ملف PDF');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setDiplomaError('حجم الملف يجب أن لا يتجاوز 10 ميجابايت');
+      return;
+    }
+
+    setUploadingDiploma(true);
+    const ext = file.name.split('.').pop();
+    const path = `${prof.id}/diploma.${ext}`;
+
+    const { error: uploadErr } = await supabase.storage
+      .from('diplomas')
+      .upload(path, file, { upsert: true });
+
+    if (uploadErr) {
+      setDiplomaError('حدث خطأ أثناء رفع الملف. يرجى المحاولة مجدداً.');
+      setUploadingDiploma(false);
+      return;
+    }
+
+    // حفظ مسار الملف في قاعدة البيانات فوراً
+    await supabase.from('professors').update({ diploma_url: path }).eq('id', prof.id);
+    setDiplomaUrl(path);
+    setUploadingDiploma(false);
+  }
+
+  async function handleDiplomaDelete() {
+    if (!prof?.id || !diplomaUrl) return;
+    await supabase.storage.from('diplomas').remove([diplomaUrl]);
+    await supabase.from('professors').update({ diploma_url: null }).eq('id', prof.id);
+    setDiplomaUrl(null);
+  }
+
+  async function getDiplomaViewUrl(): Promise<string | null> {
+    if (!diplomaUrl) return null;
+    const { data } = await supabase.storage.from('diplomas').createSignedUrl(diplomaUrl, 60);
+    return data?.signedUrl || null;
+  }
+
+  async function handleViewDiploma() {
+    const url = await getDiplomaViewUrl();
+    if (url) window.open(url, '_blank');
   }
 
   async function handleSave() {
@@ -225,6 +284,41 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
             rows={3}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 resize-none leading-relaxed"
           />
+        </Field>
+
+        <Field label={`نسخة من شهادة الدكتوراه أو الماجيستير ${forceComplete ? '*' : ''}`} icon={FileText}>
+          {diplomaError && (
+            <p className="text-xs text-red-600 mb-2 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" /> {diplomaError}
+            </p>
+          )}
+          {diplomaUrl ? (
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <span className="text-sm text-green-700 flex-1">تم رفع الشهادة بنجاح</span>
+              <button type="button" onClick={handleViewDiploma}
+                className="text-xs text-[#1a3a6b] hover:underline font-medium">
+                عرض
+              </button>
+              <button type="button" onClick={handleDiplomaDelete}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-[#1a3a6b] rounded-xl px-4 py-6 cursor-pointer transition-colors bg-gray-50">
+              <input type="file" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                onChange={handleDiplomaUpload} disabled={uploadingDiploma} className="hidden" />
+              {uploadingDiploma ? (
+                <span className="text-sm text-gray-500">جارٍ الرفع...</span>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-500">اضغط لرفع صورة أو ملف PDF للشهادة (حد أقصى 10 ميجابايت)</span>
+                </>
+              )}
+            </label>
+          )}
         </Field>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
