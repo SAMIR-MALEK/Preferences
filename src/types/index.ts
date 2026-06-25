@@ -41,6 +41,7 @@ export interface Professor {
   highest_degree: string;
   degree_speciality: string;
   degree_title: string;
+  diploma_url?: string | null;
   email?: string;
   phone?: string;
   is_active: boolean;
