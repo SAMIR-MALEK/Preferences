@@ -6,7 +6,7 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload, Menu, X
+  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -16,10 +16,11 @@ import AdminAssignmentPage    from './AdminAssignmentPage';
 import AdminSettingsPage      from './AdminSettingsPage';
 import AdminImportPage        from './AdminImportPage';
 import AdminSpecialtiesPage   from './AdminSpecialtiesPage';
+import AdminEmailPage         from './AdminEmailPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'wishes' | 'assignment' | 'settings';
+  | 'modules' | 'specialties' | 'wishes' | 'assignment' | 'settings' | 'email';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -78,13 +79,14 @@ export default function AdminDashboard() {
     { id: 'modules',    label: 'المقاييس',           icon: BookOpen   },
     { id: 'specialties', label: 'التخصصات',           icon: GraduationCap },
     { id: 'wishes',     label: 'استعراض الرغبات',   icon: Eye        },
+    { id: 'email',      label: 'إرسال بريد',         icon: Mail       },
     { id: 'assignment', label: 'الإسناد',            icon: Award      },
     { id: 'settings',   label: 'الإعدادات',          icon: Settings   },
   ];
 
-  // رئيس القسم لا يرى تبويبي الإسناد والإعدادات (حكر على العميد/نائب العميد)
+  // رئيس القسم لا يرى تبويبي الإسناد والإعدادات وإرسال البريد (حكر على العميد/نائب العميد)
   const nav = isDeptHead
-    ? allNav.filter(item => item.id !== 'assignment' && item.id !== 'settings')
+    ? allNav.filter(item => item.id !== 'assignment' && item.id !== 'settings' && item.id !== 'email')
     : allNav;
 
   return (
@@ -202,6 +204,7 @@ export default function AdminDashboard() {
         {tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
         {!isDeptHead && tab === 'assignment' && <AdminAssignmentPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
+        {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
     </div>
   );
