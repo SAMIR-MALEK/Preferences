@@ -6,7 +6,7 @@ import type { Module, Level, Wish, TeachingType } from '../../types';
 import { PREVIOUS_YEARS } from '../../types';
 import {
   Save, CheckCircle, AlertCircle,
-  Lock, Info, BookOpen, ChevronDown, ChevronUp, ArrowDown
+  Lock, Info, ChevronDown, ChevronUp, ArrowDown
 } from 'lucide-react';
 
 interface WishForm {
@@ -49,20 +49,14 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [expandedWish, setExpandedWish] = useState<number | null>(0);
 
-  // رغبة الساعات الإضافية
   const [wantsExtraHours, setWantsExtraHours] = useState(false);
   const [extraHoursCount, setExtraHoursCount] = useState<number | null>(null);
 
-  // رغبة إلزامية سادسة خاصة بأستاذ التعليم العالي (بروفيسور): مقياس محاضرة من السنة أولى
   const isProfessorRank = prof?.rank === 'أستاذ التعليم العالي';
-  const [profModuleId, setProfModuleId] = useState('');
-
   const isLocked = semester === 1 ? prof?.wishes_locked_s1 : prof?.wishes_locked_s2;
   const academicYear = '2026-2027';
 
-  useEffect(() => {
-    loadData();
-  }, [semester]);
+  useEffect(() => { loadData(); }, [semester]);
 
   async function loadData() {
     setLoading(true);
@@ -75,23 +69,21 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     if (lvls) setLevels(lvls);
     if (existingWishes && existingWishes.length > 0) {
       setSavedWishes(existingWishes);
-      const forms = existingWishes.map(w => ({
-        module_id: w.module_id,
-        level_id: w.level_id,
-        teaching_type: w.teaching_type as TeachingType,
-        taught_before: w.taught_before,
-        previous_years: w.previous_years || [],
-        notes: w.notes || '',
-      }));
+      // فقط الرغبات 1-5 (wish_order <= 5)
+      const forms = existingWishes
+        .filter(w => w.wish_order <= 5)
+        .map(w => ({
+          module_id: w.module_id,
+          level_id: w.level_id,
+          teaching_type: w.teaching_type as TeachingType,
+          taught_before: w.taught_before,
+          previous_years: w.previous_years || [],
+          notes: w.notes || '',
+        }));
       while (forms.length < WISH_COUNT) forms.push(emptyWish());
       setWishes(forms.slice(0, WISH_COUNT));
-
-      // الرغبة السادسة الخاصة بالبروفيسور (wish_order = 6)
-      const profWish = existingWishes.find(w => w.wish_order === 6);
-      if (profWish) setProfModuleId(profWish.module_id);
     }
 
-    // تحميل رغبة الساعات الإضافية لهذا السداسي
     if (semester === 1) {
       setWantsExtraHours(prof?.wants_extra_hours_s1 || false);
       setExtraHoursCount(prof?.extra_hours_count_s1 ?? null);
@@ -99,7 +91,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       setWantsExtraHours(prof?.wants_extra_hours_s2 || false);
       setExtraHoursCount(prof?.extra_hours_count_s2 ?? null);
     }
-
     setLoading(false);
   }
 
@@ -107,7 +98,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     setWishes(prev => prev.map((w, i) => i === index ? { ...w, ...field } : w));
   }
 
-  // التحقق من عدم تكرار نفس الرغبة (نفس المقياس + نفس نوع التدريس) — الشرط الوحيد
   function validateNoDuplicates(allWishes: WishForm[]): string | null {
     const filled = allWishes.filter(w => w.module_id && w.level_id);
     const keys = filled.map(w => `${w.module_id}__${w.teaching_type}`);
@@ -115,7 +105,23 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     if (dupeKey) {
       const [modId] = dupeKey.split('__');
       const modName = modules.find(m => m.id === modId)?.name_ar || 'مقياس';
-      return `لا يمكن تكرار نفس الرغبة — لاحظنا تكرار "${modName}" بنفس نوع التدريس في رغبتين مختلفتين`;
+      return `لا يمكن تكرار نفس الرغبة — لاحظنا تكرار "${modName}" بنفس نوع التدريس في رغبتين`;
+    }
+    return null;
+  }
+
+  // التحقق من شرط البروفيسور: يجب أن تكون إحدى الرغبات الخمس مقياس محاضرة من L1
+  function validateProfessorRule(allWishes: WishForm[]): string | null {
+    if (!isProfessorRank) return null;
+    const l1Level = levels.find(l => l.code === 'L1');
+    if (!l1Level) return null;
+    const hasL1Lecture = allWishes.some(w =>
+      w.level_id === l1Level.id &&
+      w.module_id &&
+      w.teaching_type === 'محاضرة'
+    );
+    if (!hasL1Lecture) {
+      return 'بصفتك أستاذ التعليم العالي، يجب أن تتضمن رغباتك الخمس مقياساً واحداً على الأقل من السنة أولى ليسانس (L1) بنوع تدريس "محاضرة"';
     }
     return null;
   }
@@ -123,44 +129,40 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
   function wishCompletion(w: WishForm) {
     if (!w.level_id) return 0;
     if (!w.module_id) return 1;
-    return 2; // مكتملة
+    return 2;
   }
 
-  // الحفظ المؤقت
   async function handleSave() {
     const valid = wishes.filter(w => w.module_id && w.level_id);
     if (valid.length < WISH_COUNT) {
-      setMessage({ type: 'error', text: `يجب تعبئة الخمس رغبات كاملة قبل الحفظ — أكملت ${toArabicNum(valid.length)} من ٥` });
+      setMessage({ type: 'error', text: `يجب تعبئة الرغبات الخمس كاملة — أكملت ${toArabicNum(valid.length)} من ٥` });
       return;
     }
 
     const dupError = validateNoDuplicates(wishes);
-    if (dupError) {
-      setMessage({ type: 'error', text: dupError });
-      return;
-    }
+    if (dupError) { setMessage({ type: 'error', text: dupError }); return; }
+
+    const profError = validateProfessorRule(wishes);
+    if (profError) { setMessage({ type: 'error', text: profError }); return; }
 
     if (wantsExtraHours && !extraHoursCount) {
       setMessage({ type: 'error', text: 'يرجى تحديد عدد الساعات الإضافية المرغوبة' });
       return;
     }
 
-    if (isProfessorRank && !profModuleId) {
-      setMessage({ type: 'error', text: 'بصفتك أستاذ التعليم العالي، يجب اختيار مقياس محاضرة من السنة أولى ليسانس (رغبة إلزامية سادسة)' });
-      return;
-    }
-
     setSaving(true);
     setMessage(null);
 
-    // حفظ رغبة الساعات الإضافية لهذا السداسي
     const extraHoursField = semester === 1
       ? { wants_extra_hours_s1: wantsExtraHours, extra_hours_count_s1: wantsExtraHours ? extraHoursCount : null }
       : { wants_extra_hours_s2: wantsExtraHours, extra_hours_count_s2: wantsExtraHours ? extraHoursCount : null };
     await supabase.from('professors').update(extraHoursField).eq('id', prof?.id);
 
-    // حذف الرغبات القديمة وإعادة إدراجها
-    await supabase.from('wishes').delete().eq('professor_id', prof?.id).eq('semester', semester).eq('academic_year', academicYear);
+    // حذف الرغبات السابقة (الخمس فقط، wish_order <= 5)
+    await supabase.from('wishes').delete()
+      .eq('professor_id', prof?.id)
+      .eq('semester', semester)
+      .eq('academic_year', academicYear);
 
     const toInsert = valid.map((w, i) => ({
       professor_id: prof?.id,
@@ -175,48 +177,25 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       notes: w.notes,
     }));
 
-    // الرغبة السادسة الإلزامية الخاصة بالبروفيسور (L1 + محاضرة)
-    if (isProfessorRank && profModuleId) {
-      const l1Level = levels.find(l => l.code === 'L1');
-      toInsert.push({
-        professor_id: prof?.id,
-        academic_year: academicYear,
-        semester,
-        wish_order: 6,
-        module_id: profModuleId,
-        level_id: l1Level?.id || '',
-        teaching_type: 'محاضرة',
-        taught_before: false,
-        previous_years: [],
-        notes: 'رغبة إلزامية خاصة بأستاذ التعليم العالي',
-      });
-    }
-
     const { error } = await supabase.from('wishes').insert(toInsert);
     if (error) {
-      setMessage({ type: 'error', text: 'حدث خطأ أثناء الحفظ' });
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء الحفظ: ' + error.message });
     } else {
-      setMessage({ type: 'success', text: 'تم حفظ رغباتك مؤقتاً — يمكنك التعديل أو التنقل بحرية بين السداسيين قبل التأكيد النهائي' });
-      loadData();
+      setMessage({ type: 'success', text: 'تم حفظ رغباتك مؤقتاً — يمكنك التعديل قبل التأكيد النهائي' });
+      await loadData();
     }
     setSaving(false);
   }
 
-  // التأكيد النهائي
   async function handleConfirm() {
     setConfirming(true);
     setShowConfirmDialog(false);
-
-    // حفظ أولاً
     await handleSave();
-
-    // قفل السداسي
     const lockField = semester === 1 ? 'wishes_locked_s1' : 'wishes_locked_s2';
     const { error } = await supabase.from('professors').update({
       [lockField]: true,
       wishes_locked_at: new Date().toISOString(),
     }).eq('id', prof?.id);
-
     if (error) {
       setMessage({ type: 'error', text: 'حدث خطأ أثناء التأكيد' });
     } else {
@@ -226,7 +205,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     setConfirming(false);
   }
 
-  // أنواع التدريس المتاحة للمقياس
   function getTeachingTypes(moduleId: string): TeachingType[] {
     const mod = modules.find(m => m.id === moduleId);
     if (!mod) return ['محاضرة', 'أعمال موجهة'];
@@ -242,43 +220,35 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     </div>
   );
 
-  // ── واجهة مقفولة ──
   if (isLocked) return (
     <div className="space-y-5 animate-fade-in" dir="rtl">
       <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-6 text-white">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-2">
           <Lock className="w-6 h-6 text-[#c9a227]" />
-          <h2 className="text-lg font-bold font-display">
-            رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'} — مؤكدة ومقفولة
-          </h2>
+          <h2 className="text-lg font-bold font-display">رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'} — مؤكدة ومقفولة</h2>
         </div>
-        <p className="text-gray-300 text-sm">تم تأكيد رغباتك نهائياً ولا يمكن تعديلها. للاستفسار تواصل مع نيابة العمادة.</p>
+        <p className="text-gray-300 text-sm">تم تأكيد رغباتك نهائياً. للاستفسار تواصل مع نيابة العمادة.</p>
       </div>
-
       <div className="space-y-3">
-        {savedWishes.map((w) => (
-          <div key={w.id} className={`bg-white rounded-2xl p-4 shadow-sm border ${w.wish_order === 6 ? 'border-amber-200 bg-amber-50/30' : 'border-gray-100'}`}>
+        {savedWishes.filter(w => w.wish_order <= 5).map((w) => (
+          <div key={w.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
             <div className="flex items-start gap-3">
-              <span className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0 ${w.wish_order === 6 ? 'bg-amber-500' : 'bg-[#1a3a6b]'}`}>
+              <span className="w-7 h-7 rounded-full bg-[#1a3a6b] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
                 {toArabicNum(w.wish_order)}
               </span>
               <div className="flex-1">
-                <p className="font-semibold text-gray-800">{w.module?.name_ar}</p>
-                <p className="text-sm text-gray-500">{w.level?.name_ar} — {w.teaching_type}</p>
-                {w.taught_before && (
-                  <p className="text-xs text-[#c9a227] mt-1">✓ سبق تدريسه {w.previous_years?.join('، ')}</p>
-                )}
-                {w.notes && <p className="text-xs text-gray-400 mt-1">{w.notes}</p>}
+                <p className="font-semibold text-gray-800">{(w as any).module?.name_ar}</p>
+                <p className="text-sm text-gray-500">{(w as any).level?.name_ar} — {w.teaching_type}</p>
+                {w.taught_before && <p className="text-xs text-[#c9a227] mt-1">✓ سبق تدريسه {w.previous_years?.join('، ')}</p>}
               </div>
               <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
             </div>
           </div>
         ))}
       </div>
-
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
         <p className="text-sm text-gray-600">
-          الساعات الإضافية المرغوبة لهذا السداسي:{' '}
+          الساعات الإضافية:{' '}
           {wantsExtraHours
             ? <strong className="text-[#1a3a6b]">{toArabicNum(extraHoursCount || 0)} {extraHoursCount === 1 ? 'ساعة' : 'ساعات'}</strong>
             : <strong className="text-gray-400">لا يرغب</strong>}
@@ -288,16 +258,16 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
   );
 
   const completedCount = wishes.filter(w => wishCompletion(w) === 2).length;
+  const l1Level = levels.find(l => l.code === 'L1');
+  const hasL1Lecture = isProfessorRank && wishes.some(w =>
+    w.level_id === l1Level?.id && w.module_id && w.teaching_type === 'محاضرة'
+  );
 
-  // ── واجهة التسجيل ──
   return (
     <div className="space-y-5 animate-fade-in pb-8" dir="rtl">
-      {/* Header */}
       <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white">
-        <h2 className="text-lg font-bold font-display mb-1">
-          رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'}
-        </h2>
-        <p className="text-gray-300 text-sm">سجّل خمس رغبات بالترتيب — يمكنك حفظ رغباتك مؤقتاً والتنقل بحرية بين السداسي الأول والثاني، والتعديل في أي وقت قبل التأكيد النهائي.</p>
+        <h2 className="text-lg font-bold font-display mb-1">رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'}</h2>
+        <p className="text-gray-300 text-sm">سجّل خمس رغبات — يمكن الحفظ المؤقت والتنقل بحرية بين السداسيين قبل التأكيد.</p>
         <div className="mt-4 flex items-center gap-3">
           <div className="flex-1 bg-white/15 rounded-full h-2.5 overflow-hidden">
             <div className="h-full bg-[#c9a227] transition-all" style={{ width: `${(completedCount / WISH_COUNT) * 100}%` }} />
@@ -306,29 +276,31 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         </div>
       </div>
 
-      {/* Info */}
-      <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
-        <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <div className="text-xs text-blue-600 space-y-0.5">
-          <p>الخطوات لكل رغبة: <strong>① اختر المستوى</strong> ← <strong>② اختر المقياس</strong> ← <strong>③ اختر نوع التدريس</strong>.</p>
-          <p>الشرط الوحيد: لا تختار نفس المقياس بنفس نوع التدريس في رغبتين مختلفتين — غير ذلك، رتّبهم كما تشاء.</p>
-          {semester === 2 && <p className="text-amber-600 font-medium">⚠ التأكيد النهائي للسداسي الثاني يقفل السداسيين معاً.</p>}
+      {/* تنبيه خاص بالبروفيسور */}
+      {isProfessorRank && (
+        <div className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm border ${hasL1Lecture ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+          {hasL1Lecture ? <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" /> : <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+          <p className="text-xs">
+            {hasL1Lecture
+              ? 'تم الشرط الإلزامي: إحدى رغباتك تشمل مقياس محاضرة من السنة أولى ليسانس ✓'
+              : 'تنبيه للبروفيسور: يجب أن تتضمن رغباتك الخمس مقياساً واحداً على الأقل من السنة أولى ليسانس (L1) بنوع تدريس "محاضرة".'}
+          </p>
         </div>
+      )}
+
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+        <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-500" />
+        <p className="text-xs text-blue-600">الخطوات لكل رغبة: <strong>① اختر المستوى</strong> ← <strong>② اختر المقياس</strong> ← <strong>③ اختر نوع التدريس</strong>. الشرط الوحيد: لا تكرار نفس المقياس بنفس نوع التدريس.</p>
       </div>
 
-      {/* Message */}
       {message && (
-        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${
-          message.type === 'success'
-            ? 'bg-green-50 text-green-700 border border-green-200'
-            : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           {message.text}
         </div>
       )}
 
-      {/* Wishes List — خمس بطاقات معاً */}
+      {/* البطاقات الخمس */}
       <div className="space-y-3">
         {wishes.map((wish, index) => {
           const isExpanded = expandedWish === index;
@@ -337,17 +309,10 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
           const completion = wishCompletion(wish);
 
           return (
-            <div key={index} className={`bg-white rounded-2xl shadow-sm border-2 overflow-hidden transition-colors ${
-              completion === 2 ? 'border-green-200' : 'border-gray-100'
-            }`}>
-              {/* Wish Header */}
-              <button
-                type="button"
-                onClick={() => setExpandedWish(isExpanded ? null : index)}
+            <div key={index} className={`bg-white rounded-2xl shadow-sm border-2 overflow-hidden transition-colors ${completion === 2 ? 'border-green-200' : 'border-gray-100'}`}>
+              <button type="button" onClick={() => setExpandedWish(isExpanded ? null : index)}
                 className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-right">
-                <span className={`w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center flex-shrink-0 ${
-                  completion === 2 ? 'bg-green-500' : 'bg-[#1a3a6b]'
-                }`}>
+                <span className={`w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center flex-shrink-0 ${completion === 2 ? 'bg-green-500' : 'bg-[#1a3a6b]'}`}>
                   {completion === 2 ? <CheckCircle className="w-4 h-4" /> : toArabicNum(index + 1)}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -366,17 +331,15 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                 {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
               </button>
 
-              {/* Wish Form */}
               {isExpanded && (
                 <div className="px-4 pb-4 space-y-4 border-t border-gray-100 pt-4">
-                  {/* الخطوة 1: المستوى */}
+                  {/* المستوى */}
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-2 text-sm font-bold text-[#1a3a6b]">
                       <span className="w-5 h-5 rounded-full bg-[#1a3a6b] text-white text-[10px] flex items-center justify-center">١</span>
                       اختر المستوى
                     </label>
-                    <select
-                      value={wish.level_id}
+                    <select value={wish.level_id}
                       onChange={e => updateWish(index, { level_id: e.target.value, module_id: '' })}
                       className="w-full border-2 border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-[#1a3a6b] bg-gray-50">
                       <option value="">— اضغط هنا لاختيار المستوى —</option>
@@ -386,22 +349,20 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                     </select>
                   </div>
 
-                  {/* سهم انتقالي توجيهي */}
                   {wish.level_id && !wish.module_id && (
                     <div className="flex items-center justify-center text-gray-300">
                       <ArrowDown className="w-5 h-5" />
                     </div>
                   )}
 
-                  {/* الخطوة 2: المقياس (مفلتر حسب المستوى المختار) */}
+                  {/* المقياس */}
                   {wish.level_id && (
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-sm font-bold text-[#1a3a6b]">
                         <span className="w-5 h-5 rounded-full bg-[#1a3a6b] text-white text-[10px] flex items-center justify-center">٢</span>
                         اختر المقياس
                       </label>
-                      <select
-                        value={wish.module_id}
+                      <select value={wish.module_id}
                         onChange={e => {
                           const mod = modules.find(m => m.id === e.target.value);
                           updateWish(index, {
@@ -421,14 +382,13 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                     </div>
                   )}
 
-                  {/* سهم انتقالي */}
                   {wish.module_id && (
                     <div className="flex items-center justify-center text-gray-300">
                       <ArrowDown className="w-5 h-5" />
                     </div>
                   )}
 
-                  {/* الخطوة 3: نوع التدريس */}
+                  {/* نوع التدريس */}
                   {wish.module_id && (
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-sm font-bold text-[#1a3a6b]">
@@ -438,15 +398,8 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                       {teachingTypes.length > 1 ? (
                         <div className="grid grid-cols-2 gap-3">
                           {teachingTypes.map(t => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => updateWish(index, { teaching_type: t })}
-                              className={`py-3 rounded-xl text-sm font-medium border-2 transition-all ${
-                                wish.teaching_type === t
-                                  ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
-                                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                              }`}>
+                            <button key={t} type="button" onClick={() => updateWish(index, { teaching_type: t })}
+                              className={`py-3 rounded-xl text-sm font-medium border-2 transition-all ${wish.teaching_type === t ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
                               {t}
                             </button>
                           ))}
@@ -463,32 +416,21 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                   {wish.module_id && (
                     <div className="space-y-2 pt-2 border-t border-gray-100">
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={wish.taught_before}
-                          onChange={e => updateWish(index, {
-                            taught_before: e.target.checked,
-                            previous_years: e.target.checked ? wish.previous_years : [],
-                          })}
-                          className="w-4 h-4 accent-[#1a3a6b]"
-                        />
+                        <input type="checkbox" checked={wish.taught_before}
+                          onChange={e => updateWish(index, { taught_before: e.target.checked, previous_years: e.target.checked ? wish.previous_years : [] })}
+                          className="w-4 h-4 accent-[#1a3a6b]" />
                         <span className="text-sm text-gray-700">سبق لي تدريس هذا المقياس</span>
                       </label>
                       {wish.taught_before && (
                         <div className="mr-6 flex flex-wrap gap-2">
                           {PREVIOUS_YEARS.map(year => (
                             <label key={year} className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={wish.previous_years.includes(year)}
+                              <input type="checkbox" checked={wish.previous_years.includes(year)}
                                 onChange={e => {
-                                  const years = e.target.checked
-                                    ? [...wish.previous_years, year]
-                                    : wish.previous_years.filter(y => y !== year);
+                                  const years = e.target.checked ? [...wish.previous_years, year] : wish.previous_years.filter(y => y !== year);
                                   updateWish(index, { previous_years: years });
                                 }}
-                                className="w-3.5 h-3.5 accent-[#c9a227]"
-                              />
+                                className="w-3.5 h-3.5 accent-[#c9a227]" />
                               <span className="text-xs text-gray-600">{year}</span>
                             </label>
                           ))}
@@ -497,25 +439,8 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                     </div>
                   )}
 
-                  {/* ملاحظات */}
-                  {wish.module_id && (
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-gray-700">ملاحظات (اختياري)</label>
-                      <textarea
-                        value={wish.notes}
-                        onChange={e => updateWish(index, { notes: e.target.value })}
-                        rows={2}
-                        placeholder="أي ملاحظات إضافية..."
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 resize-none"
-                      />
-                    </div>
-                  )}
-
-                  {/* زر إغلاق البطاقة بعد الإكمال */}
                   {completion === 2 && index < WISH_COUNT - 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedWish(index + 1)}
+                    <button type="button" onClick={() => setExpandedWish(index + 1)}
                       className="w-full flex items-center justify-center gap-2 bg-[#1a3a6b]/5 hover:bg-[#1a3a6b]/10 text-[#1a3a6b] py-2.5 rounded-xl text-sm font-bold transition-colors">
                       تمت هذه الرغبة — الانتقال إلى الرغبة {toArabicNum(index + 2)}
                     </button>
@@ -527,70 +452,23 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         })}
       </div>
 
-      {/* رغبة إلزامية سادسة خاصة بأستاذ التعليم العالي */}
-      {isProfessorRank && (
-        <div className="bg-amber-50 rounded-2xl p-5 border-2 border-amber-200 space-y-4">
-          <div className="flex items-start gap-3">
-            <span className="w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold flex items-center justify-center flex-shrink-0">
-              ٦
-            </span>
-            <div>
-              <h3 className="font-bold text-amber-800 font-display">رغبة إلزامية إضافية — أستاذ التعليم العالي</h3>
-              <p className="text-amber-700 text-xs mt-0.5">بصفتك بروفيسوراً، يجب عليك اختيار مقياس محاضرة واحد من السنة أولى ليسانس، بالإضافة إلى رغباتك الخمس أعلاه.</p>
-            </div>
-          </div>
-          <select
-            value={profModuleId}
-            onChange={e => setProfModuleId(e.target.value)}
-            className="w-full border-2 border-amber-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-amber-500 bg-white">
-            <option value="">— اختر مقياس محاضرة من أولى ليسانس —</option>
-            {modules.filter(m => {
-              const lvl = levels.find(l => l.id === m.level_id);
-              return lvl?.code === 'L1' && m.has_lectures;
-            }).map(m => (
-              <option key={m.id} value={m.id}>{m.name_ar}</option>
-            ))}
-          </select>
-          {modules.filter(m => {
-            const lvl = levels.find(l => l.id === m.level_id);
-            return lvl?.code === 'L1' && m.has_lectures;
-          }).length === 0 && (
-            <p className="text-xs text-amber-600">لا توجد مقاييس محاضرة متاحة في أولى ليسانس لهذا السداسي بعد.</p>
-          )}
-        </div>
-      )}
-
-      {/* رغبة الساعات الإضافية */}
+      {/* الساعات الإضافية */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
-        <h3 className="font-semibold text-gray-800 font-display">
-          هل ترغب في تدريس ساعات إضافية في السداسي {semester === 1 ? 'الأول' : 'الثاني'}؟
-        </h3>
+        <h3 className="font-semibold text-gray-800 font-display">هل ترغب في تدريس ساعات إضافية في السداسي {semester === 1 ? 'الأول' : 'الثاني'}؟</h3>
         <div className="flex gap-3">
-          <button
-            onClick={() => setWantsExtraHours(true)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${
-              wantsExtraHours
-                ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-            }`}>
+          <button onClick={() => setWantsExtraHours(true)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${wantsExtraHours ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
             نعم
           </button>
-          <button
-            onClick={() => { setWantsExtraHours(false); setExtraHoursCount(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${
-              !wantsExtraHours
-                ? 'bg-gray-600 text-white border-gray-600'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-            }`}>
+          <button onClick={() => { setWantsExtraHours(false); setExtraHoursCount(null); }}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${!wantsExtraHours ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
             لا
           </button>
         </div>
-
         {wantsExtraHours && (
-          <div className="space-y-1.5 animate-slide-up">
+          <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">عدد الساعات الإضافية المرغوبة</label>
-            <select
-              value={extraHoursCount ?? ''}
+            <select value={extraHoursCount ?? ''}
               onChange={e => setExtraHoursCount(e.target.value ? parseInt(e.target.value) : null)}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
               <option value="">— اختر العدد —</option>
@@ -602,25 +480,20 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         )}
       </div>
 
-      {/* Actions */}
+      {/* أزرار الحفظ والتأكيد */}
       <div className="flex items-center gap-3 flex-wrap pt-2">
-        <button
-          onClick={handleSave}
-          disabled={saving}
+        <button onClick={handleSave} disabled={saving}
           className="flex items-center gap-2 bg-white border border-[#1a3a6b] text-[#1a3a6b] px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#1a3a6b]/5 transition-colors disabled:opacity-50">
           <Save className="w-4 h-4" />
           {saving ? 'جارٍ الحفظ...' : 'حفظ مؤقت'}
         </button>
-        <button
-          onClick={() => setShowConfirmDialog(true)}
-          disabled={saving || confirming}
+        <button onClick={() => setShowConfirmDialog(true)} disabled={saving || confirming}
           className="flex items-center gap-2 bg-[#1a3a6b] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040] transition-colors disabled:opacity-50">
           <Lock className="w-4 h-4" />
           {confirming ? 'جارٍ التأكيد...' : 'تأكيد نهائي'}
         </button>
       </div>
 
-      {/* Confirm Dialog */}
       {showConfirmDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" dir="rtl">
@@ -633,22 +506,16 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                 <p className="text-xs text-gray-500">هذا الإجراء لا يمكن التراجع عنه</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-2">
-              ستُقفل رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'} نهائياً ولن تتمكن من تعديلها.
-            </p>
+            <p className="text-sm text-gray-600 mb-2">ستُقفل رغبات السداسي {semester === 1 ? 'الأول' : 'الثاني'} نهائياً.</p>
             {semester === 2 && (
-              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-4">
-                ⚠ سيُقفل كلا السداسيين معاً بعد هذا التأكيد.
-              </p>
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-4">⚠ سيُقفل كلا السداسيين معاً بعد هذا التأكيد.</p>
             )}
             <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setShowConfirmDialog(false)}
+              <button onClick={() => setShowConfirmDialog(false)}
                 className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
                 إلغاء
               </button>
-              <button
-                onClick={handleConfirm}
+              <button onClick={handleConfirm}
                 className="flex-1 bg-[#1a3a6b] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040] transition-colors">
                 تأكيد
               </button>
