@@ -45,6 +45,7 @@ interface WishesViewerProps {
 export default function AdminWishesViewerPage({ allowedLevelCodes }: WishesViewerProps) {
   const [wishes, setWishes] = useState<WishFull[]>([]);
   const [professors, setProfessors] = useState<Professor[]>([]);
+  const [levelSemesters, setLevelSemesters] = useState<{level_id: string; semester: number; num_sections: number; num_groups: number}[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('by_prof');
   const [semFilter, setSemFilter] = useState<0|1|2>(0);
@@ -59,12 +60,13 @@ export default function AdminWishesViewerPage({ allowedLevelCodes }: WishesViewe
 
   async function loadData() {
     setLoading(true);
-    const [{ data: ws }, { data: profs }] = await Promise.all([
+    const [{ data: ws }, { data: profs }, { data: ls }] = await Promise.all([
       supabase.from('wishes')
         .select(`*, professor:professors(*), module:modules(*), level:levels(*)`)
         .eq('academic_year', '2026-2027')
         .order('wish_order'),
       supabase.from('professors').select('*').eq('is_active', true),
+      supabase.from('level_semesters').select('level_id, semester, num_sections, num_groups'),
     ]);
     if (ws) {
       const filteredWs = allowedLevelCodes
@@ -73,6 +75,7 @@ export default function AdminWishesViewerPage({ allowedLevelCodes }: WishesViewe
       setWishes(filteredWs);
     }
     if (profs) setProfessors(profs);
+    if (ls) setLevelSemesters(ls);
     setLoading(false);
   }
 
@@ -94,25 +97,45 @@ export default function AdminWishesViewerPage({ allowedLevelCodes }: WishesViewe
   }, [wishes, semFilter, typeFilter, rankFilter, lockFilter, search]);
 
   const conflicts = useMemo(() => {
-    const found: { w1: WishFull; w2: WishFull; key: string }[] = [];
-    wishes.forEach((w1, i) => {
-      wishes.slice(i + 1).forEach(w2 => {
-        if (
-          w1.module_id === w2.module_id &&
-          w1.teaching_type === w2.teaching_type &&
-          w1.wish_order === w2.wish_order &&
-          w1.semester === w2.semester &&
-          w1.professor_id !== w2.professor_id
-        ) {
-          const key = `${w1.module_id}|${w1.teaching_type}|${w1.wish_order}|${w1.semester}`;
-          if (!found.some(f => f.key === key && ((f.w1.professor_id === w1.professor_id && f.w2.professor_id === w2.professor_id) || (f.w1.professor_id === w2.professor_id && f.w2.professor_id === w1.professor_id)))) {
-            found.push({ w1, w2, key });
-          }
-        }
-      });
+    // تجميع الرغبات حسب (مقياس + نوع تدريس + رقم الرغبة + سداسي)
+    const groups = new Map<string, WishFull[]>();
+    wishes.forEach(w => {
+      const key = `${w.module_id}|${w.teaching_type}|${w.wish_order}|${w.semester}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(w);
     });
+
+    const found: { w1: WishFull; w2: WishFull; key: string }[] = [];
+
+    for (const [key, group] of groups) {
+      if (group.length <= 1) continue;
+
+      // احسب الطاقة الاستيعابية الفعلية لهذا المقياس
+      const levelId = group[0].level_id;
+      const sem = group[0].semester;
+      const teachingType = group[0].teaching_type;
+      const ls = levelSemesters.find(x => x.level_id === levelId && x.semester === sem);
+
+      let capacity = 1;
+      if (ls) {
+        capacity = teachingType === 'محاضرة' ? ls.num_sections : ls.num_sections * ls.num_groups;
+      }
+
+      // التصادم الحقيقي فقط إذا كان عدد الطالبين > الطاقة الاستيعابية
+      if (group.length > capacity) {
+        group.forEach((w1, i) => {
+          group.slice(i + 1).forEach(w2 => {
+            if (!found.some(f => f.key === key &&
+              ((f.w1.professor_id === w1.professor_id && f.w2.professor_id === w2.professor_id) ||
+               (f.w1.professor_id === w2.professor_id && f.w2.professor_id === w1.professor_id)))) {
+              found.push({ w1, w2, key });
+            }
+          });
+        });
+      }
+    }
     return found;
-  }, [wishes]);
+  }, [wishes, levelSemesters]);
 
   const stats = useMemo(() => {
     const modCount: Record<string, { name: string; type: string; count: number }> = {};
