@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
 import type { Professor, ProfessorRank } from '../../types';
@@ -21,6 +22,8 @@ const emptyForm = {
 };
 
 export default function AdminProfessorsPage() {
+  const { user } = useAuth();
+  const isDeptHead = user?.admin?.role === 'dept_head';
   const [professors, setProfessors] = useState<Professor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -227,12 +230,14 @@ export default function AdminProfessorsPage() {
           <h2 className="text-xl font-bold text-gray-900 font-display">إدارة الأساتذة</h2>
           <p className="text-gray-500 text-sm">{toArabicNum(professors.length)} أستاذ مسجّل</p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-[#1a3a6b] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors">
-          <UserPlus className="w-4 h-4" />
-          إضافة أستاذ
-        </button>
+        {!isDeptHead && (
+          <button
+            onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-[#1a3a6b] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors">
+            <UserPlus className="w-4 h-4" />
+            إضافة أستاذ
+          </button>
+        )}
       </div>
 
       {message && (
@@ -268,7 +273,7 @@ export default function AdminProfessorsPage() {
         </div>
       )}
 
-      {showForm && (
+      {showForm && !isDeptHead && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-[#1a3a6b]/20 animate-slide-up">
           <h3 className="font-bold text-gray-800 mb-4 font-display flex items-center gap-2">
             {editingId ? <Pencil className="w-5 h-5 text-[#1a3a6b]" /> : <UserPlus className="w-5 h-5 text-[#1a3a6b]" />}
@@ -346,14 +351,14 @@ export default function AdminProfessorsPage() {
           </button>
         )}
 
-        {selected.size > 0 && (
+        {!isDeptHead && selected.size > 0 && (
           <button onClick={askDeleteSelected}
             className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors">
             <Trash2 className="w-4 h-4" /> حذف المحدّدين ({toArabicNum(selected.size)})
           </button>
         )}
 
-        {filtered.length > 0 && (
+        {!isDeptHead && filtered.length > 0 && (
           <button onClick={askDeleteAll}
             className="flex items-center gap-2 text-gray-400 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 hover:text-red-500 hover:border-red-200 transition-colors">
             <Trash2 className="w-4 h-4" /> حذف الكل
@@ -374,12 +379,14 @@ export default function AdminProfessorsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 w-10">
-                    <input type="checkbox"
-                      checked={filtered.length > 0 && selected.size === filtered.length}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 accent-[#1a3a6b]" />
-                  </th>
+                  {!isDeptHead && (
+                    <th className="px-4 py-3 w-10">
+                      <input type="checkbox"
+                        checked={filtered.length > 0 && selected.size === filtered.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 accent-[#1a3a6b]" />
+                    </th>
+                  )}
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الأستاذ</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الرتبة</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">رقم المستخدم</th>
@@ -390,12 +397,14 @@ export default function AdminProfessorsPage() {
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(prof => (
                   <tr key={prof.id} className={`hover:bg-gray-50/50 transition-colors ${selected.has(prof.id) ? 'bg-[#1a3a6b]/5' : ''}`}>
-                    <td className="px-4 py-3">
-                      <input type="checkbox"
-                        checked={selected.has(prof.id)}
-                        onChange={() => toggleSelect(prof.id)}
-                        className="w-4 h-4 accent-[#1a3a6b]" />
-                    </td>
+                    {!isDeptHead && (
+                      <td className="px-4 py-3">
+                        <input type="checkbox"
+                          checked={selected.has(prof.id)}
+                          onChange={() => toggleSelect(prof.id)}
+                          className="w-4 h-4 accent-[#1a3a6b]" />
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <p className="font-semibold text-gray-800">{prof.last_name} {prof.first_name}</p>
                       <p className="text-gray-400 text-xs">{prof.degree_speciality || '—'}</p>
@@ -426,26 +435,30 @@ export default function AdminProfessorsPage() {
                             <FileText className="w-4 h-4" />
                           </button>
                         )}
-                        <button onClick={() => startEdit(prof)}
-                          title="تعديل البيانات"
-                          className="p-1.5 text-gray-400 hover:text-[#1a3a6b] hover:bg-[#1a3a6b]/5 rounded-lg transition-colors">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleToggleLock(prof)}
-                          title={prof.wishes_locked_s1 ? 'فتح الرغبات' : 'إغلاق الرغبات'}
-                          className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
-                          {prof.wishes_locked_s1 ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                        </button>
-                        <button onClick={() => handleResetPassword(prof)}
-                          title="إعادة تعيين كلمة المرور"
-                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => askDeleteOne(prof)}
-                          title="حذف الأستاذ"
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!isDeptHead && (
+                          <>
+                            <button onClick={() => startEdit(prof)}
+                              title="تعديل البيانات"
+                              className="p-1.5 text-gray-400 hover:text-[#1a3a6b] hover:bg-[#1a3a6b]/5 rounded-lg transition-colors">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleToggleLock(prof)}
+                              title={prof.wishes_locked_s1 ? 'فتح الرغبات' : 'إغلاق الرغبات'}
+                              className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
+                              {prof.wishes_locked_s1 ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                            </button>
+                            <button onClick={() => handleResetPassword(prof)}
+                              title="إعادة تعيين كلمة المرور"
+                              className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+                              <RefreshCw className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => askDeleteOne(prof)}
+                              title="حذف الأستاذ"
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
