@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import AdminReminderTab from './AdminReminderTab';
 import { callEdgeFunction } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
 import { Upload, Send, CheckCircle, AlertCircle, Mail, Users, X, RefreshCw } from 'lucide-react';
@@ -17,6 +18,7 @@ interface Recipient {
 }
 
 export default function AdminEmailPage() {
+  const [mainTab, setMainTab] = useState<'credentials' | 'reminder'>('credentials');
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
@@ -110,9 +112,26 @@ export default function AdminEmailPage() {
   return (
     <div className="space-y-5 animate-fade-in pb-8" dir="rtl">
       <div>
-        <h2 className="text-xl font-bold text-gray-900 font-display">إرسال بريد معلومات الدخول</h2>
-        <p className="text-gray-500 text-sm mt-1">رفع ملف Excel يحتوي بيانات الدخول، وإرساله بريدياً لأستاذ معيّن أو لجميع الأساتذة المحدَّدين</p>
+        <h2 className="text-xl font-bold text-gray-900 font-display">إرسال بريد</h2>
       </div>
+
+      {/* تبويبات رئيسية */}
+      <div className="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
+        <button onClick={() => setMainTab('credentials')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${mainTab === 'credentials' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Mail className="w-4 h-4" /> بريد معلومات الدخول
+        </button>
+        <button onClick={() => setMainTab('reminder')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${mainTab === 'reminder' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <AlertCircle className="w-4 h-4" /> تذكير التسجيل
+        </button>
+      </div>
+
+      {/* محتوى تبويب التذكير */}
+      {mainTab === 'reminder' && <AdminReminderTab />}
+
+      {/* محتوى تبويب بريد الدخول */}
+      {mainTab === 'credentials' && <>
 
       <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
