@@ -69,7 +69,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     if (lvls) setLevels(lvls);
     if (existingWishes && existingWishes.length > 0) {
       setSavedWishes(existingWishes);
-      // فقط الرغبات 1-5 (wish_order <= 5)
       const forms = existingWishes
         .filter(w => w.wish_order <= 5)
         .map(w => ({
@@ -82,6 +81,10 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         }));
       while (forms.length < WISH_COUNT) forms.push(emptyWish());
       setWishes(forms.slice(0, WISH_COUNT));
+    } else {
+      // لا توجد رغبات محفوظة لهذا السداسي — نبدأ بنموذج فارغ
+      setWishes(Array.from({ length: WISH_COUNT }, emptyWish));
+      setSavedWishes([]);
     }
 
     if (semester === 1) {
@@ -110,15 +113,12 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     return null;
   }
 
-  // التحقق من شرط البروفيسور: يجب أن تكون إحدى الرغبات الخمس مقياس محاضرة من L1
   function validateProfessorRule(allWishes: WishForm[]): string | null {
     if (!isProfessorRank) return null;
     const l1Level = levels.find(l => l.code === 'L1');
     if (!l1Level) return null;
     const hasL1Lecture = allWishes.some(w =>
-      w.level_id === l1Level.id &&
-      w.module_id &&
-      w.teaching_type === 'محاضرة'
+      w.level_id === l1Level.id && w.module_id && w.teaching_type === 'محاضرة'
     );
     if (!hasL1Lecture) {
       return 'بصفتك أستاذ التعليم العالي، يجب أن تتضمن رغباتك الخمس مقياساً واحداً على الأقل من السنة أولى ليسانس (L1) بنوع تدريس "محاضرة"';
@@ -132,40 +132,58 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
     return 2;
   }
 
-  async function handleSave() {
+  // ترجع true إن نجح الحفظ، false إن فشل
+  async function handleSave(): Promise<boolean> {
     const valid = wishes.filter(w => w.module_id && w.level_id);
     if (valid.length < WISH_COUNT) {
       setMessage({ type: 'error', text: `يجب تعبئة الرغبات الخمس كاملة — أكملت ${toArabicNum(valid.length)} من ٥` });
-      return;
+      return false;
     }
 
     const dupError = validateNoDuplicates(wishes);
-    if (dupError) { setMessage({ type: 'error', text: dupError }); return; }
+    if (dupError) { setMessage({ type: 'error', text: dupError }); return false; }
 
     const profError = validateProfessorRule(wishes);
-    if (profError) { setMessage({ type: 'error', text: profError }); return; }
+    if (profError) { setMessage({ type: 'error', text: profError }); return false; }
 
     if (wantsExtraHours && !extraHoursCount) {
       setMessage({ type: 'error', text: 'يرجى تحديد عدد الساعات الإضافية المرغوبة' });
-      return;
+      return false;
+    }
+
+    if (!prof?.id) {
+      setMessage({ type: 'error', text: 'خطأ: لم يتم التعرف على هويتك. يرجى تسجيل الخروج والدخول مجدداً.' });
+      return false;
     }
 
     setSaving(true);
     setMessage(null);
 
+    // حفظ رغبة الساعات الإضافية
     const extraHoursField = semester === 1
       ? { wants_extra_hours_s1: wantsExtraHours, extra_hours_count_s1: wantsExtraHours ? extraHoursCount : null }
       : { wants_extra_hours_s2: wantsExtraHours, extra_hours_count_s2: wantsExtraHours ? extraHoursCount : null };
-    await supabase.from('professors').update(extraHoursField).eq('id', prof?.id);
 
-    // حذف الرغبات السابقة (الخمس فقط، wish_order <= 5)
-    await supabase.from('wishes').delete()
-      .eq('professor_id', prof?.id)
+    const { error: extraErr } = await supabase.from('professors').update(extraHoursField).eq('id', prof.id);
+    if (extraErr) {
+      console.error('خطأ في حفظ الساعات الإضافية:', extraErr);
+    }
+
+    // حذف الرغبات القديمة
+    const { error: deleteErr } = await supabase.from('wishes').delete()
+      .eq('professor_id', prof.id)
       .eq('semester', semester)
       .eq('academic_year', academicYear);
 
+    if (deleteErr) {
+      console.error('خطأ في حذف الرغبات القديمة:', deleteErr);
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء الحذف: ' + deleteErr.message });
+      setSaving(false);
+      return false;
+    }
+
     const toInsert = valid.map((w, i) => ({
-      professor_id: prof?.id,
+      professor_id: prof.id,
       academic_year: academicYear,
       semester,
       wish_order: i + 1,
@@ -177,27 +195,40 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
       notes: w.notes,
     }));
 
-    const { error } = await supabase.from('wishes').insert(toInsert);
-    if (error) {
-      setMessage({ type: 'error', text: 'حدث خطأ أثناء الحفظ: ' + error.message });
-    } else {
-      setMessage({ type: 'success', text: 'تم حفظ رغباتك مؤقتاً — يمكنك التعديل قبل التأكيد النهائي' });
-      await loadData();
+    const { error: insertErr } = await supabase.from('wishes').insert(toInsert);
+
+    if (insertErr) {
+      console.error('خطأ في إدراج الرغبات:', insertErr);
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء الحفظ: ' + insertErr.message });
+      setSaving(false);
+      return false;
     }
+
+    setMessage({ type: 'success', text: 'تم حفظ رغباتك مؤقتاً — يمكنك التعديل قبل التأكيد النهائي' });
+    await loadData();
     setSaving(false);
+    return true;
   }
 
   async function handleConfirm() {
     setConfirming(true);
     setShowConfirmDialog(false);
-    await handleSave();
+
+    // حفظ أولاً — إن فشل، لا نقفل
+    const saved = await handleSave();
+    if (!saved) {
+      setConfirming(false);
+      return;
+    }
+
     const lockField = semester === 1 ? 'wishes_locked_s1' : 'wishes_locked_s2';
     const { error } = await supabase.from('professors').update({
       [lockField]: true,
       wishes_locked_at: new Date().toISOString(),
     }).eq('id', prof?.id);
+
     if (error) {
-      setMessage({ type: 'error', text: 'حدث خطأ أثناء التأكيد' });
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء التأكيد: ' + error.message });
     } else {
       setMessage({ type: 'success', text: `تم تأكيد رغبات السداسي ${semester === 1 ? 'الأول' : 'الثاني'} وقفلها نهائياً` });
       onConfirmed?.();
@@ -276,7 +307,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         </div>
       </div>
 
-      {/* تنبيه خاص بالبروفيسور */}
       {isProfessorRank && (
         <div className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm border ${hasL1Lecture ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
           {hasL1Lecture ? <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" /> : <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />}
@@ -300,7 +330,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         </div>
       )}
 
-      {/* البطاقات الخمس */}
       <div className="space-y-3">
         {wishes.map((wish, index) => {
           const isExpanded = expandedWish === index;
@@ -333,7 +362,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
 
               {isExpanded && (
                 <div className="px-4 pb-4 space-y-4 border-t border-gray-100 pt-4">
-                  {/* المستوى */}
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-2 text-sm font-bold text-[#1a3a6b]">
                       <span className="w-5 h-5 rounded-full bg-[#1a3a6b] text-white text-[10px] flex items-center justify-center">١</span>
@@ -355,7 +383,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                     </div>
                   )}
 
-                  {/* المقياس */}
                   {wish.level_id && (
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-sm font-bold text-[#1a3a6b]">
@@ -388,7 +415,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                     </div>
                   )}
 
-                  {/* نوع التدريس */}
                   {wish.module_id && (
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-sm font-bold text-[#1a3a6b]">
@@ -412,7 +438,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
                     </div>
                   )}
 
-                  {/* سبق تدريسه */}
                   {wish.module_id && (
                     <div className="space-y-2 pt-2 border-t border-gray-100">
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -452,7 +477,6 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         })}
       </div>
 
-      {/* الساعات الإضافية */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
         <h3 className="font-semibold text-gray-800 font-display">هل ترغب في تدريس ساعات إضافية في السداسي {semester === 1 ? 'الأول' : 'الثاني'}؟</h3>
         <div className="flex gap-3">
@@ -480,9 +504,8 @@ export default function WishesFormPage({ semester, onConfirmed }: Props) {
         )}
       </div>
 
-      {/* أزرار الحفظ والتأكيد */}
       <div className="flex items-center gap-3 flex-wrap pt-2">
-        <button onClick={handleSave} disabled={saving}
+        <button onClick={() => handleSave()} disabled={saving}
           className="flex items-center gap-2 bg-white border border-[#1a3a6b] text-[#1a3a6b] px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#1a3a6b]/5 transition-colors disabled:opacity-50">
           <Save className="w-4 h-4" />
           {saving ? 'جارٍ الحفظ...' : 'حفظ مؤقت'}
