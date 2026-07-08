@@ -143,3 +143,11 @@ run_assignment_algorithm('2026-2027')  -- تشغيل الإسناد الكامل
 score_professor_for_module(prof_id, module_id, wish_id)  -- نقاط عند التصادم
 get_professor_hours_summary('2026-2027')  -- ملخص الساعات
 ```
+
+
+شكرا
+
+
+
+
+q
