@@ -131,7 +131,8 @@ export default function AdminEmailPage() {
       {mainTab === 'reminder' && <AdminReminderTab />}
 
       {/* محتوى تبويب بريد الدخول */}
-      {mainTab === 'credentials' && <>
+      {mainTab === 'credentials' && (
+        <div className="space-y-5">
 
       <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -161,7 +162,6 @@ export default function AdminEmailPage() {
       )}
 
       {recipients.length > 0 && (
-        <>
           <div className="flex items-center gap-4 flex-wrap bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
             <span className="text-sm text-gray-600 font-medium flex items-center gap-1.5">
               <Users className="w-4 h-4 text-[#1a3a6b]" /> {toArabicNum(recipients.length)} أستاذ في الملف
@@ -229,7 +229,7 @@ export default function AdminEmailPage() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
