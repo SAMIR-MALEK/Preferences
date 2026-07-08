@@ -1,9 +1,7 @@
-// هذا المحتوى يُضاف كتبويب ثانٍ داخل AdminEmailPage.tsx
-// أو كصفحة مستقلة — حسب التصميم المختار
 import { useState, useEffect } from 'react';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import { Send, CheckCircle, AlertCircle, Clock, RefreshCw, Users } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Clock, RefreshCw, Users, Calendar } from 'lucide-react';
 
 interface ProfStatus {
   id: string;
@@ -26,8 +24,8 @@ function getStatusLabel(p: ProfStatus): { text: string; color: string; bg: strin
   if (p.wishes_locked_s1 && !p.s2_count) return { text: 'س1 ✓ — س2 فارغ', color: 'text-amber-700', bg: 'bg-amber-50' };
   if (!p.s1_count && p.wishes_locked_s2) return { text: 'س2 ✓ — س1 فارغ', color: 'text-amber-700', bg: 'bg-amber-50' };
   if (p.s1_count && !p.wishes_locked_s1 && p.s2_count && !p.wishes_locked_s2) return { text: 'حفظ مؤقت فقط (السداسيان)', color: 'text-orange-700', bg: 'bg-orange-50' };
-  if (p.s1_count && !p.wishes_locked_s1) return { text: 'س1 مؤقت — س2 فارغ', color: 'text-orange-700', bg: 'bg-orange-50' };
-  if (p.s2_count && !p.wishes_locked_s2) return { text: 'س2 مؤقت — س1 فارغ', color: 'text-orange-700', bg: 'bg-orange-50' };
+  if (p.s1_count && !p.wishes_locked_s1 && !p.s2_count) return { text: 'س1 مؤقت — س2 فارغ', color: 'text-orange-700', bg: 'bg-orange-50' };
+  if (!p.s1_count && p.s2_count && !p.wishes_locked_s2) return { text: 'س2 مؤقت — س1 فارغ', color: 'text-orange-700', bg: 'bg-orange-50' };
   if (p.wishes_locked_s1 && p.s2_count && !p.wishes_locked_s2) return { text: 'س1 ✓ — س2 مؤقت', color: 'text-blue-700', bg: 'bg-blue-50' };
   if (p.s1_count && !p.wishes_locked_s1 && p.wishes_locked_s2) return { text: 'س2 ✓ — س1 مؤقت', color: 'text-blue-700', bg: 'bg-blue-50' };
   return { text: 'غير محدد', color: 'text-gray-500', bg: 'bg-gray-50' };
@@ -38,6 +36,7 @@ export default function AdminReminderTab() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [deadline, setDeadline] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -57,7 +56,7 @@ export default function AdminReminderTab() {
           ...p,
           s1_count: s1,
           s2_count: s2,
-          selected: !complete, // افتراضياً: نحدد كل من لم يكمل
+          selected: !complete,
           send_status: 'pending' as const,
         };
       });
@@ -80,6 +79,10 @@ export default function AdminReminderTab() {
   }
 
   async function handleSend() {
+    if (!deadline.trim()) {
+      setMessage({ type: 'error', text: 'يرجى تحديد تاريخ آخر أجل قبل الإرسال' });
+      return;
+    }
     const toSend = professors.filter(p => p.selected && !(p.wishes_locked_s1 && p.wishes_locked_s2));
     if (toSend.length === 0) { setMessage({ type: 'error', text: 'لا يوجد أساتذة محدَّدون' }); return; }
     if (!window.confirm(`سيتم إرسال تذكير بريدي إلى ${toSend.length} أستاذ. هل أنت متأكد؟`)) return;
@@ -89,7 +92,10 @@ export default function AdminReminderTab() {
     setProfessors(prev => prev.map(p => toSend.find(t => t.id === p.id) ? { ...p, send_status: 'sending' as const } : p));
 
     try {
-      const result = await callEdgeFunction('send-reminder-email', { professor_ids: toSend.map(p => p.id) });
+      const result = await callEdgeFunction('send-reminder-email', {
+        professor_ids: toSend.map(p => p.id),
+        deadline: deadline.trim(),
+      });
       setProfessors(prev => prev.map(p => {
         const found = result.results?.find((r: any) => r.name === `${p.last_name} ${p.first_name}`);
         if (!found) return p;
@@ -114,6 +120,23 @@ export default function AdminReminderTab() {
 
   return (
     <div className="space-y-5" dir="rtl">
+      {/* حقل تاريخ آخر أجل */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
+        <label className="flex items-center gap-2 text-sm font-bold text-gray-800">
+          <Calendar className="w-4 h-4 text-[#1a3a6b]" />
+          تاريخ آخر أجل للتسجيل
+        </label>
+        <input
+          type="text"
+          value={deadline}
+          onChange={e => setDeadline(e.target.value)}
+          placeholder="مثال: يوم الثلاثاء 07 جويلية 2026 على الساعة 23:59"
+          className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#1a3a6b] bg-gray-50"
+          dir="rtl"
+        />
+        <p className="text-xs text-gray-400">سيظهر هذا التاريخ في نص الإيميل المُرسَل لكل أستاذ.</p>
+      </div>
+
       <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-600" />
         <p className="text-xs text-amber-700">
@@ -136,7 +159,7 @@ export default function AdminReminderTab() {
         <span className="text-sm text-blue-600">{toArabicNum(selected.length)} محدَّد</span>
         <span className="text-sm text-gray-400">({toArabicNum(withEmail.length)} لديهم بريد)</span>
         <div className="mr-auto">
-          <button onClick={handleSend} disabled={sending || withEmail.length === 0}
+          <button onClick={handleSend} disabled={sending || withEmail.length === 0 || !deadline.trim()}
             className="flex items-center gap-2 bg-[#1a3a6b] text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040] transition-colors disabled:opacity-50">
             <Send className="w-4 h-4" />
             {sending ? 'جارٍ الإرسال...' : `إرسال التذكير إلى ${toArabicNum(withEmail.length)} أستاذ`}
