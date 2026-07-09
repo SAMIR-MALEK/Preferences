@@ -4,8 +4,9 @@ import { toArabicNum } from '../../lib/utils';
 import { runAssignment, type AssignmentResult, type ConflictGroup } from '../../lib/assignmentAlgorithm';
 import {
   Play, CheckCircle, AlertCircle, Clock, Users,
-  Award, Trash2, ChevronDown, ChevronUp, UserCheck
+  Award, Trash2, ChevronDown, ChevronUp, UserCheck, Monitor
 } from 'lucide-react';
+import MeetingMode from './MeetingMode';
 
 const ACADEMIC_YEAR = '2026-2027';
 
@@ -21,6 +22,7 @@ export default function AdminAssignmentPage() {
     stats: { total: number; assigned: number; pending: number; unassigned: number };
   } | null>(null);
   const [expandedConflict, setExpandedConflict] = useState<number | null>(null);
+  const [meetingMode, setMeetingMode] = useState(false);
 
   // حسم تصادم يدوياً: الإدارة تختار الأستاذ الفائز
   async function resolveConflict(conflict: ConflictGroup, winnerProfId: string) {
@@ -151,6 +153,10 @@ export default function AdminAssignmentPage() {
             <p>المنطق: جولات ①→⑤، طاقة استيعابية حسب المجموعات</p>
             <p>الفصل عند التصادم: تخصص → خبرة → أقدمية → رتبة</p>
           </div>
+          <button onClick={() => setMeetingMode(true)}
+            className="flex items-center gap-2 bg-[#c9a227] hover:bg-[#a07820] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors">
+            <Monitor className="w-4 h-4" /> وضع الاجتماع
+          </button>
           <button onClick={runAlgorithm} disabled={running}
             className="flex items-center gap-2 bg-[#1a3a6b] text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040] transition-colors disabled:opacity-50">
             <Play className="w-4 h-4" />
@@ -312,6 +318,8 @@ export default function AdminAssignmentPage() {
           )}
         </>
       )}
+    </div>
+      {meetingMode && <MeetingMode onClose={() => setMeetingMode(false)} />}
     </div>
   );
 }
