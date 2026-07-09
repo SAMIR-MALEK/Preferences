@@ -4,7 +4,7 @@ import { toArabicNum } from '../../lib/utils';
 import { runAssignment, type AssignmentResult, type ConflictGroup } from '../../lib/assignmentAlgorithm';
 import {
   Play, CheckCircle, AlertCircle, Clock, Users,
-  Award, Trash2, ChevronDown, ChevronUp, UserCheck, Monitor
+  Award, Trash2, ChevronDown, ChevronUp, UserCheck, Monitor, FlaskConical, Save
 } from 'lucide-react';
 import MeetingMode from './MeetingMode';
 
@@ -23,6 +23,7 @@ export default function AdminAssignmentPage() {
   } | null>(null);
   const [expandedConflict, setExpandedConflict] = useState<number | null>(null);
   const [meetingMode, setMeetingMode] = useState(false);
+  const [isSimulation, setIsSimulation] = useState(false);
 
   // حسم تصادم يدوياً: الإدارة تختار الأستاذ الفائز
   async function resolveConflict(conflict: ConflictGroup, winnerProfId: string) {
@@ -57,6 +58,76 @@ export default function AdminAssignmentPage() {
     } else {
       setMessage({ type: 'error', text: 'حدث خطأ أثناء حسم التصادم' });
     }
+    setSaving(false);
+  }
+
+  async function simulateAlgorithm() {
+    setRunning(true);
+    setMessage(null);
+    setResults(null);
+    setIsSimulation(true);
+
+    try {
+      const [
+        { data: professors },
+        { data: wishes },
+        { data: modules },
+        { data: levelSemesters },
+      ] = await Promise.all([
+        supabase.from('professors').select('id, last_name, first_name, rank, professional_experience, degree_speciality'),
+        supabase.from('wishes').select('*').eq('semester', semester).eq('academic_year', ACADEMIC_YEAR).lte('wish_order', 5),
+        supabase.from('modules').select('*').eq('semester', semester).eq('is_active', true),
+        supabase.from('level_semesters').select('*').eq('semester', semester),
+      ]);
+
+      if (!professors || !wishes || !modules || !levelSemesters) throw new Error('فشل تحميل البيانات');
+      if (wishes.length === 0) throw new Error('لا توجد رغبات مسجَّلة لهذا السداسي بعد');
+
+      // تشغيل الخوارزمية في الذاكرة فقط — لا حذف ولا حفظ
+      const result = runAssignment(professors, wishes, modules, levelSemesters, semester, ACADEMIC_YEAR);
+
+      setResults(result);
+      setMessage({
+        type: 'success',
+        text: `محاكاة فقط — ${toArabicNum(result.stats.assigned)} مُسنَد، ${toArabicNum(result.stats.pending)} معلّق، ${toArabicNum(result.stats.unassigned)} بدون إسناد — لم تُحفَظ أي إسنادات`,
+      });
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e.message });
+      setIsSimulation(false);
+    }
+    setRunning(false);
+  }
+
+  async function confirmAndSave() {
+    if (!results) return;
+    setSaving(true);
+    setMessage(null);
+
+    await supabase.from('assignments').delete()
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', semester);
+
+    if (results.assignments.length > 0) {
+      const toInsert = results.assignments.map(a => ({
+        professor_id: a.professor_id,
+        module_id: a.module_id,
+        level_id: a.level_id,
+        academic_year: ACADEMIC_YEAR,
+        semester,
+        teaching_type: a.teaching_type,
+        section_number: a.section_number,
+        group_number: a.group_number,
+        weekly_hours: a.weekly_hours,
+        wish_order_satisfied: a.wish_order_satisfied,
+        status: a.status,
+        conflict_resolved: a.conflict_resolved,
+        score: null,
+      }));
+      await supabase.from('assignments').insert(toInsert);
+    }
+
+    setIsSimulation(false);
+    setMessage({ type: 'success', text: `تم حفظ الإسنادات — ${toArabicNum(results.stats.assigned)} مُسنَد بنجاح` });
     setSaving(false);
   }
 
@@ -153,6 +224,11 @@ export default function AdminAssignmentPage() {
             <p>المنطق: جولات ①→⑤، طاقة استيعابية حسب المجموعات</p>
             <p>الفصل عند التصادم: تخصص → خبرة → أقدمية → رتبة</p>
           </div>
+          <button onClick={simulateAlgorithm} disabled={running}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+            <FlaskConical className="w-4 h-4" />
+            {running && isSimulation ? 'جارٍ المحاكاة...' : 'محاكاة'}
+          </button>
           <button onClick={() => setMeetingMode(true)}
             className="flex items-center gap-2 bg-[#c9a227] hover:bg-[#a07820] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors">
             <Monitor className="w-4 h-4" /> وضع الاجتماع
@@ -164,6 +240,29 @@ export default function AdminAssignmentPage() {
           </button>
         </div>
       </div>
+
+      {isSimulation && results && (
+        <div className="flex items-center justify-between gap-4 bg-purple-50 border-2 border-purple-300 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-3">
+            <FlaskConical className="w-5 h-5 text-purple-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-purple-800 text-sm">وضع المحاكاة — لم تُحفَظ أي إسنادات بعد</p>
+              <p className="text-purple-600 text-xs mt-0.5">راجع النتائج أدناه، ثم اختر تأكيد الحفظ أو إلغاء والعودة</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => { setResults(null); setIsSimulation(false); setMessage(null); }}
+              className="flex items-center gap-1.5 bg-white border border-purple-200 text-purple-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-50 transition-colors">
+              إلغاء والعودة
+            </button>
+            <button onClick={confirmAndSave} disabled={saving}
+              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+              <Save className="w-4 h-4" />
+              {saving ? 'جارٍ الحفظ...' : 'تأكيد وحفظ الإسنادات'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {message && (
         <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
