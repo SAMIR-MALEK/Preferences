@@ -318,7 +318,6 @@ export default function AdminAssignmentPage() {
           )}
         </>
       )}
-    </div>
       {meetingMode && <MeetingMode onClose={() => setMeetingMode(false)} />}
     </div>
   );
