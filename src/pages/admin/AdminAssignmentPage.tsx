@@ -24,6 +24,7 @@ export default function AdminAssignmentPage() {
   const [expandedConflict, setExpandedConflict] = useState<number | null>(null);
   const [meetingMode, setMeetingMode] = useState(false);
   const [isSimulation, setIsSimulation] = useState(false);
+  const [moduleMap, setModuleMap] = useState<Map<string, string>>(new Map());
 
   // حسم تصادم يدوياً: الإدارة تختار الأستاذ الفائز
   async function resolveConflict(conflict: ConflictGroup, winnerProfId: string) {
@@ -82,6 +83,10 @@ export default function AdminAssignmentPage() {
 
       if (!professors || !wishes || !modules || !levelSemesters) throw new Error('فشل تحميل البيانات');
       if (wishes.length === 0) throw new Error('لا توجد رغبات مسجَّلة لهذا السداسي بعد');
+
+      // بناء خريطة أسماء المقاييس
+      const mMap = new Map(modules.map(m => [m.id, m.name_ar]));
+      setModuleMap(mMap);
 
       // تشغيل الخوارزمية في الذاكرة فقط — لا حذف ولا حفظ
       const result = runAssignment(professors, wishes, modules, levelSemesters, semester, ACADEMIC_YEAR);
@@ -162,6 +167,10 @@ export default function AdminAssignmentPage() {
       await supabase.from('assignments').delete()
         .eq('academic_year', ACADEMIC_YEAR)
         .eq('semester', semester);
+
+      // بناء خريطة أسماء المقاييس
+      const mMap = new Map(modules.map(m => [m.id, m.name_ar]));
+      setModuleMap(mMap);
 
       // تشغيل الخوارزمية
       const result = runAssignment(professors, wishes, modules, levelSemesters, semester, ACADEMIC_YEAR);
@@ -386,7 +395,7 @@ export default function AdminAssignmentPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {results.assignments.map((a, i) => {
-                      const modName = a.module_id; // سيُستبدَل بالاسم الحقيقي
+                      const modName = moduleMap.get(a.module_id) || a.module_id;
                       return (
                         <tr key={i} className="hover:bg-gray-50/50">
                           <td className="px-4 py-2.5 font-medium text-gray-800">{a.professor_name}</td>
