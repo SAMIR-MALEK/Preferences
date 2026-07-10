@@ -1,7 +1,12 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// خوارزمية الإسناد البيداغوجي — منصة الرغبات
-// المنطق: جولات متسلسلة (①→②→③→④→⑤)، طاقة استيعابية حسب المجموعات،
-//         تصادم محلي يُحسم بـ(تخصص→خبرة→أقدمية→رتبة)، تساوٍ تام = معلّق
+// خوارزمية الإسناد البيداغوجي — النسخة الصحيحة
+// المنطق:
+// - كل أستاذ له حجم ساعي أسبوعي (max_weekly_hours) يجب ملؤه
+// - يُسنَد له مقاييس من رغباته بالترتيب حتى يمتلئ حجمه
+// - المحاضرة = 2.25 × weekly_sessions ساعة
+// - TD = 1.5 ساعة × عدد الأفواج المُسنَدة
+// - التصادم: إن طلب أكثر من أستاذ نفس المقياس+نوع التدريس+نفس رقم الرغبة
+//   والأفواج المتبقية لا تكفي الجميع → فرز بـ(تخصص→خبرة→أقدمية→رتبة)
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface ProfessorData {
@@ -11,6 +16,7 @@ export interface ProfessorData {
   rank: string;
   professional_experience: number;
   degree_speciality: string;
+  max_weekly_hours: number;
 }
 
 export interface WishData {
@@ -30,6 +36,7 @@ export interface ModuleData {
   has_lectures: boolean;
   has_td: boolean;
   semester: number;
+  weekly_sessions: number; // عدد مرات التدريس في الأسبوع (1 أو 2)
   specialty_match?: string[];
 }
 
@@ -44,16 +51,16 @@ export interface AssignmentResult {
   professor_id: string;
   professor_name: string;
   module_id: string;
+  module_name: string;
   level_id: string;
   teaching_type: string;
   section_number: number;
   group_number: number | null;
   weekly_hours: number;
   wish_order_satisfied: number;
-  status: 'assigned' | 'pending_conflict' | 'unassigned';
+  status: 'assigned' | 'pending_conflict';
   conflict_resolved: boolean;
   score: null;
-  conflict_group?: ConflictGroup; // للتصادمات المعلّقة
 }
 
 export interface ConflictGroup {
@@ -61,8 +68,6 @@ export interface ConflictGroup {
   module_name: string;
   level_id: string;
   teaching_type: string;
-  section_number: number;
-  group_number: number | null;
   candidates: {
     professor_id: string;
     professor_name: string;
@@ -71,10 +76,17 @@ export interface ConflictGroup {
     experience_years: number;
     professional_experience: number;
     rank_score: number;
+    hours_needed: number;
   }[];
 }
 
-// ── ترتيب الرتب العلمية (أعلى = أفضل) ──
+export interface AlgorithmStats {
+  total: number;
+  fully_assigned: number;   // امتلأ حجمه الساعي بالكامل
+  partially_assigned: number; // أُسنِد له شيء لكن لم يمتلئ
+  unassigned: number;         // لم يُسنَد له أي شيء
+}
+
 const RANK_ORDER: Record<string, number> = {
   'أستاذ التعليم العالي': 5,
   'أستاذ محاضر - أ': 4,
@@ -83,41 +95,25 @@ const RANK_ORDER: Record<string, number> = {
   'أستاذ مساعد - ب': 1,
 };
 
-// ── مفتاح الفرصة الفريد ──
-function opportunityKey(moduleId: string, teachingType: string, section: number, group: number | null) {
-  return `${moduleId}__${teachingType}__${section}__${group ?? 0}`;
-}
-
-// ── الطاقة الاستيعابية لمقياس/نوع ──
-function getCapacity(
-  moduleId: string,
-  teachingType: string,
-  levelId: string,
-  semester: number,
-  levelSemesters: LevelSemesterData[]
-): { sections: number; groups: number } {
-  const ls = levelSemesters.find(x => x.level_id === levelId && x.semester === semester);
-  if (!ls) return { sections: 0, groups: 0 };
+// ساعات الفرصة الواحدة
+function opportunityHours(teachingType: string, module: ModuleData): number {
   if (teachingType === 'محاضرة') {
-    return { sections: ls.num_sections, groups: 1 };
-  } else {
-    return { sections: ls.num_sections, groups: ls.num_groups };
+    return 2.25 * (module.weekly_sessions || 1);
   }
+  return 1.5; // ساعة واحدة لكل فوج TD
 }
 
-// ── حساب خبرة الأستاذ في مقياس معيّن (عدد سنوات من المحدد 3 الأخيرة) ──
-function getPedagogicalExperience(wish: WishData): number {
-  return wish.previous_years?.length || 0;
-}
-
-// ── مقارنة بين أستاذين على نفس الفرصة ──
-// يُرجع: 1 إن A أفضل، -1 إن B أفضل، 0 إن متساويان تماماً
+// مقارنة أستاذين — 1: A أفضل، -1: B أفضل، 0: تساوٍ تام
 function compare(
   profA: ProfessorData, wishA: WishData,
   profB: ProfessorData, wishB: WishData,
   moduleSpecialties: string[]
 ): 1 | -1 | 0 {
-  // ① التخصص
+  // ① رقم الرغبة أولاً (الأصغر أفضل)
+  if (wishA.wish_order < wishB.wish_order) return 1;
+  if (wishA.wish_order > wishB.wish_order) return -1;
+
+  // ② التخصص
   const aMatch = moduleSpecialties.some(s =>
     profA.degree_speciality?.toLowerCase().includes(s.toLowerCase()) ||
     s.toLowerCase().includes(profA.degree_speciality?.toLowerCase() || '')
@@ -129,23 +125,22 @@ function compare(
   if (aMatch && !bMatch) return 1;
   if (!aMatch && bMatch) return -1;
 
-  // ② الخبرة البيداغوجية (سنوات تدريس هذا المقياس بالذات في آخر 3 سنوات)
-  const expA = getPedagogicalExperience(wishA);
-  const expB = getPedagogicalExperience(wishB);
+  // ③ الخبرة البيداغوجية
+  const expA = wishA.previous_years?.length || 0;
+  const expB = wishB.previous_years?.length || 0;
   if (expA > expB) return 1;
   if (expB > expA) return -1;
 
-  // ③ الأقدمية المهنية
+  // ④ الأقدمية المهنية
   if (profA.professional_experience > profB.professional_experience) return 1;
   if (profB.professional_experience > profA.professional_experience) return -1;
 
-  // ④ الرتبة العلمية
+  // ⑤ الرتبة
   const rankA = RANK_ORDER[profA.rank] || 0;
   const rankB = RANK_ORDER[profB.rank] || 0;
   if (rankA > rankB) return 1;
   if (rankB > rankA) return -1;
 
-  // تساوٍ تام
   return 0;
 }
 
@@ -162,264 +157,231 @@ export function runAssignment(
 ): {
   assignments: AssignmentResult[];
   conflicts: ConflictGroup[];
-  unassigned: { professor_id: string; professor_name: string }[];
-  stats: { total: number; assigned: number; pending: number; unassigned: number };
+  stats: AlgorithmStats;
+  professor_hours: Map<string, { assigned: number; max: number; name: string }>;
 } {
   const profMap = new Map(professors.map(p => [p.id, p]));
   const moduleMap = new Map(modules.map(m => [m.id, m]));
 
-  // حالة كل أستاذ: next_wish_index = 0..4 (الرغبة الحالية الفعّالة)
-  const profState = new Map<string, { nextWishIndex: number; assigned: boolean }>();
-  professors.forEach(p => profState.set(p.id, { nextWishIndex: 0, assigned: false }));
+  // الحجم الساعي المتبقي لكل أستاذ
+  const profHoursRemaining = new Map<string, number>();
+  professors.forEach(p => profHoursRemaining.set(p.id, p.max_weekly_hours || 9));
 
-  // الفرص المتاحة: Map من opportunityKey → عدد المقاعد المتبقية
-  const opportunityCapacity = new Map<string, number>();
-  // قائمة كل الفرص المتاحة لكل مقياس + نوع تدريس
-  const moduleOpportunities = new Map<string, { section: number; group: number | null; key: string }[]>();
+  // الأفواج المتاحة لكل مقياس + نوع تدريس
+  // key: `${module_id}__${teaching_type}`
+  // value: قائمة الأفواج المتاحة { section, group }
+  const availableSlots = new Map<string, { section: number; group: number | null }[]>();
 
-  // بناء قائمة الفرص لكل مقياس في هذا السداسي
-  const semesterModules = modules.filter(m => m.semester === semester);
-  for (const mod of semesterModules) {
-    for (const tType of (['محاضرة', 'أعمال موجهة'] as const)) {
-      if (tType === 'محاضرة' && !mod.has_lectures) continue;
-      if (tType === 'أعمال موجهة' && !mod.has_td) continue;
+  const semModules = modules.filter(m => m.semester === semester);
+  for (const mod of semModules) {
+    const ls = levelSemesters.find(x => x.level_id === mod.level_id && x.semester === semester);
+    if (!ls) continue;
 
-      const cap = getCapacity(mod.id, tType, mod.level_id, semester, levelSemesters);
-      const opportunities: { section: number; group: number | null; key: string }[] = [];
+    if (mod.has_lectures) {
+      const key = `${mod.id}__محاضرة`;
+      const slots = [];
+      for (let s = 1; s <= ls.num_sections; s++) {
+        slots.push({ section: s, group: null });
+      }
+      availableSlots.set(key, slots);
+    }
 
-      if (tType === 'محاضرة') {
-        for (let s = 1; s <= cap.sections; s++) {
-          const key = opportunityKey(mod.id, tType, s, null);
-          opportunities.push({ section: s, group: null, key });
-          opportunityCapacity.set(key, 1); // كل مجموعة محاضرة = أستاذ واحد
-        }
-      } else {
-        for (let s = 1; s <= cap.sections; s++) {
-          for (let g = 1; g <= cap.groups; g++) {
-            const key = opportunityKey(mod.id, tType, s, g);
-            opportunities.push({ section: s, group: g, key });
-            opportunityCapacity.set(key, 1);
-          }
+    if (mod.has_td) {
+      const key = `${mod.id}__أعمال موجهة`;
+      const slots = [];
+      for (let s = 1; s <= ls.num_sections; s++) {
+        for (let g = 1; g <= ls.num_groups; g++) {
+          slots.push({ section: s, group: g });
         }
       }
-
-      const mapKey = `${mod.id}__${tType}`;
-      moduleOpportunities.set(mapKey, opportunities);
+      availableSlots.set(key, slots);
     }
   }
 
   const finalAssignments: AssignmentResult[] = [];
   const pendingConflicts: ConflictGroup[] = [];
 
-  // ── تشغيل الجولات ① إلى ⑤ ──
-  for (let round = 1; round <= 5; round++) {
-    // جمع من يحق لهم التنافس في هذه الجولة
-    // (أساتذة لم يُسنَدوا بعد، ورغبتهم الفعّالة الحالية = round)
-    const wishesThisRound = wishes.filter(w => {
-      const state = profState.get(w.professor_id);
-      if (!state) return false;
-      if (state.assigned) return false;
-      return w.wish_order === round && state.nextWishIndex === round - 1;
-    });
+  // نمرّ على رغبات ① → ⑤
+  for (let wishOrder = 1; wishOrder <= 5; wishOrder++) {
+    // اجمع رغبات هذا المستوى من الأساتذة الذين لم يمتلئ حجمهم بعد
+    const wishesThisRound = wishes.filter(w =>
+      w.wish_order === wishOrder &&
+      (profHoursRemaining.get(w.professor_id) || 0) > 0
+    );
 
     if (wishesThisRound.length === 0) continue;
 
-    // تجميع الطلبات حسب (module_id + teaching_type)
-    const requestsByModuleType = new Map<string, WishData[]>();
+    // جمّع حسب (module_id + teaching_type)
+    const byModuleType = new Map<string, WishData[]>();
     for (const wish of wishesThisRound) {
       const mod = moduleMap.get(wish.module_id);
       if (!mod) continue;
       const key = `${wish.module_id}__${wish.teaching_type}`;
-      if (!requestsByModuleType.has(key)) requestsByModuleType.set(key, []);
-      requestsByModuleType.get(key)!.push(wish);
+      if (!byModuleType.has(key)) byModuleType.set(key, []);
+      byModuleType.get(key)!.push(wish);
     }
 
-    // معالجة كل مقياس+نوع في هذه الجولة
-    for (const [modTypeKey, requestors] of requestsByModuleType) {
+    for (const [modTypeKey, requestors] of byModuleType) {
       const [moduleId, teachingType] = modTypeKey.split('__');
       const mod = moduleMap.get(moduleId);
       if (!mod) continue;
 
-      const opportunities = moduleOpportunities.get(modTypeKey) || [];
-      const availableOpps = opportunities.filter(o => (opportunityCapacity.get(o.key) || 0) > 0);
+      const slots = availableSlots.get(modTypeKey) || [];
+      if (slots.length === 0) continue; // لا أفواج متاحة
 
-      if (availableOpps.length === 0) {
-        // المقياس ممتلئ — كل الطالبين ينتقلون للرغبة التالية
-        for (const wish of requestors) {
-          const state = profState.get(wish.professor_id)!;
-          profState.set(wish.professor_id, { ...state, nextWishIndex: round });
-        }
-        continue;
-      }
-
+      const hoursPerSlot = opportunityHours(teachingType, mod);
       const moduleSpecialties = mod.specialty_match || [];
-      let remainingRequestors = [...requestors];
 
-      // أسند الفرص المتاحة
-      for (const opp of availableOpps) {
-        if (remainingRequestors.length === 0) break;
+      // فرز الطالبين حسب المعايير
+      const sorted = [...requestors].sort((wa, wb) => {
+        const pa = profMap.get(wa.professor_id)!;
+        const pb = profMap.get(wb.professor_id)!;
+        const cmp = compare(pa, wa, pb, wb, moduleSpecialties);
+        return cmp === 1 ? -1 : cmp === -1 ? 1 : 0;
+      });
 
-        if (remainingRequestors.length === 1) {
-          // أستاذ واحد فقط → إسناد مباشر بدون تصادم
-          const wish = remainingRequestors[0];
-          const prof = profMap.get(wish.professor_id)!;
-          const mod = moduleMap.get(wish.module_id)!;
-          opportunityCapacity.set(opp.key, 0);
-          profState.set(wish.professor_id, { nextWishIndex: round, assigned: true });
-          finalAssignments.push({
-            professor_id: wish.professor_id,
-            professor_name: `${prof.last_name} ${prof.first_name}`,
-            module_id: wish.module_id,
-            level_id: wish.level_id,
-            teaching_type: wish.teaching_type,
-            section_number: opp.section,
-            group_number: opp.group,
-            weekly_hours: teachingType === 'محاضرة' ? 2.25 : 1.5,
-            wish_order_satisfied: round,
-            status: 'assigned',
-            conflict_resolved: false,
-            score: null,
-          });
-          remainingRequestors = [];
-        } else {
-          // أكثر من أستاذ على نفس الفرصة → فرز
-          remainingRequestors.sort((wa, wb) => {
-            const pa = profMap.get(wa.professor_id)!;
-            const pb = profMap.get(wb.professor_id)!;
-            return -compare(pa, wa, pb, wb, moduleSpecialties); // تنازلي
-          });
+      let slotIndex = 0;
 
-          // تحقق من التساوي التام بين الأول والثاني
-          const first = remainingRequestors[0];
-          const second = remainingRequestors[1];
-          const profFirst = profMap.get(first.professor_id)!;
-          const profSecond = profMap.get(second.professor_id)!;
-          const cmp = compare(profFirst, first, profSecond, second, moduleSpecialties);
+      for (const wish of sorted) {
+        const prof = profMap.get(wish.professor_id)!;
+        let hoursLeft = profHoursRemaining.get(wish.professor_id) || 0;
 
-          if (cmp === 0) {
-            // تساوٍ تام — حدد من هم متساوون تماماً مع الأول
-            const tiedGroup: WishData[] = [];
-            for (const w of remainingRequestors) {
-              const p = profMap.get(w.professor_id)!;
-              if (compare(profFirst, first, p, w, moduleSpecialties) === 0) {
-                tiedGroup.push(w);
-              } else break;
-            }
+        if (hoursLeft <= 0) continue;
+        if (slotIndex >= slots.length) break; // لا أفواج متبقية
 
-            // سجّل التصادم المعلّق لكل فرد في المجموعة المتساوية
-            pendingConflicts.push({
+        // احسب كم فوج يمكن أن يأخذ هذا الأستاذ
+        const maxSlotsCanTake = Math.floor(hoursLeft / hoursPerSlot);
+        if (maxSlotsCanTake === 0) continue;
+
+        const remainingSlots = slots.length - slotIndex;
+
+        if (remainingSlots === 0) break;
+
+        // تحقق من التساوي مع التالي (تصادم محتمل على آخر الأفواج)
+        const nextWish = sorted[sorted.indexOf(wish) + 1];
+        const nextProf = nextWish ? profMap.get(nextWish.professor_id) : null;
+        const isTied = nextProf &&
+          compare(prof, wish, nextProf, nextWish, moduleSpecialties) === 0;
+
+        // إن كانت الأفواج تكفي الجميع أو هذا آخر طالب → أسنِد مباشرة
+        if (!isTied || remainingSlots > maxSlotsCanTake) {
+          // أسنِد الأفواج التي يحتاجها هذا الأستاذ
+          const slotsToTake = Math.min(maxSlotsCanTake, remainingSlots);
+          for (let i = 0; i < slotsToTake; i++) {
+            const slot = slots[slotIndex + i];
+            finalAssignments.push({
+              professor_id: wish.professor_id,
+              professor_name: `${prof.last_name} ${prof.first_name}`,
               module_id: moduleId,
               module_name: mod.name_ar,
-              level_id: wish_level(first, wishes),
+              level_id: wish.level_id,
               teaching_type: teachingType,
-              section_number: opp.section,
-              group_number: opp.group,
-              candidates: tiedGroup.map(w => {
-                const p = profMap.get(w.professor_id)!;
-                return {
-                  professor_id: w.professor_id,
-                  professor_name: `${p.last_name} ${p.first_name}`,
-                  wish_order: w.wish_order,
-                  speciality_match: moduleSpecialties.some(s =>
-                    p.degree_speciality?.toLowerCase().includes(s.toLowerCase())
-                  ),
-                  experience_years: getPedagogicalExperience(w),
-                  professional_experience: p.professional_experience,
-                  rank_score: RANK_ORDER[p.rank] || 0,
-                };
-              }),
-            });
-
-            // أضف سجل "pending_conflict" لكل متنافس
-            for (const w of tiedGroup) {
-              const p = profMap.get(w.professor_id)!;
-              finalAssignments.push({
-                professor_id: w.professor_id,
-                professor_name: `${p.last_name} ${p.first_name}`,
-                module_id: moduleId,
-                level_id: w.level_id,
-                teaching_type: teachingType,
-                section_number: opp.section,
-                group_number: opp.group,
-                weekly_hours: teachingType === 'محاضرة' ? 2.25 : 1.5,
-                wish_order_satisfied: round,
-                status: 'pending_conflict',
-                conflict_resolved: false,
-                score: null,
-              });
-              // المتنافسون في التصادم يبقون بحالة "غير محسومة" — لا يترقّون ولا يُسنَدون
-            }
-
-            // الفرصة تُعلَّق ولا تُعطى لأحد
-            opportunityCapacity.set(opp.key, 0);
-            // إزالة المتنافسين المعلّقين من remainingRequestors
-            const tiedIds = new Set(tiedGroup.map(w => w.professor_id));
-            remainingRequestors = remainingRequestors.filter(w => !tiedIds.has(w.professor_id));
-
-          } else {
-            // الأول أفضل → يُسنَد، الباقون يترقّون
-            const winner = remainingRequestors[0];
-            const prof = profMap.get(winner.professor_id)!;
-            opportunityCapacity.set(opp.key, 0);
-            profState.set(winner.professor_id, { nextWishIndex: round, assigned: true });
-            finalAssignments.push({
-              professor_id: winner.professor_id,
-              professor_name: `${prof.last_name} ${prof.first_name}`,
-              module_id: winner.module_id,
-              level_id: winner.level_id,
-              teaching_type: winner.teaching_type,
-              section_number: opp.section,
-              group_number: opp.group,
-              weekly_hours: teachingType === 'محاضرة' ? 2.25 : 1.5,
-              wish_order_satisfied: round,
+              section_number: slot.section,
+              group_number: slot.group,
+              weekly_hours: hoursPerSlot,
+              wish_order_satisfied: wishOrder,
               status: 'assigned',
-              conflict_resolved: true,
+              conflict_resolved: false,
               score: null,
             });
-            remainingRequestors = remainingRequestors.slice(1);
           }
+          slotIndex += slotsToTake;
+          profHoursRemaining.set(wish.professor_id, hoursLeft - slotsToTake * hoursPerSlot);
+        } else {
+          // تصادم حقيقي — الأفواج لا تكفي المتساوين
+          // اجمع كل المتساوين
+          const tiedGroup: WishData[] = [wish];
+          for (const other of sorted.slice(sorted.indexOf(wish) + 1)) {
+            const otherProf = profMap.get(other.professor_id)!;
+            if (compare(prof, wish, otherProf, other, moduleSpecialties) === 0) {
+              tiedGroup.push(other);
+            } else break;
+          }
+
+          pendingConflicts.push({
+            module_id: moduleId,
+            module_name: mod.name_ar,
+            level_id: wish.level_id,
+            teaching_type: teachingType,
+            candidates: tiedGroup.map(w => {
+              const p = profMap.get(w.professor_id)!;
+              return {
+                professor_id: w.professor_id,
+                professor_name: `${p.last_name} ${p.first_name}`,
+                wish_order: w.wish_order,
+                speciality_match: moduleSpecialties.some(s =>
+                  p.degree_speciality?.toLowerCase().includes(s.toLowerCase())
+                ),
+                experience_years: w.previous_years?.length || 0,
+                professional_experience: p.professional_experience,
+                rank_score: RANK_ORDER[p.rank] || 0,
+                hours_needed: hoursPerSlot,
+              };
+            }),
+          });
+
+          // أضف pending لكل متصادم
+          for (const w of tiedGroup) {
+            const p = profMap.get(w.professor_id)!;
+            finalAssignments.push({
+              professor_id: w.professor_id,
+              professor_name: `${p.last_name} ${p.first_name}`,
+              module_id: moduleId,
+              module_name: mod.name_ar,
+              level_id: w.level_id,
+              teaching_type: teachingType,
+              section_number: slots[slotIndex]?.section || 1,
+              group_number: slots[slotIndex]?.group || null,
+              weekly_hours: hoursPerSlot,
+              wish_order_satisfied: wishOrder,
+              status: 'pending_conflict',
+              conflict_resolved: false,
+              score: null,
+            });
+          }
+          slotIndex = slots.length; // استهلك كل الأفواج المتبقية
         }
       }
 
-      // من بقي بدون فرصة → رغبته التالية
-      for (const wish of remainingRequestors) {
-        const state = profState.get(wish.professor_id)!;
-        if (!state.assigned) {
-          profState.set(wish.professor_id, { ...state, nextWishIndex: round });
-        }
-      }
+      // حدّث الأفواج المتاحة بعد هذه الجولة
+      availableSlots.set(modTypeKey, slots.slice(slotIndex));
     }
   }
 
-  // من لم يُسنَد بعد الجولات الخمس
-  const unassigned: { professor_id: string; professor_name: string }[] = [];
-  for (const [profId, state] of profState) {
-    if (!state.assigned) {
-      // تحقق أنه ليس في تصادم معلّق
-      const inConflict = finalAssignments.some(a => a.professor_id === profId && a.status === 'pending_conflict');
-      if (!inConflict) {
-        const prof = profMap.get(profId)!;
-        unassigned.push({ professor_id: profId, professor_name: `${prof.last_name} ${prof.first_name}` });
-      }
-    }
+  // احسب الإحصاءات
+  const assignedProfIds = new Set(
+    finalAssignments.filter(a => a.status === 'assigned').map(a => a.professor_id)
+  );
+  const profHoursAssigned = new Map<string, number>();
+  for (const a of finalAssignments.filter(x => x.status === 'assigned')) {
+    profHoursAssigned.set(a.professor_id, (profHoursAssigned.get(a.professor_id) || 0) + a.weekly_hours);
   }
 
-  const assigned = finalAssignments.filter(a => a.status === 'assigned').length;
-  const pending = finalAssignments.filter(a => a.status === 'pending_conflict').length;
+  let fully = 0, partially = 0, unassigned = 0;
+  const professor_hours = new Map<string, { assigned: number; max: number; name: string }>();
+
+  for (const prof of professors) {
+    const assigned = profHoursAssigned.get(prof.id) || 0;
+    const max = prof.max_weekly_hours || 9;
+    professor_hours.set(prof.id, {
+      assigned,
+      max,
+      name: `${prof.last_name} ${prof.first_name}`,
+    });
+    if (assigned >= max) fully++;
+    else if (assigned > 0) partially++;
+    else unassigned++;
+  }
 
   return {
-    assignments: finalAssignments.filter(a => a.status !== 'pending_conflict'),
+    assignments: finalAssignments.filter(a => a.status === 'assigned'),
     conflicts: pendingConflicts,
-    unassigned,
     stats: {
       total: professors.length,
-      assigned,
-      pending: new Set(finalAssignments.filter(a => a.status === 'pending_conflict').map(a => a.professor_id)).size,
-      unassigned: unassigned.length,
+      fully_assigned: fully,
+      partially_assigned: partially,
+      unassigned,
     },
+    professor_hours,
   };
-}
-
-function wish_level(wish: WishData, _allWishes: WishData[]): string {
-  return wish.level_id;
 }
