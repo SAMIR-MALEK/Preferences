@@ -38,8 +38,8 @@ export default function AdminAssignmentPage() {
       academic_year: ACADEMIC_YEAR,
       semester,
       teaching_type: conflict.teaching_type,
-      section_number: conflict.section_number,
-      group_number: conflict.group_number,
+      section_number: 1,
+      group_number: null,
       weekly_hours: conflict.teaching_type === 'محاضرة' ? 2.25 : 1.5,
       wish_order_satisfied: winner.wish_order,
       status: 'assigned',
@@ -52,9 +52,9 @@ export default function AdminAssignmentPage() {
       setResults(prev => prev ? {
         ...prev,
         conflicts: prev.conflicts.filter(c =>
-          !(c.module_id === conflict.module_id && c.section_number === conflict.section_number && c.group_number === conflict.group_number)
+          !(c.module_id === conflict.module_id)
         ),
-        stats: { ...prev.stats, pending: prev.stats.pending - conflict.candidates.length },
+        stats: { ...prev.stats, partially_assigned: Math.max(0, (prev.stats.partially_assigned || 0) - conflict.candidates.length) },
       } : null);
     } else {
       setMessage({ type: 'error', text: 'حدث خطأ أثناء حسم التصادم' });
@@ -75,9 +75,9 @@ export default function AdminAssignmentPage() {
         { data: modules },
         { data: levelSemesters },
       ] = await Promise.all([
-        supabase.from('professors').select('id, last_name, first_name, rank, professional_experience, degree_speciality'),
+        supabase.from('professors').select('id, last_name, first_name, rank, professional_experience, degree_speciality, max_weekly_hours'),
         supabase.from('wishes').select('*').eq('semester', semester).eq('academic_year', ACADEMIC_YEAR).lte('wish_order', 5),
-        supabase.from('modules').select('*').eq('semester', semester).eq('is_active', true),
+        supabase.from('modules').select('*, weekly_sessions').eq('semester', semester).eq('is_active', true),
         supabase.from('level_semesters').select('*').eq('semester', semester),
       ]);
 
@@ -94,7 +94,7 @@ export default function AdminAssignmentPage() {
       setResults(result);
       setMessage({
         type: 'success',
-        text: `محاكاة فقط — ${toArabicNum(result.stats.assigned)} مُسنَد، ${toArabicNum(result.stats.pending)} معلّق، ${toArabicNum(result.stats.unassigned)} بدون إسناد — لم تُحفَظ أي إسنادات`,
+        text: `محاكاة فقط — ${toArabicNum(result.stats.fully_assigned)} امتلأ كلياً، ${toArabicNum(result.stats.partially_assigned)} جزئياً، ${toArabicNum(result.stats.unassigned)} بدون إسناد — لم تُحفَظ أي إسنادات`,
       });
     } catch (e: any) {
       setMessage({ type: 'error', text: e.message });
@@ -132,7 +132,7 @@ export default function AdminAssignmentPage() {
     }
 
     setIsSimulation(false);
-    setMessage({ type: 'success', text: `تم حفظ الإسنادات — ${toArabicNum(results.stats.assigned)} مُسنَد بنجاح` });
+    setMessage({ type: 'success', text: `تم حفظ الإسنادات — ${toArabicNum(results.stats.fully_assigned)} امتلأ كلياً` });
     setSaving(false);
   }
 
@@ -149,9 +149,9 @@ export default function AdminAssignmentPage() {
         { data: modules },
         { data: levelSemesters },
       ] = await Promise.all([
-        supabase.from('professors').select('id, last_name, first_name, rank, professional_experience, degree_speciality'),
+        supabase.from('professors').select('id, last_name, first_name, rank, professional_experience, degree_speciality, max_weekly_hours'),
         supabase.from('wishes').select('*').eq('semester', semester).eq('academic_year', ACADEMIC_YEAR).lte('wish_order', 5),
-        supabase.from('modules').select('*').eq('semester', semester).eq('is_active', true),
+        supabase.from('modules').select('*, weekly_sessions').eq('semester', semester).eq('is_active', true),
         supabase.from('level_semesters').select('*').eq('semester', semester),
       ]);
 
@@ -198,7 +198,7 @@ export default function AdminAssignmentPage() {
       setResults(result);
       setMessage({
         type: result.conflicts.length > 0 ? 'error' : 'success',
-        text: `اكتمل الإسناد — ${toArabicNum(result.stats.assigned)} مُسنَد، ${toArabicNum(result.stats.pending)} معلّق (تصادم)، ${toArabicNum(result.stats.unassigned)} بدون إسناد`,
+        text: `اكتمل الإسناد — ${toArabicNum(result.stats.fully_assigned)} امتلأ كلياً، ${toArabicNum(result.stats.partially_assigned)} جزئياً، ${toArabicNum(result.stats.unassigned)} بدون إسناد`,
       });
     } catch (e: any) {
       setMessage({ type: 'error', text: e.message });
@@ -286,8 +286,8 @@ export default function AdminAssignmentPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: 'إجمالي الأساتذة', value: results.stats.total, color: '#1a3a6b', icon: Users },
-              { label: 'مُسنَد بنجاح', value: results.stats.assigned, color: '#16a34a', icon: CheckCircle },
-              { label: 'معلّق (تصادم)', value: results.stats.pending, color: '#d97706', icon: AlertCircle },
+              { label: 'امتلأ كلياً', value: results.stats.fully_assigned, color: '#16a34a', icon: CheckCircle },
+              { label: 'جزئي الإسناد', value: results.stats.partially_assigned, color: '#d97706', icon: AlertCircle },
               { label: 'بدون إسناد', value: results.stats.unassigned, color: '#dc2626', icon: Clock },
             ].map((stat, i) => (
               <div key={i} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-center">
@@ -315,8 +315,8 @@ export default function AdminAssignmentPage() {
                     <div className="flex-1">
                       <p className="font-semibold text-gray-800 text-sm">{conflict.module_name}</p>
                       <p className="text-xs text-gray-500">
-                        {conflict.teaching_type} — مجموعة {toArabicNum(conflict.section_number)}
-                        {conflict.group_number ? ` / فوج ${toArabicNum(conflict.group_number)}` : ''}
+                        {conflict.teaching_type} — مجموعة {toArabicNum(1)}
+                        {null ? ` / فوج ${toArabicNum(null)}` : ''}
                         {' — '}{toArabicNum(conflict.candidates.length)} متنافسون
                       </p>
                     </div>
