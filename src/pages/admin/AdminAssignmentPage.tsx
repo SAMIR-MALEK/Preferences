@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import { runAssignment, type AssignmentResult, type ConflictGroup } from '../../lib/assignmentAlgorithm';
+import { runAssignment, type AssignmentResult, type ConflictGroup, type AlgorithmStats } from '../../lib/assignmentAlgorithm';
 import {
   Play, CheckCircle, AlertCircle, Clock, Users,
   Award, Trash2, ChevronDown, ChevronUp, UserCheck, Monitor, FlaskConical, Save
@@ -18,8 +18,8 @@ export default function AdminAssignmentPage() {
   const [results, setResults] = useState<{
     assignments: AssignmentResult[];
     conflicts: ConflictGroup[];
-    unassigned: { professor_id: string; professor_name: string }[];
-    stats: { total: number; assigned: number; pending: number; unassigned: number };
+    stats: AlgorithmStats;
+    professor_hours: Map<string, { assigned: number; max: number; name: string }>;
   } | null>(null);
   const [expandedConflict, setExpandedConflict] = useState<number | null>(null);
   const [meetingMode, setMeetingMode] = useState(false);
@@ -54,7 +54,7 @@ export default function AdminAssignmentPage() {
         conflicts: prev.conflicts.filter(c =>
           !(c.module_id === conflict.module_id)
         ),
-        stats: { ...prev.stats, partially_assigned: Math.max(0, (prev.stats.partially_assigned || 0) - conflict.candidates.length) },
+        stats: { ...prev.stats },
       } : null);
     } else {
       setMessage({ type: 'error', text: 'حدث خطأ أثناء حسم التصادم' });
@@ -357,19 +357,21 @@ export default function AdminAssignmentPage() {
           )}
 
           {/* الأساتذة بدون إسناد */}
-          {results.unassigned.length > 0 && (
+          {results.stats.unassigned > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2">
               <h3 className="font-display font-bold text-red-700 flex items-center gap-2 text-sm">
                 <Clock className="w-4 h-4" />
-                أساتذة لم يُسنَد لهم أي مقياس ({toArabicNum(results.unassigned.length)})
+                أساتذة لم يُسنَد لهم أي مقياس ({toArabicNum(results.stats.unassigned)})
               </h3>
-              <p className="text-xs text-red-600">استُنفذت رغباتهم الخمس دون نتيجة — يُفضَّل مراجعة أسباب عدم الإسناد (المقاييس ممتلئة أو لا توجد مقاييس مطابقة).</p>
+              <p className="text-xs text-red-600">استُنفذت رغباتهم الخمس دون نتيجة — يُفضَّل مراجعة أسباب عدم الإسناد.</p>
               <div className="flex flex-wrap gap-2 mt-2">
-                {results.unassigned.map(u => (
-                  <span key={u.professor_id} className="text-xs bg-white border border-red-200 text-red-700 px-3 py-1 rounded-full">
-                    {u.professor_name}
-                  </span>
-                ))}
+                {Array.from(results.professor_hours.entries())
+                  .filter(([, h]) => h.assigned === 0)
+                  .map(([id, h]) => (
+                    <span key={id} className="text-xs bg-white border border-red-200 text-red-700 px-3 py-1 rounded-full">
+                      {h.name}
+                    </span>
+                  ))}
               </div>
             </div>
           )}
