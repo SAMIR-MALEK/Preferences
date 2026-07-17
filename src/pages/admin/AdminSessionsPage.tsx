@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CheckCircle, AlertCircle, Save } from 'lucide-react';
+import { CheckCircle, AlertCircle, Save, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toArabicNum } from '../../lib/utils';
 
 interface ModuleRow {
@@ -13,12 +13,17 @@ interface ModuleRow {
   changed: boolean;
 }
 
+type SortKey = 'name_ar' | 'level_name' | 'semester' | 'has_td' | 'weekly_sessions';
+type SortDir = 'asc' | 'desc';
+
 export default function AdminSessionsPage() {
   const [modules, setModules] = useState<ModuleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [semFilter, setSemFilter] = useState<0 | 1 | 2>(0);
+  const [sortKey, setSortKey] = useState<SortKey>('level_name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   useEffect(() => { loadData(); }, []);
 
@@ -28,7 +33,6 @@ export default function AdminSessionsPage() {
       .from('modules')
       .select('id, name_ar, semester, has_td, weekly_sessions, level:levels(name_ar)')
       .eq('is_active', true)
-      .order('semester')
       .order('display_order');
 
     if (data) {
@@ -38,7 +42,6 @@ export default function AdminSessionsPage() {
         level_name: m.level?.name_ar || '—',
         semester: m.semester,
         has_td: m.has_td,
-        // القيمة الافتراضية: مقاييس TD = 2، بقية = 1
         weekly_sessions: m.weekly_sessions || (m.has_td ? 2 : 1),
         changed: false,
       })));
@@ -52,24 +55,32 @@ export default function AdminSessionsPage() {
     ));
   }
 
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-gray-300 inline mr-1" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="w-3 h-3 text-[#1a3a6b] inline mr-1" />
+      : <ArrowDown className="w-3 h-3 text-[#1a3a6b] inline mr-1" />;
+  }
+
   async function saveAll() {
     const changed = modules.filter(m => m.changed);
-    if (changed.length === 0) {
-      setMessage({ type: 'error', text: 'لا توجد تغييرات للحفظ' });
-      return;
-    }
+    if (changed.length === 0) { setMessage({ type: 'error', text: 'لا توجد تغييرات للحفظ' }); return; }
     setSaving(true);
     setMessage(null);
-
     let errors = 0;
     for (const m of changed) {
-      const { error } = await supabase
-        .from('modules')
-        .update({ weekly_sessions: m.weekly_sessions })
-        .eq('id', m.id);
+      const { error } = await supabase.from('modules').update({ weekly_sessions: m.weekly_sessions }).eq('id', m.id);
       if (error) errors++;
     }
-
     if (errors === 0) {
       setMessage({ type: 'success', text: `تم حفظ ${toArabicNum(changed.length)} مقياس بنجاح` });
       setModules(prev => prev.map(m => ({ ...m, changed: false })));
@@ -79,7 +90,18 @@ export default function AdminSessionsPage() {
     setSaving(false);
   }
 
-  const filtered = modules.filter(m => semFilter === 0 || m.semester === semFilter);
+  const filtered = modules
+    .filter(m => semFilter === 0 || m.semester === semFilter)
+    .sort((a, b) => {
+      let av: any = a[sortKey];
+      let bv: any = b[sortKey];
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
   const changedCount = modules.filter(m => m.changed).length;
 
   if (loading) return (
@@ -88,17 +110,18 @@ export default function AdminSessionsPage() {
     </div>
   );
 
+  const thClass = "text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer hover:text-[#1a3a6b] select-none whitespace-nowrap";
+
   return (
     <div className="space-y-4 animate-fade-in" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="font-display font-bold text-gray-900 text-xl">عدد الحصص الأسبوعية للمحاضرات</h2>
+          <h2 className="font-display font-bold text-gray-900 text-xl">الحصص الأسبوعية للمحاضرات</h2>
           <p className="text-gray-500 text-sm mt-0.5">
             المقاييس ذات TD مُحدَّدة افتراضياً بـ <strong>2 حصص</strong>. غيّر ما يلزم ثم احفظ دفعة واحدة.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* فلتر السداسي */}
           <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
             {[{ v: 0, l: 'الكل' }, { v: 1, l: 'السداسي 1' }, { v: 2, l: 'السداسي 2' }].map(f => (
               <button key={f.v} onClick={() => setSemFilter(f.v as 0|1|2)}
@@ -123,48 +146,63 @@ export default function AdminSessionsPage() {
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">المقياس</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">المستوى</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">السداسي</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">نوع</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">عدد الحصص الأسبوعية</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {filtered.map(m => (
-              <tr key={m.id} className={m.changed ? 'bg-amber-50/40' : ''}>
-                <td className="px-4 py-2.5 text-gray-800 font-medium">
-                  {m.name_ar}
-                  {m.changed && <span className="mr-1 text-xs text-amber-600">●</span>}
-                </td>
-                <td className="px-4 py-2.5 text-gray-500 text-xs">{m.level_name}</td>
-                <td className="px-4 py-2.5 text-gray-500 text-xs">{m.semester === 1 ? 'الأول' : 'الثاني'}</td>
-                <td className="px-4 py-2.5">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${m.has_td ? 'bg-[#c9a227]/10 text-[#a07820]' : 'bg-[#1a3a6b]/08 text-[#1a3a6b]'}`}>
-                    {m.has_td ? 'محاضرة + TD' : 'محاضرة فقط'}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex gap-2 justify-center">
-                    {[1, 2].map(n => (
-                      <button key={n} onClick={() => setSession(m.id, n)}
-                        className={`w-20 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
-                          m.weekly_sessions === n
-                            ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
-                            : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
-                        }`}>
-                        {n === 1 ? '× 1 (2.25س)' : '× 2 (4.5س)'}
-                      </button>
-                    ))}
-                  </div>
-                </td>
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+              <tr>
+                <th className={thClass} onClick={() => toggleSort('name_ar')}>
+                  <SortIcon col="name_ar" /> المقياس
+                </th>
+                <th className={thClass} onClick={() => toggleSort('level_name')}>
+                  <SortIcon col="level_name" /> المستوى
+                </th>
+                <th className={thClass} onClick={() => toggleSort('semester')}>
+                  <SortIcon col="semester" /> السداسي
+                </th>
+                <th className={thClass} onClick={() => toggleSort('has_td')}>
+                  <SortIcon col="has_td" /> النوع
+                </th>
+                <th className={`${thClass} text-center`} onClick={() => toggleSort('weekly_sessions')}>
+                  <SortIcon col="weekly_sessions" /> عدد الحصص الأسبوعية
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map(m => (
+                <tr key={m.id} className={m.changed ? 'bg-amber-50/40' : ''}>
+                  <td className="px-4 py-2.5 text-gray-800 font-medium">
+                    {m.name_ar}
+                    {m.changed && <span className="mr-1 text-xs text-amber-500">●</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-500 text-xs">{m.level_name}</td>
+                  <td className="px-4 py-2.5 text-gray-500 text-xs">{m.semester === 1 ? 'الأول' : 'الثاني'}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${m.has_td ? 'bg-[#c9a227]/10 text-[#a07820]' : 'bg-[#1a3a6b]/08 text-[#1a3a6b]'}`}>
+                      {m.has_td ? 'محاضرة + TD' : 'محاضرة فقط'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex gap-2 justify-center">
+                      {[1, 2].map(n => (
+                        <button key={n} onClick={() => setSession(m.id, n)}
+                          className={`w-24 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
+                            m.weekly_sessions === n
+                              ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
+                              : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                          }`}>
+                          {n === 1 ? '× 1  (2.25س)' : '× 2  (4.5س)'}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-2 border-t border-gray-50 text-xs text-gray-400 text-left">
+          {toArabicNum(filtered.length)} مقياس معروض
+        </div>
       </div>
     </div>
   );
