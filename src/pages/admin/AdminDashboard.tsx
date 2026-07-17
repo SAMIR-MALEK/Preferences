@@ -17,10 +17,11 @@ import AdminSettingsPage      from './AdminSettingsPage';
 import AdminImportPage        from './AdminImportPage';
 import AdminSpecialtiesPage   from './AdminSpecialtiesPage';
 import AdminEmailPage         from './AdminEmailPage';
+import AdminSessionsPage      from './AdminSessionsPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'wishes' | 'assignment' | 'settings' | 'email';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'settings' | 'email';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -78,6 +79,7 @@ export default function AdminDashboard() {
     { id: 'sections',   label: 'المجموعات',          icon: Layers     },
     { id: 'modules',    label: 'المقاييس',           icon: BookOpen   },
     { id: 'specialties', label: 'التخصصات',           icon: GraduationCap },
+    { id: 'sessions',    label: 'الحصص الأسبوعية',    icon: Clock          },
     { id: 'wishes',     label: 'استعراض الرغبات',   icon: Eye        },
     { id: 'email',      label: 'إرسال بريد',         icon: Mail       },
     { id: 'assignment', label: 'الإسناد',            icon: Award      },
@@ -201,6 +203,7 @@ export default function AdminDashboard() {
         {tab === 'sections'   && <AdminSectionsPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'modules'    && <AdminModulesPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'specialties' && <AdminSpecialtiesPage />}
+        {tab === 'sessions'    && <AdminSessionsPage />}
         {tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
         {!isDeptHead && tab === 'assignment' && <AdminAssignmentPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
