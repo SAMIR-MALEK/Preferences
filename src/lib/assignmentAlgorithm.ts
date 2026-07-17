@@ -1,12 +1,11 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// خوارزمية الإسناد البيداغوجي — النسخة الصحيحة
+// خوارزمية الإسناد البيداغوجي
 // المنطق:
 // - كل أستاذ له حجم ساعي أسبوعي (max_weekly_hours) يجب ملؤه
 // - يُسنَد له مقاييس من رغباته بالترتيب حتى يمتلئ حجمه
 // - المحاضرة = 2.25 × weekly_sessions ساعة
-// - TD = 1.5 ساعة × عدد الأفواج المُسنَدة
-// - التصادم: إن طلب أكثر من أستاذ نفس المقياس+نوع التدريس+نفس رقم الرغبة
-//   والأفواج المتبقية لا تكفي الجميع → فرز بـ(تخصص→خبرة→أقدمية→رتبة)
+// - TD = 1.5 ساعة لكل فوج
+// - التصادم: إن لم تكف الأفواج للجميع → فرز بـ(رقم الرغبة→تخصص→خبرة→أقدمية→رتبة)
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface ProfessorData {
@@ -36,7 +35,7 @@ export interface ModuleData {
   has_lectures: boolean;
   has_td: boolean;
   semester: number;
-  weekly_sessions: number; // عدد مرات التدريس في الأسبوع (1 أو 2)
+  weekly_sessions: number;
   specialty_match?: string[];
 }
 
@@ -82,9 +81,9 @@ export interface ConflictGroup {
 
 export interface AlgorithmStats {
   total: number;
-  fully_assigned: number;   // امتلأ حجمه الساعي بالكامل
-  partially_assigned: number; // أُسنِد له شيء لكن لم يمتلئ
-  unassigned: number;         // لم يُسنَد له أي شيء
+  fully_assigned: number;
+  partially_assigned: number;
+  unassigned: number;
 }
 
 const RANK_ORDER: Record<string, number> = {
@@ -95,21 +94,17 @@ const RANK_ORDER: Record<string, number> = {
   'أستاذ مساعد - ب': 1,
 };
 
-// ساعات الفرصة الواحدة
 function opportunityHours(teachingType: string, module: ModuleData): number {
-  if (teachingType === 'محاضرة') {
-    return 2.25 * (module.weekly_sessions || 1);
-  }
-  return 1.5; // ساعة واحدة لكل فوج TD
+  if (teachingType === 'محاضرة') return 2.25 * (module.weekly_sessions || 1);
+  return 1.5;
 }
 
-// مقارنة أستاذين — 1: A أفضل، -1: B أفضل، 0: تساوٍ تام
 function compare(
   profA: ProfessorData, wishA: WishData,
   profB: ProfessorData, wishB: WishData,
   moduleSpecialties: string[]
 ): 1 | -1 | 0 {
-  // ① رقم الرغبة أولاً (الأصغر أفضل)
+  // ① رقم الرغبة أولاً
   if (wishA.wish_order < wishB.wish_order) return 1;
   if (wishA.wish_order > wishB.wish_order) return -1;
 
@@ -131,7 +126,7 @@ function compare(
   if (expA > expB) return 1;
   if (expB > expA) return -1;
 
-  // ④ الأقدمية المهنية
+  // ④ الأقدمية
   if (profA.professional_experience > profB.professional_experience) return 1;
   if (profB.professional_experience > profA.professional_experience) return -1;
 
@@ -144,16 +139,13 @@ function compare(
   return 0;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// الدالة الرئيسية
-// ══════════════════════════════════════════════════════════════════════════════
 export function runAssignment(
   professors: ProfessorData[],
   wishes: WishData[],
   modules: ModuleData[],
   levelSemesters: LevelSemesterData[],
   semester: number,
-  academicYear: string
+  _academicYear: string
 ): {
   assignments: AssignmentResult[];
   conflicts: ConflictGroup[];
@@ -168,11 +160,9 @@ export function runAssignment(
   professors.forEach(p => profHoursRemaining.set(p.id, p.max_weekly_hours || 9));
 
   // الأفواج المتاحة لكل مقياس + نوع تدريس
-  // key: `${module_id}__${teaching_type}`
-  // value: قائمة الأفواج المتاحة { section, group }
   const availableSlots = new Map<string, { section: number; group: number | null }[]>();
-
   const semModules = modules.filter(m => m.semester === semester);
+
   for (const mod of semModules) {
     const ls = levelSemesters.find(x => x.level_id === mod.level_id && x.semester === semester);
     if (!ls) continue;
@@ -180,20 +170,16 @@ export function runAssignment(
     if (mod.has_lectures) {
       const key = `${mod.id}__محاضرة`;
       const slots = [];
-      for (let s = 1; s <= ls.num_sections; s++) {
-        slots.push({ section: s, group: null });
-      }
+      for (let s = 1; s <= ls.num_sections; s++) slots.push({ section: s, group: null });
       availableSlots.set(key, slots);
     }
 
     if (mod.has_td) {
       const key = `${mod.id}__أعمال موجهة`;
       const slots = [];
-      for (let s = 1; s <= ls.num_sections; s++) {
-        for (let g = 1; g <= ls.num_groups; g++) {
+      for (let s = 1; s <= ls.num_sections; s++)
+        for (let g = 1; g <= ls.num_groups; g++)
           slots.push({ section: s, group: g });
-        }
-      }
       availableSlots.set(key, slots);
     }
   }
@@ -203,12 +189,10 @@ export function runAssignment(
 
   // نمرّ على رغبات ① → ⑤
   for (let wishOrder = 1; wishOrder <= 5; wishOrder++) {
-    // اجمع رغبات هذا المستوى من الأساتذة الذين لم يمتلئ حجمهم بعد
     const wishesThisRound = wishes.filter(w =>
       w.wish_order === wishOrder &&
       (profHoursRemaining.get(w.professor_id) || 0) > 0
     );
-
     if (wishesThisRound.length === 0) continue;
 
     // جمّع حسب (module_id + teaching_type)
@@ -227,12 +211,12 @@ export function runAssignment(
       if (!mod) continue;
 
       const slots = availableSlots.get(modTypeKey) || [];
-      if (slots.length === 0) continue; // لا أفواج متاحة
+      if (slots.length === 0) continue;
 
       const hoursPerSlot = opportunityHours(teachingType, mod);
       const moduleSpecialties = mod.specialty_match || [];
 
-      // فرز الطالبين حسب المعايير
+      // فرز الطالبين
       const sorted = [...requestors].sort((wa, wb) => {
         const pa = profMap.get(wa.professor_id)!;
         const pb = profMap.get(wb.professor_id)!;
@@ -242,33 +226,29 @@ export function runAssignment(
 
       let slotIndex = 0;
 
-      for (const wish of sorted) {
+      for (let i = 0; i < sorted.length; i++) {
+        const wish = sorted[i];
         const prof = profMap.get(wish.professor_id)!;
-        let hoursLeft = profHoursRemaining.get(wish.professor_id) || 0;
+        const hoursLeft = profHoursRemaining.get(wish.professor_id) || 0;
 
-        if (hoursLeft <= 0) continue;
-        if (slotIndex >= slots.length) break; // لا أفواج متبقية
+        if (hoursLeft <= 0 || slotIndex >= slots.length) continue;
 
-        // احسب كم فوج يمكن أن يأخذ هذا الأستاذ
         const maxSlotsCanTake = Math.floor(hoursLeft / hoursPerSlot);
         if (maxSlotsCanTake === 0) continue;
 
         const remainingSlots = slots.length - slotIndex;
 
-        if (remainingSlots === 0) break;
-
-        // تحقق من التساوي مع التالي (تصادم محتمل على آخر الأفواج)
-        const nextWish = sorted[sorted.indexOf(wish) + 1];
+        // تحقق من التساوي مع التالي
+        const nextWish = sorted[i + 1];
         const nextProf = nextWish ? profMap.get(nextWish.professor_id) : null;
-        const isTied = nextProf &&
+        const isTied = nextProf && nextWish &&
           compare(prof, wish, nextProf, nextWish, moduleSpecialties) === 0;
 
-        // إن كانت الأفواج تكفي الجميع أو هذا آخر طالب → أسنِد مباشرة
-        if (!isTied || remainingSlots > maxSlotsCanTake) {
-          // أسنِد الأفواج التي يحتاجها هذا الأستاذ
+        if (!isTied || maxSlotsCanTake <= remainingSlots - (sorted.length - i - 1)) {
+          // أسنِد الأفواج
           const slotsToTake = Math.min(maxSlotsCanTake, remainingSlots);
-          for (let i = 0; i < slotsToTake; i++) {
-            const slot = slots[slotIndex + i];
+          for (let j = 0; j < slotsToTake; j++) {
+            const slot = slots[slotIndex + j];
             finalAssignments.push({
               professor_id: wish.professor_id,
               professor_name: `${prof.last_name} ${prof.first_name}`,
@@ -288,12 +268,12 @@ export function runAssignment(
           slotIndex += slotsToTake;
           profHoursRemaining.set(wish.professor_id, hoursLeft - slotsToTake * hoursPerSlot);
         } else {
-          // تصادم حقيقي — الأفواج لا تكفي المتساوين
-          // اجمع كل المتساوين
+          // تصادم — اجمع المتساوين
           const tiedGroup: WishData[] = [wish];
-          for (const other of sorted.slice(sorted.indexOf(wish) + 1)) {
-            const otherProf = profMap.get(other.professor_id)!;
-            if (compare(prof, wish, otherProf, other, moduleSpecialties) === 0) {
+          for (let k = i + 1; k < sorted.length; k++) {
+            const other = sorted[k];
+            const op = profMap.get(other.professor_id)!;
+            if (compare(prof, wish, op, other, moduleSpecialties) === 0) {
               tiedGroup.push(other);
             } else break;
           }
@@ -320,7 +300,6 @@ export function runAssignment(
             }),
           });
 
-          // أضف pending لكل متصادم
           for (const w of tiedGroup) {
             const p = profMap.get(w.professor_id)!;
             finalAssignments.push({
@@ -339,19 +318,16 @@ export function runAssignment(
               score: null,
             });
           }
-          slotIndex = slots.length; // استهلك كل الأفواج المتبقية
+          slotIndex = slots.length;
+          i += tiedGroup.length - 1;
         }
       }
 
-      // حدّث الأفواج المتاحة بعد هذه الجولة
       availableSlots.set(modTypeKey, slots.slice(slotIndex));
     }
   }
 
-  // احسب الإحصاءات
-  const assignedProfIds = new Set(
-    finalAssignments.filter(a => a.status === 'assigned').map(a => a.professor_id)
-  );
+  // الإحصاءات
   const profHoursAssigned = new Map<string, number>();
   for (const a of finalAssignments.filter(x => x.status === 'assigned')) {
     profHoursAssigned.set(a.professor_id, (profHoursAssigned.get(a.professor_id) || 0) + a.weekly_hours);
@@ -363,11 +339,7 @@ export function runAssignment(
   for (const prof of professors) {
     const assigned = profHoursAssigned.get(prof.id) || 0;
     const max = prof.max_weekly_hours || 9;
-    professor_hours.set(prof.id, {
-      assigned,
-      max,
-      name: `${prof.last_name} ${prof.first_name}`,
-    });
+    professor_hours.set(prof.id, { assigned, max, name: `${prof.last_name} ${prof.first_name}` });
     if (assigned >= max) fully++;
     else if (assigned > 0) partially++;
     else unassigned++;
@@ -376,12 +348,7 @@ export function runAssignment(
   return {
     assignments: finalAssignments.filter(a => a.status === 'assigned'),
     conflicts: pendingConflicts,
-    stats: {
-      total: professors.length,
-      fully_assigned: fully,
-      partially_assigned: partially,
-      unassigned,
-    },
+    stats: { total: professors.length, fully_assigned: fully, partially_assigned: partially, unassigned },
     professor_hours,
   };
 }
