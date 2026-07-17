@@ -6,7 +6,7 @@ import { UE_TYPES, DELIVERY_MODES } from '../../types';
 import * as XLSX from 'xlsx';
 import { Plus, Trash2, Save, X, BookOpen, ChevronDown, ChevronUp, CheckCircle, AlertCircle, Pencil, Download } from 'lucide-react';
 
-const emptyModForm = { name: '', hasTD: false, spec: '', ue: 'أساسية' as UEType, mode: 'حضوري' as DeliveryMode };
+const emptyModForm = { name: '', hasTD: false, spec: '', ue: 'أساسية' as UEType, mode: 'حضوري' as DeliveryMode, weeklySessions: 1 };
 
 interface Props {
   allowedLevelCodes?: string[] | null; // إن وُجدت، يُحصر العرض بهذه الرموز فقط (لرئيس القسم)
@@ -81,6 +81,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
       spec: (mod.specialty_match || []).join(', '),
       ue: mod.ue_type || 'أساسية',
       mode: mod.delivery_mode || 'حضوري',
+      weeklySessions: mod.weekly_sessions || 1,
     });
     setEditingMod(mod);
     setAddingMod({ lvlId: mod.level_id, sem: mod.semester });
@@ -99,6 +100,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
     const { data, error } = await supabase.from('modules').insert({
       level_id: lvlId, code, name_ar: modForm.name.trim(), semester: sem,
       has_lectures: true, has_td: modForm.mode === 'عن بعد' ? false : modForm.hasTD,
+      weekly_sessions: modForm.weeklySessions,
       weekly_hours_lecture: 2.25, weekly_hours_td: (modForm.mode === 'عن بعد' ? false : modForm.hasTD) ? 1.5 : 0,
       specialty_match: spec,
       ue_type: modForm.ue,
@@ -124,6 +126,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
     const { data, error } = await supabase.from('modules').update({
       name_ar: modForm.name.trim(),
       has_td: hasTD,
+      weekly_sessions: modForm.weeklySessions,
       weekly_hours_td: hasTD ? 1.5 : 0,
       specialty_match: spec,
       ue_type: modForm.ue,
@@ -419,6 +422,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
                           <div className="flex gap-1.5 mt-0.5 flex-wrap">
                             <span className="text-xs bg-[#1a3a6b]/09 text-[#1a3a6b] px-1.5 py-0.5 rounded">م 2.25س</span>
                             {mod.has_td && <span className="text-xs bg-[#c9a227]/09 text-[#a07820] px-1.5 py-0.5 rounded">ت 1.5س</span>}
+                            {(mod.weekly_sessions || 1) > 1 && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">×{mod.weekly_sessions} أسبوعياً</span>}
                             <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">{mod.ue_type || 'أساسية'}</span>
                             {mod.delivery_mode === 'عن بعد' && <span className="text-xs bg-cyan-50 text-cyan-600 px-1.5 py-0.5 rounded">عن بعد</span>}
                             {mod.specialty_match?.slice(0,2).map((s, i) => (
@@ -475,6 +479,18 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
                       يشمل أعمال موجهة (TD) — 1.5س/أسبوع لكل فوج
                       {modForm.mode === 'عن بعد' && <span className="text-xs">(غير متاح في نمط عن بعد)</span>}
                     </label>
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-500 block">عدد مرات المحاضرة في الأسبوع</label>
+                      <div className="flex gap-2">
+                        {[1, 2].map(n => (
+                          <button key={n} type="button"
+                            onClick={() => setModForm(f => ({ ...f, weeklySessions: n }))}
+                            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-all ${modForm.weeklySessions === n ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                            {n === 1 ? 'مرة واحدة (2.25س)' : 'مرتان (4.5س)'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <button onClick={() => editingMod ? updateModule() : addModule(level.id, sem)}
                         className="flex items-center gap-1.5 text-white px-4 py-2 rounded-xl text-sm font-medium"
