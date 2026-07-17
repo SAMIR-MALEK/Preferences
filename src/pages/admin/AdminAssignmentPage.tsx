@@ -316,7 +316,7 @@ export default function AdminAssignmentPage() {
                       <p className="font-semibold text-gray-800 text-sm">{conflict.module_name}</p>
                       <p className="text-xs text-gray-500">
                         {conflict.teaching_type} — مجموعة {toArabicNum(1)}
-                        {null ? ` / فوج ${toArabicNum(null)}` : ''}
+                        {''}
                         {' — '}{toArabicNum(conflict.candidates.length)} متنافسون
                       </p>
                     </div>
