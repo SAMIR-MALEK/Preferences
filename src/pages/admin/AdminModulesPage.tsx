@@ -81,7 +81,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
       spec: (mod.specialty_match || []).join(', '),
       ue: mod.ue_type || 'أساسية',
       mode: mod.delivery_mode || 'حضوري',
-      weeklySessions: mod.weekly_sessions || 1,
+      weeklySessions: (mod as any).weekly_sessions || 1,
     });
     setEditingMod(mod);
     setAddingMod({ lvlId: mod.level_id, sem: mod.semester });
@@ -422,7 +422,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
                           <div className="flex gap-1.5 mt-0.5 flex-wrap">
                             <span className="text-xs bg-[#1a3a6b]/09 text-[#1a3a6b] px-1.5 py-0.5 rounded">م 2.25س</span>
                             {mod.has_td && <span className="text-xs bg-[#c9a227]/09 text-[#a07820] px-1.5 py-0.5 rounded">ت 1.5س</span>}
-                            {(mod.weekly_sessions || 1) > 1 && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">×{mod.weekly_sessions} أسبوعياً</span>}
+                            {((mod as any).weekly_sessions || 1) > 1 && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">×{(mod as any).weekly_sessions} أسبوعياً</span>}
                             <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">{mod.ue_type || 'أساسية'}</span>
                             {mod.delivery_mode === 'عن بعد' && <span className="text-xs bg-cyan-50 text-cyan-600 px-1.5 py-0.5 rounded">عن بعد</span>}
                             {mod.specialty_match?.slice(0,2).map((s, i) => (
