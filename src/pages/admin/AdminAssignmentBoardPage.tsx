@@ -425,7 +425,7 @@ export default function AdminAssignmentBoardPage() {
                             <span key={i} className="flex items-center gap-1 text-xs bg-[#1a3a6b]/08 text-[#1a3a6b] px-2 py-1 rounded-full">
                               {s.module_name}
                               <span className="text-[#c9a227]">
-                                {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.section}-${s.group}`}
+                                {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`}
                               </span>
                               <button onClick={() => assignProf(`${s.module_id}__${s.teaching_type}__${s.section}__${s.group}`, null)}
                                 className="text-gray-400 hover:text-red-500 transition-colors">
@@ -551,7 +551,7 @@ export default function AdminAssignmentBoardPage() {
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
                                       <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-xl text-xs">
-                                        <span className="text-gray-400">م{cell.sec}-ف{cell.group}</span>
+                                        <span className="text-gray-400">ف{cell.group}</span>
                                         <span className="font-medium">{cell.assigned.professor_name}</span>
                                         <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
                                           <X className="w-3 h-3" />
