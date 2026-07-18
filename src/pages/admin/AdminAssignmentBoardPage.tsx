@@ -407,9 +407,9 @@ export default function AdminAssignmentBoardPage() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الأستاذ</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الرتبة</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الحجم الساعي</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer select-none hover:text-[#1a3a6b]" onClick={() => toggleSort('name')}><SortIcon col="name" />الأستاذ</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer select-none hover:text-[#1a3a6b]" onClick={() => toggleSort('rank')}><SortIcon col="rank" />الرتبة</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer select-none hover:text-[#1a3a6b]" onClick={() => toggleSort('hours')}><SortIcon col="hours" />الحجم الساعي</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">المقاييس المُسنَدة</th>
                 </tr>
               </thead>
