@@ -4,7 +4,7 @@ import { toArabicNum } from '../../lib/utils';
 import * as XLSX from 'xlsx';
 import {
   Upload, Save, CheckCircle, AlertCircle, Users, BookOpen,
-  ChevronDown, ChevronUp, X, Plus, RefreshCw
+  ChevronDown, ChevronUp, X, Plus, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
@@ -68,7 +68,10 @@ export default function AdminAssignmentBoardPage() {
   const [tab, setTab] = useState<'profs' | 'slots'>('profs');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null);
-  const [pickingSlot, setPickingSlot] = useState<string | null>(null); // key of slot being picked
+  const [pickingSlot, setPickingSlot] = useState<string | null>(null);
+  const [profSearch, setProfSearch] = useState('');
+  const [sortKey, setSortKey] = useState<'name' | 'rank' | 'hours'>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const fileRef = useRef<HTMLInputElement>(null);
   const ACADEMIC_YEAR = '2026-2027';
 
@@ -311,6 +314,18 @@ export default function AdminAssignmentBoardPage() {
     setSaving(false);
   }
 
+  function toggleSort(key: 'name' | 'rank' | 'hours') {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+
+  function SortIcon({ col }: { col: 'name' | 'rank' | 'hours' }) {
+    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-gray-300 inline mr-1" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="w-3 h-3 text-[#1a3a6b] inline mr-1" />
+      : <ArrowDown className="w-3 h-3 text-[#1a3a6b] inline mr-1" />;
+  }
+
   // ── تجميع المستويات ──
   const levelGroups = Array.from(new Set(modules.map(m => m.level_name))).map(lvl => ({
     name: lvl,
@@ -399,7 +414,15 @@ export default function AdminAssignmentBoardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {profs.map(prof => {
+                {[...profs].sort((a, b) => {
+                  let av: any, bv: any;
+                  if (sortKey === 'name') { av = a.name; bv = b.name; }
+                  else if (sortKey === 'rank') { av = a.rank; bv = b.rank; }
+                  else { av = profHours(slots, a.id); bv = profHours(slots, b.id); }
+                  if (av < bv) return sortDir === 'asc' ? -1 : 1;
+                  if (av > bv) return sortDir === 'asc' ? 1 : -1;
+                  return 0;
+                }).map(prof => {
                   const hours = profHours(slots, prof.id);
                   const pct = Math.min((hours / prof.max_hours) * 100, 100);
                   const profSlots = slots.filter(s => s.professor_id === prof.id);
@@ -526,14 +549,21 @@ export default function AdminAssignmentBoardPage() {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[200px] max-h-60 overflow-y-auto">
-                                        {profs.map(p => (
-                                          <button key={p.id} onClick={() => assignProf(cell.key, p.id)}
-                                            className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#1a3a6b]/05 rounded-lg flex items-center justify-between">
-                                            <span>{p.name}</span>
-                                            <span className="text-gray-400">{profHours(slots, p.id).toFixed(1)}/{p.max_hours}س</span>
-                                          </button>
-                                        ))}
+                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:100}}>
+                                        <div className="p-2 border-b border-gray-100">
+                                          <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
+                                            onChange={e => setProfSearch(e.target.value)}
+                                            className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-[#1a3a6b]" dir="rtl" />
+                                        </div>
+                                        <div className="max-h-52 overflow-y-auto p-1">
+                                          {profs.filter(p => p.name.includes(profSearch)).map(p => (
+                                            <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                              className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#1a3a6b]/05 rounded-lg flex items-center justify-between">
+                                              <span>{p.name}</span>
+                                              <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
+                                            </button>
+                                          ))}
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -565,14 +595,21 @@ export default function AdminAssignmentBoardPage() {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[200px] max-h-60 overflow-y-auto">
-                                        {profs.map(p => (
-                                          <button key={p.id} onClick={() => assignProf(cell.key, p.id)}
-                                            className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#c9a227]/05 rounded-lg flex items-center justify-between">
-                                            <span>{p.name}</span>
-                                            <span className="text-gray-400">{profHours(slots, p.id).toFixed(1)}/{p.max_hours}س</span>
-                                          </button>
-                                        ))}
+                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:100}}>
+                                        <div className="p-2 border-b border-gray-100">
+                                          <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
+                                            onChange={e => setProfSearch(e.target.value)}
+                                            className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-[#c9a227]" dir="rtl" />
+                                        </div>
+                                        <div className="max-h-52 overflow-y-auto p-1">
+                                          {profs.filter(p => p.name.includes(profSearch)).map(p => (
+                                            <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                              className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#c9a227]/05 rounded-lg flex items-center justify-between">
+                                              <span>{p.name}</span>
+                                              <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
+                                            </button>
+                                          ))}
+                                        </div>
                                       </div>
                                     )}
                                   </div>
