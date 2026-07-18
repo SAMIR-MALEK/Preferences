@@ -4,12 +4,10 @@ import { toArabicNum } from '../../lib/utils';
 import * as XLSX from 'xlsx';
 import {
   Upload, Save, CheckCircle, AlertCircle, Users, BookOpen,
-  ChevronDown, ChevronUp, X, Plus, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Megaphone
+  ChevronDown, ChevronUp, X, Plus, RefreshCw,
+  ArrowUpDown, ArrowUp, ArrowDown, Megaphone
 } from 'lucide-react';
 
-// ═══════════════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════════════
 interface Prof {
   id: string;
   name: string;
@@ -22,7 +20,6 @@ interface ModuleInfo {
   name_ar: string;
   level_id: string;
   level_name: string;
-  level_code: string;
   has_lectures: boolean;
   has_td: boolean;
   weekly_sessions: number;
@@ -44,20 +41,19 @@ interface SlotAssignment {
   from_excel?: boolean;
 }
 
-// ساعات كل slot
 function slotHours(type: string, weeklySessions: number): number {
   if (type === 'محاضرة') return 2.25 * (weeklySessions || 1);
   return 1.5;
 }
 
-// حساب ساعات أستاذ معيّن
 function profHours(slots: SlotAssignment[], profId: string): number {
   return slots
     .filter(s => s.professor_id === profId)
     .reduce((sum, s) => sum + s.weekly_hours, 0);
 }
 
-// ═══════════════════════════════════════════════════════
+const ACADEMIC_YEAR = '2026-2027';
+
 export default function AdminAssignmentBoardPage() {
   const [profs, setProfs] = useState<Prof[]>([]);
   const [modules, setModules] = useState<ModuleInfo[]>([]);
@@ -65,8 +61,8 @@ export default function AdminAssignmentBoardPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [announcing, setAnnouncing] = useState(false);
-  const [savedCount, setSavedCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
   const [tab, setTab] = useState<'profs' | 'slots'>('profs');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null);
@@ -75,9 +71,7 @@ export default function AdminAssignmentBoardPage() {
   const [sortKey, setSortKey] = useState<'name' | 'rank' | 'hours'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const fileRef = useRef<HTMLInputElement>(null);
-  const ACADEMIC_YEAR = '2026-2027';
 
-  // ── تحميل البيانات الأساسية من Supabase ──
   async function loadBaseData() {
     setLoading(true);
     const [{ data: profData }, { data: modData }, { data: lsData }] = await Promise.all([
@@ -86,62 +80,59 @@ export default function AdminAssignmentBoardPage() {
       supabase.from('level_semesters').select('level_id, num_sections, num_groups').eq('semester', 1),
     ]);
 
+    const profList: Prof[] = [];
     if (profData) {
-      setProfs(profData.map(p => ({
-        id: p.id,
-        name: `${p.last_name} ${p.first_name}`,
-        rank: p.rank,
-        max_hours: p.max_weekly_hours || 9,
-      })));
+      profData.forEach((p: any) => {
+        profList.push({ id: p.id, name: p.last_name + ' ' + p.first_name, rank: p.rank, max_hours: p.max_weekly_hours || 9 });
+      });
+      setProfs(profList);
     }
 
-    if (modData && lsData) {
-      const lsMap = new Map(lsData.map(ls => [ls.level_id, ls]));
-      setModules(modData.map((m: any) => {
-        const ls = lsMap.get(m.level_id);
-        return {
+    const modList: ModuleInfo[] = [];
+    const lsMap = new Map((lsData || []).map((ls: any) => [ls.level_id, ls]));
+    if (modData) {
+      modData.forEach((m: any) => {
+        const ls = lsMap.get(m.level_id) as any;
+        modList.push({
           id: m.id,
           name_ar: m.name_ar,
           level_id: m.level_id,
           level_name: m.level?.name_ar || '—',
-          level_code: m.level?.code || '',
           has_lectures: m.has_lectures,
           has_td: m.has_td,
           weekly_sessions: m.weekly_sessions || 1,
           num_sections: ls?.num_sections || 1,
           num_groups: ls?.num_groups || 1,
-        };
-      }));
+        });
+      });
+      setModules(modList);
     }
 
     // تحميل الإسنادات المؤقتة الموجودة
-    const { data: existingAssignments } = await supabase
+    const { data: existing } = await supabase
       .from('assignments')
-      .select('professor_id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, wish_order_satisfied, status')
+      .select('professor_id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, wish_order_satisfied')
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', 1)
       .eq('status', 'مؤقت');
 
-    if (existingAssignments && existingAssignments.length > 0 && modData && profData) {
-      const mMap = new Map((modData as any[]).map((m: any) => [m.id, m]));
-      const pMap = new Map(profData.map((p: any) => [p.id, p]));
-      const lsMapLocal = new Map(lsData?.map(ls => [ls.level_id, ls]) || []);
-      const loaded: SlotAssignment[] = existingAssignments.map((a: any) => {
-        const mod = mMap.get(a.module_id) as any;
-        const prof = pMap.get(a.professor_id) as any;
-        const ls = lsMapLocal.get(a.level_id);
+    if (existing && existing.length > 0) {
+      const mMap = new Map(modList.map(m => [m.id, m]));
+      const pMap = new Map(profList.map(p => [p.id, p]));
+      const loaded: SlotAssignment[] = existing.map((a: any) => {
+        const mod = mMap.get(a.module_id);
+        const prof = pMap.get(a.professor_id);
         return {
           module_id: a.module_id,
           module_name: mod?.name_ar || '—',
-          level_name: mod?.level?.name_ar || '—',
+          level_name: mod?.level_name || '—',
           professor_id: a.professor_id,
-          professor_name: prof ? \`\${prof.last_name} \${prof.first_name}\` : '—',
+          professor_name: prof?.name || '—',
           teaching_type: a.teaching_type,
           section: a.section_number,
           group: a.group_number,
           weekly_hours: a.weekly_hours,
           wish_order: a.wish_order_satisfied,
-          from_excel: false,
         };
       });
       setSlots(loaded);
@@ -152,19 +143,16 @@ export default function AdminAssignmentBoardPage() {
     setLoaded(true);
   }
 
-  // ── استيراد Excel ──
   function handleExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || modules.length === 0 || profs.length === 0) return;
-
     const reader = new FileReader();
     reader.onload = (ev) => {
       const wb = XLSX.read(ev.target?.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
       const newSlots: SlotAssignment[] = [];
-      const usedLecSlots = new Map<string, number>(); // module_id -> عدد مجموعات المحاضرة المُستخدَمة
+      const usedLecSlots = new Map<string, number>();
 
       for (const row of raw.slice(1)) {
         const profNameRaw = String(row[0] || '').trim();
@@ -180,7 +168,6 @@ export default function AdminAssignmentBoardPage() {
           const wish = String(row[5 + i * 3] || '').trim();
           const result = String(row[6 + i * 3] || '').trim();
           const tType = String(row[7 + i * 3] || '').trim() as 'محاضرة' | 'أعمال موجهة';
-
           if (result !== 'لبيت الرغبة' || !wish) continue;
 
           const match = wish.match(/^(.+?)\s*\(([^()]+)\)\s*$/);
@@ -193,186 +180,104 @@ export default function AdminAssignmentBoardPage() {
             const wNorm = modName.replace(/[\s()]/g, '');
             const lNorm = m.level_name.replace(/\s+/g, '');
             const lSearch = levelName.replace(/\s+/g, '').substring(0, 5);
-            return (mNorm.includes(wNorm.substring(0, 8)) || wNorm.includes(mNorm.substring(0, 8)))
-              && lNorm.includes(lSearch);
+            return (mNorm.includes(wNorm.substring(0, 8)) || wNorm.includes(mNorm.substring(0, 8))) && lNorm.includes(lSearch);
           });
-
           if (!mod) continue;
 
           if (tType === 'محاضرة') {
-            // قاعدة صارمة: أستاذ واحد = مجموعة محاضرة واحدة فقط
-            const alreadyHasLecture = newSlots.some(s =>
-              s.module_id === mod.id &&
-              s.teaching_type === 'محاضرة' &&
-              s.professor_id === (prof?.id || null) &&
-              s.professor_name === (prof?.name || profNameRaw)
-            );
-            if (alreadyHasLecture) continue;
-
+            const alreadyHas = newSlots.some(s => s.module_id === mod.id && s.teaching_type === 'محاضرة' && s.professor_name === (prof?.name || profNameRaw));
+            if (alreadyHas) continue;
             const used = usedLecSlots.get(mod.id) || 0;
             if (used >= mod.num_sections) continue;
-
             newSlots.push({
-              module_id: mod.id,
-              module_name: mod.name_ar,
-              level_name: mod.level_name,
-              professor_id: prof?.id || null,
-              professor_name: prof?.name || profNameRaw,
-              teaching_type: 'محاضرة',
-              section: used + 1,
-              group: null,
-              weekly_hours: slotHours('محاضرة', mod.weekly_sessions),
-              wish_order: i + 1,
-              from_excel: true,
+              module_id: mod.id, module_name: mod.name_ar, level_name: mod.level_name,
+              professor_id: prof?.id || null, professor_name: prof?.name || profNameRaw,
+              teaching_type: 'محاضرة', section: used + 1, group: null,
+              weekly_hours: slotHours('محاضرة', mod.weekly_sessions), wish_order: i + 1, from_excel: true,
             });
             usedLecSlots.set(mod.id, used + 1);
-
           } else {
-            // TD: فوج واحد فقط لكل أستاذ في نفس المقياس
-            const alreadyHasTD = newSlots.some(s =>
-              s.module_id === mod.id &&
-              s.teaching_type === 'أعمال موجهة' &&
-              s.professor_id === (prof?.id || null) &&
-              s.professor_name === (prof?.name || profNameRaw)
-            );
-            if (alreadyHasTD) continue;
-
-            for (let s = 1; s <= mod.num_sections; s++) {
-              let assigned = false;
+            const alreadyHas = newSlots.some(s => s.module_id === mod.id && s.teaching_type === 'أعمال موجهة' && s.professor_name === (prof?.name || profNameRaw));
+            if (alreadyHas) continue;
+            let assigned = false;
+            for (let s = 1; s <= mod.num_sections && !assigned; s++) {
               for (let g = 1; g <= mod.num_groups && !assigned; g++) {
-                const taken = newSlots.some(sl =>
-                  sl.module_id === mod.id && sl.teaching_type === 'أعمال موجهة' &&
-                  sl.section === s && sl.group === g
-                );
+                const taken = newSlots.some(sl => sl.module_id === mod.id && sl.teaching_type === 'أعمال موجهة' && sl.section === s && sl.group === g);
                 if (!taken) {
                   newSlots.push({
-                    module_id: mod.id,
-                    module_name: mod.name_ar,
-                    level_name: mod.level_name,
-                    professor_id: prof?.id || null,
-                    professor_name: prof?.name || profNameRaw,
-                    teaching_type: 'أعمال موجهة',
-                    section: s,
-                    group: g,
-                    weekly_hours: 1.5,
-                    wish_order: i + 1,
-                    from_excel: true,
+                    module_id: mod.id, module_name: mod.name_ar, level_name: mod.level_name,
+                    professor_id: prof?.id || null, professor_name: prof?.name || profNameRaw,
+                    teaching_type: 'أعمال موجهة', section: s, group: g,
+                    weekly_hours: 1.5, wish_order: i + 1, from_excel: true,
                   });
                   assigned = true;
                 }
               }
-              if (assigned) break;
             }
           }
         }
       }
-
       setSlots(newSlots);
-      setMessage({ type: 'success', text: `تم استيراد ${newSlots.length} إسناداً من Excel` });
+      setMessage({ type: 'success', text: 'تم استيراد ' + newSlots.length + ' إسناداً من Excel' });
     };
     reader.readAsBinaryString(file);
     e.target.value = '';
   }
 
-  // ── تعيين أستاذ لـ slot ──
   function assignProf(slotKey: string, profId: string | null) {
-    const [modId, type, sec, grp] = slotKey.split('__');
+    const parts = slotKey.split('__');
+    const modId = parts[0];
+    const type = parts[1];
+    const sec = Number(parts[2]);
+    const grp = parts[3] === 'null' ? null : Number(parts[3]);
     setSlots(prev => {
-      const exists = prev.find(s =>
-        s.module_id === modId && s.teaching_type === type &&
-        s.section === Number(sec) && String(s.group) === grp
-      );
+      const exists = prev.find(s => s.module_id === modId && s.teaching_type === type && s.section === sec && s.group === grp);
       const prof = profs.find(p => p.id === profId);
       const mod = modules.find(m => m.id === modId);
       if (exists) {
-        if (profId === null) {
-          return prev.filter(s => !(
-            s.module_id === modId && s.teaching_type === type &&
-            s.section === Number(sec) && String(s.group) === grp
-          ));
-        }
-        return prev.map(s =>
-          s.module_id === modId && s.teaching_type === type &&
-          s.section === Number(sec) && String(s.group) === grp
-            ? { ...s, professor_id: profId, professor_name: prof?.name || '' }
-            : s
-        );
+        if (profId === null) return prev.filter(s => !(s.module_id === modId && s.teaching_type === type && s.section === sec && s.group === grp));
+        return prev.map(s => s.module_id === modId && s.teaching_type === type && s.section === sec && s.group === grp ? { ...s, professor_id: profId, professor_name: prof?.name || '' } : s);
       } else if (profId) {
         return [...prev, {
-          module_id: modId,
-          module_name: mod?.name_ar || '',
-          level_name: mod?.level_name || '',
-          professor_id: profId,
-          professor_name: prof?.name || '',
-          teaching_type: type as 'محاضرة' | 'أعمال موجهة',
-          section: Number(sec),
-          group: grp === 'null' ? null : Number(grp),
+          module_id: modId, module_name: mod?.name_ar || '', level_name: mod?.level_name || '',
+          professor_id: profId, professor_name: prof?.name || '',
+          teaching_type: type as 'محاضرة' | 'أعمال موجهة', section: sec, group: grp,
           weekly_hours: slotHours(type, mod?.weekly_sessions || 1),
         }];
       }
       return prev;
     });
     setPickingSlot(null);
+    setProfSearch('');
   }
 
-  // ── حفظ نهائي ──
   async function saveToDB() {
     setSaving(true);
     setMessage(null);
-
-    await supabase.from('assignments').delete()
-      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1);
-
-    const toInsert = slots
-      .filter(s => s.professor_id)
-      .map(s => ({
-        professor_id: s.professor_id,
-        module_id: s.module_id,
-        level_id: modules.find(m => m.id === s.module_id)?.level_id,
-        academic_year: ACADEMIC_YEAR,
-        semester: 1,
-        teaching_type: s.teaching_type,
-        section_number: s.section,
-        group_number: s.group,
-        weekly_hours: s.weekly_hours,
-        wish_order_satisfied: s.wish_order || 0,
-        status: 'مؤقت',
-        conflict_resolved: false,
-        score: null,
-      }));
-
+    await supabase.from('assignments').delete().eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مؤقت');
+    const toInsert = slots.filter(s => s.professor_id).map(s => ({
+      professor_id: s.professor_id,
+      module_id: s.module_id,
+      level_id: modules.find(m => m.id === s.module_id)?.level_id,
+      academic_year: ACADEMIC_YEAR, semester: 1,
+      teaching_type: s.teaching_type, section_number: s.section, group_number: s.group,
+      weekly_hours: s.weekly_hours, wish_order_satisfied: s.wish_order || 0,
+      status: 'مؤقت', conflict_resolved: false, score: null,
+    }));
     const { error } = await supabase.from('assignments').insert(toInsert);
     if (error) {
       setMessage({ type: 'error', text: 'خطأ في الحفظ: ' + error.message });
     } else {
       setSavedCount(toInsert.length);
-      setMessage({ type: 'success', text: `تم حفظ ${toArabicNum(toInsert.length)} إسناداً — مؤقت (غير معلَن للأساتذة بعد)` });
+      setMessage({ type: 'success', text: 'تم حفظ ' + toArabicNum(toInsert.length) + ' إسناداً (مؤقت — غير معلَن للأساتذة)' });
     }
     setSaving(false);
   }
 
-  function toggleSort(key: 'name' | 'rank' | 'hours') {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(key); setSortDir('asc'); }
-  }
-
-  function SortIcon({ col }: { col: 'name' | 'rank' | 'hours' }) {
-    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-gray-300 inline mr-1" />;
-    return sortDir === 'asc'
-      ? <ArrowUp className="w-3 h-3 text-[#1a3a6b] inline mr-1" />
-      : <ArrowDown className="w-3 h-3 text-[#1a3a6b] inline mr-1" />;
-  }
-
-  // ── إعلان النتائج ──
   async function announceResults() {
     if (!window.confirm('سيتم إعلان نتائج الإسناد لجميع الأساتذة. هل أنت متأكد؟')) return;
     setAnnouncing(true);
-    const { error } = await supabase
-      .from('assignments')
-      .update({ status: 'نهائي' })
-      .eq('academic_year', ACADEMIC_YEAR)
-      .eq('semester', 1)
-      .eq('status', 'مؤقت');
+    const { error } = await supabase.from('assignments').update({ status: 'نهائي' }).eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مؤقت');
     if (error) {
       setMessage({ type: 'error', text: 'خطأ في الإعلان: ' + error.message });
     } else {
@@ -382,15 +287,30 @@ export default function AdminAssignmentBoardPage() {
     setAnnouncing(false);
   }
 
-  // ── تجميع المستويات ──
+  function toggleSort(key: 'name' | 'rank' | 'hours') {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+
+  function SortIcon({ col }: { col: 'name' | 'rank' | 'hours' }) {
+    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-gray-300 inline mr-1" />;
+    return sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-[#1a3a6b] inline mr-1" /> : <ArrowDown className="w-3 h-3 text-[#1a3a6b] inline mr-1" />;
+  }
+
   const levelGroups = Array.from(new Set(modules.map(m => m.level_name))).map(lvl => ({
-    name: lvl,
-    modules: modules.filter(m => m.level_name === lvl),
+    name: lvl, modules: modules.filter(m => m.level_name === lvl),
   }));
 
-  // ════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════
+  const sortedProfs = [...profs].sort((a, b) => {
+    let av: any, bv: any;
+    if (sortKey === 'name') { av = a.name; bv = b.name; }
+    else if (sortKey === 'rank') { av = a.rank; bv = b.rank; }
+    else { av = profHours(slots, a.id); bv = profHours(slots, b.id); }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   if (!loaded) return (
     <div className="space-y-5 animate-fade-in pb-8" dir="rtl">
       <div>
@@ -411,16 +331,11 @@ export default function AdminAssignmentBoardPage() {
 
   return (
     <div className="space-y-4 animate-fade-in pb-8" dir="rtl">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900 font-display">لوحة الإسناد التفاعلية — السداسي الأول</h2>
           <p className="text-gray-500 text-sm mt-0.5">
-            {toArabicNum(slots.filter(s => s.professor_id).length)} إسناد محدَّد
-            {' · '}
-            {toArabicNum(profs.length)} أستاذ
-            {' · '}
-            {toArabicNum(modules.length)} مقياس
+            {toArabicNum(slots.filter(s => s.professor_id).length)} إسناد · {toArabicNum(profs.length)} أستاذ · {toArabicNum(modules.length)} مقياس
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -436,7 +351,7 @@ export default function AdminAssignmentBoardPage() {
           </button>
           {savedCount > 0 && (
             <button onClick={announceResults} disabled={announcing}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
               <Megaphone className="w-4 h-4" />
               {announcing ? 'جارٍ الإعلان...' : 'إعلان النتائج للأساتذة'}
             </button>
@@ -451,7 +366,6 @@ export default function AdminAssignmentBoardPage() {
         </div>
       )}
 
-      {/* Tabs */}
       <div className="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
         <button onClick={() => setTab('profs')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'profs' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500'}`}>
@@ -463,29 +377,26 @@ export default function AdminAssignmentBoardPage() {
         </button>
       </div>
 
-      {/* ═══ TAB: الأساتذة ═══ */}
       {tab === 'profs' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer select-none hover:text-[#1a3a6b]" onClick={() => toggleSort('name')}><SortIcon col="name" />الأستاذ</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer select-none hover:text-[#1a3a6b]" onClick={() => toggleSort('rank')}><SortIcon col="rank" />الرتبة</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer select-none hover:text-[#1a3a6b]" onClick={() => toggleSort('hours')}><SortIcon col="hours" />الحجم الساعي</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer hover:text-[#1a3a6b] select-none" onClick={() => toggleSort('name')}>
+                    <SortIcon col="name" />الأستاذ
+                  </th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer hover:text-[#1a3a6b] select-none" onClick={() => toggleSort('rank')}>
+                    <SortIcon col="rank" />الرتبة
+                  </th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 cursor-pointer hover:text-[#1a3a6b] select-none" onClick={() => toggleSort('hours')}>
+                    <SortIcon col="hours" />الحجم الساعي
+                  </th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">المقاييس المُسنَدة</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {[...profs].sort((a, b) => {
-                  let av: any, bv: any;
-                  if (sortKey === 'name') { av = a.name; bv = b.name; }
-                  else if (sortKey === 'rank') { av = a.rank; bv = b.rank; }
-                  else { av = profHours(slots, a.id); bv = profHours(slots, b.id); }
-                  if (av < bv) return sortDir === 'asc' ? -1 : 1;
-                  if (av > bv) return sortDir === 'asc' ? 1 : -1;
-                  return 0;
-                }).map(prof => {
+                {sortedProfs.map(prof => {
                   const hours = profHours(slots, prof.id);
                   const pct = Math.min((hours / prof.max_hours) * 100, 100);
                   const profSlots = slots.filter(s => s.professor_id === prof.id);
@@ -498,7 +409,7 @@ export default function AdminAssignmentBoardPage() {
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-gray-100 rounded-full h-2">
                             <div className={`h-2 rounded-full transition-all ${isOver ? 'bg-red-500' : hours >= prof.max_hours ? 'bg-green-500' : 'bg-[#1a3a6b]'}`}
-                              style={{ width: `${pct}%` }} />
+                              style={{ width: pct + '%' }} />
                           </div>
                           <span className={`text-xs font-bold whitespace-nowrap ${isOver ? 'text-red-600' : hours >= prof.max_hours ? 'text-green-600' : 'text-gray-600'}`}>
                             {hours.toFixed(2)}/{prof.max_hours}س
@@ -510,19 +421,15 @@ export default function AdminAssignmentBoardPage() {
                           {profSlots.map((s, i) => (
                             <span key={i} className="flex items-center gap-1 text-xs bg-[#1a3a6b]/08 text-[#1a3a6b] px-2 py-1 rounded-full">
                               {s.module_name}
-                              <span className="text-[#c9a227]">
-  {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`}{s.wish_order ? ` (ر${s.wish_order})` : ''}
-                              </span>
+                              <span className="text-[#c9a227]">{s.teaching_type === 'محاضرة' ? 'م' + s.section : 'ف' + s.group}</span>
                               {s.wish_order && <span className="text-gray-400">(ر{s.wish_order})</span>}
-                              <button onClick={() => assignProf(`${s.module_id}__${s.teaching_type}__${s.section}__${s.group}`, null)}
+                              <button onClick={() => assignProf(s.module_id + '__' + s.teaching_type + '__' + s.section + '__' + s.group, null)}
                                 className="text-gray-400 hover:text-red-500 transition-colors">
                                 <X className="w-3 h-3" />
                               </button>
                             </span>
                           ))}
-                          {profSlots.length === 0 && (
-                            <span className="text-xs text-gray-300">لا إسناد بعد</span>
-                          )}
+                          {profSlots.length === 0 && <span className="text-xs text-gray-300">لا إسناد بعد</span>}
                         </div>
                       </td>
                     </tr>
@@ -534,7 +441,6 @@ export default function AdminAssignmentBoardPage() {
         </div>
       )}
 
-      {/* ═══ TAB: المقاييس والـ Slots ═══ */}
       {tab === 'slots' && (
         <div className="space-y-3">
           {levelGroups.map(lvl => {
@@ -545,9 +451,7 @@ export default function AdminAssignmentBoardPage() {
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-right">
                   <div className="flex items-center gap-3">
                     <span className="font-display font-bold text-gray-800">{lvl.name}</span>
-                    <span className="text-xs bg-[#1a3a6b]/08 text-[#1a3a6b] px-2 py-0.5 rounded-full">
-                      {toArabicNum(lvl.modules.length)} مقياس
-                    </span>
+                    <span className="text-xs bg-[#1a3a6b]/08 text-[#1a3a6b] px-2 py-0.5 rounded-full">{toArabicNum(lvl.modules.length)} مقياس</span>
                   </div>
                   {isExp ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </button>
@@ -555,26 +459,19 @@ export default function AdminAssignmentBoardPage() {
                 {isExp && (
                   <div className="border-t border-gray-100 p-4 space-y-4">
                     {lvl.modules.map(mod => {
-                      // بناء خلايا المحاضرات
                       const lectureCells = mod.has_lectures
                         ? Array.from({ length: mod.num_sections }, (_, i) => i + 1).map(sec => {
-                            const key = `${mod.id}__محاضرة__${sec}__null`;
-                            const assigned = slots.find(s =>
-                              s.module_id === mod.id && s.teaching_type === 'محاضرة' && s.section === sec
-                            );
-                            return { key, sec, group: null, assigned };
+                            const key = mod.id + '__محاضرة__' + sec + '__null';
+                            const assigned = slots.find(s => s.module_id === mod.id && s.teaching_type === 'محاضرة' && s.section === sec);
+                            return { key, sec, assigned };
                           })
                         : [];
 
-                      // بناء خلايا الأعمال الموجهة
                       const tdCells = mod.has_td
                         ? Array.from({ length: mod.num_sections }, (_, i) => i + 1).flatMap(sec =>
                             Array.from({ length: mod.num_groups }, (_, j) => j + 1).map(grp => {
-                              const key = `${mod.id}__أعمال موجهة__${sec}__${grp}`;
-                              const assigned = slots.find(s =>
-                                s.module_id === mod.id && s.teaching_type === 'أعمال موجهة' &&
-                                s.section === sec && s.group === grp
-                              );
+                              const key = mod.id + '__أعمال موجهة__' + sec + '__' + grp;
+                              const assigned = slots.find(s => s.module_id === mod.id && s.teaching_type === 'أعمال موجهة' && s.section === sec && s.group === grp);
                               return { key, sec, group: grp, assigned };
                             })
                           )
@@ -589,7 +486,6 @@ export default function AdminAssignmentBoardPage() {
                             )}
                           </div>
 
-                          {/* محاضرات */}
                           {lectureCells.length > 0 && (
                             <div>
                               <p className="text-xs text-gray-400 mb-1.5">محاضرات ({toArabicNum(lectureCells.length)} مجموعة)</p>
@@ -600,7 +496,7 @@ export default function AdminAssignmentBoardPage() {
                                       <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded-xl text-xs">
                                         <span className="text-gray-400">م{cell.sec}</span>
                                         <span className="font-medium">{cell.assigned.professor_name}</span>
-                                        <span className="text-green-600">{cell.assigned.weekly_hours}س</span>
+                                        {cell.assigned.wish_order && <span className="text-green-600">(ر{cell.assigned.wish_order})</span>}
                                         <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
                                           <X className="w-3 h-3" />
                                         </button>
@@ -608,12 +504,11 @@ export default function AdminAssignmentBoardPage() {
                                     ) : (
                                       <button onClick={() => setPickingSlot(pickingSlot === cell.key ? null : cell.key)}
                                         className="flex items-center gap-1.5 bg-gray-50 border-2 border-dashed border-gray-200 hover:border-[#1a3a6b] text-gray-400 hover:text-[#1a3a6b] px-3 py-2 rounded-xl text-xs transition-all">
-                                        <span>م{cell.sec}</span>
-                                        <Plus className="w-3 h-3" />
+                                        <span>م{cell.sec}</span><Plus className="w-3 h-3" />
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:100}}>
+                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]">
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
@@ -636,7 +531,6 @@ export default function AdminAssignmentBoardPage() {
                             </div>
                           )}
 
-                          {/* أعمال موجهة */}
                           {tdCells.length > 0 && (
                             <div>
                               <p className="text-xs text-gray-400 mb-1.5">أعمال موجهة ({toArabicNum(tdCells.length)} فوج)</p>
@@ -647,6 +541,7 @@ export default function AdminAssignmentBoardPage() {
                                       <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-xl text-xs">
                                         <span className="text-gray-400">ف{cell.group}</span>
                                         <span className="font-medium">{cell.assigned.professor_name}</span>
+                                        {cell.assigned.wish_order && <span className="text-amber-600">(ر{cell.assigned.wish_order})</span>}
                                         <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
                                           <X className="w-3 h-3" />
                                         </button>
@@ -654,12 +549,11 @@ export default function AdminAssignmentBoardPage() {
                                     ) : (
                                       <button onClick={() => setPickingSlot(pickingSlot === cell.key ? null : cell.key)}
                                         className="flex items-center gap-1.5 bg-gray-50 border-2 border-dashed border-gray-200 hover:border-[#c9a227] text-gray-400 hover:text-[#c9a227] px-3 py-2 rounded-xl text-xs transition-all">
-                                        <span>م{cell.sec}-ف{cell.group}</span>
-                                        <Plus className="w-3 h-3" />
+                                        <span>ف{cell.group}</span><Plus className="w-3 h-3" />
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:100}}>
+                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]">
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
