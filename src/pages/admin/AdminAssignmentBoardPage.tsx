@@ -4,7 +4,7 @@ import { toArabicNum } from '../../lib/utils';
 import * as XLSX from 'xlsx';
 import {
   Upload, Save, CheckCircle, AlertCircle, Users, BookOpen,
-  ChevronDown, ChevronUp, X, Plus, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown
+  ChevronDown, ChevronUp, X, Plus, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Megaphone
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
@@ -64,6 +64,8 @@ export default function AdminAssignmentBoardPage() {
   const [slots, setSlots] = useState<SlotAssignment[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [announcing, setAnnouncing] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<'profs' | 'slots'>('profs');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -300,7 +302,7 @@ export default function AdminAssignmentBoardPage() {
         group_number: s.group,
         weekly_hours: s.weekly_hours,
         wish_order_satisfied: s.wish_order || 0,
-        status: 'assigned',
+        status: 'مؤقت',
         conflict_resolved: false,
         score: null,
       }));
@@ -309,7 +311,8 @@ export default function AdminAssignmentBoardPage() {
     if (error) {
       setMessage({ type: 'error', text: 'خطأ في الحفظ: ' + error.message });
     } else {
-      setMessage({ type: 'success', text: `تم حفظ ${toArabicNum(toInsert.length)} إسناداً في قاعدة البيانات` });
+      setSavedCount(toInsert.length);
+      setMessage({ type: 'success', text: `تم حفظ ${toArabicNum(toInsert.length)} إسناداً — مؤقت (غير معلَن للأساتذة بعد)` });
     }
     setSaving(false);
   }
@@ -324,6 +327,25 @@ export default function AdminAssignmentBoardPage() {
     return sortDir === 'asc'
       ? <ArrowUp className="w-3 h-3 text-[#1a3a6b] inline mr-1" />
       : <ArrowDown className="w-3 h-3 text-[#1a3a6b] inline mr-1" />;
+  }
+
+  // ── إعلان النتائج ──
+  async function announceResults() {
+    if (!window.confirm('سيتم إعلان نتائج الإسناد لجميع الأساتذة. هل أنت متأكد؟')) return;
+    setAnnouncing(true);
+    const { error } = await supabase
+      .from('assignments')
+      .update({ status: 'نهائي' })
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .eq('status', 'مؤقت');
+    if (error) {
+      setMessage({ type: 'error', text: 'خطأ في الإعلان: ' + error.message });
+    } else {
+      setMessage({ type: 'success', text: '✓ تم إعلان النتائج للأساتذة بنجاح' });
+      setSavedCount(0);
+    }
+    setAnnouncing(false);
   }
 
   // ── تجميع المستويات ──
@@ -376,7 +398,7 @@ export default function AdminAssignmentBoardPage() {
           <button onClick={saveToDB} disabled={saving || slots.length === 0}
             className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
             <Save className="w-4 h-4" />
-            {saving ? 'جارٍ الحفظ...' : 'حفظ نهائي في قاعدة البيانات'}
+            {saving ? 'جارٍ الحفظ...' : 'تأكيد وحفظ الإسناد'}
           </button>
         </div>
       </div>
@@ -448,8 +470,9 @@ export default function AdminAssignmentBoardPage() {
                             <span key={i} className="flex items-center gap-1 text-xs bg-[#1a3a6b]/08 text-[#1a3a6b] px-2 py-1 rounded-full">
                               {s.module_name}
                               <span className="text-[#c9a227]">
-                                {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`}
+  {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`}{s.wish_order ? ` (ر${s.wish_order})` : ''}
                               </span>
+                              {s.wish_order && <span className="text-gray-400">(ر{s.wish_order})</span>}
                               <button onClick={() => assignProf(`${s.module_id}__${s.teaching_type}__${s.section}__${s.group}`, null)}
                                 className="text-gray-400 hover:text-red-500 transition-colors">
                                 <X className="w-3 h-3" />
