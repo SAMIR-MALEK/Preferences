@@ -114,6 +114,40 @@ export default function AdminAssignmentBoardPage() {
       }));
     }
 
+    // تحميل الإسنادات المؤقتة الموجودة
+    const { data: existingAssignments } = await supabase
+      .from('assignments')
+      .select('professor_id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, wish_order_satisfied, status')
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .eq('status', 'مؤقت');
+
+    if (existingAssignments && existingAssignments.length > 0 && modData && profData) {
+      const mMap = new Map((modData as any[]).map((m: any) => [m.id, m]));
+      const pMap = new Map(profData.map((p: any) => [p.id, p]));
+      const lsMapLocal = new Map(lsData?.map(ls => [ls.level_id, ls]) || []);
+      const loaded: SlotAssignment[] = existingAssignments.map((a: any) => {
+        const mod = mMap.get(a.module_id) as any;
+        const prof = pMap.get(a.professor_id) as any;
+        const ls = lsMapLocal.get(a.level_id);
+        return {
+          module_id: a.module_id,
+          module_name: mod?.name_ar || '—',
+          level_name: mod?.level?.name_ar || '—',
+          professor_id: a.professor_id,
+          professor_name: prof ? \`\${prof.last_name} \${prof.first_name}\` : '—',
+          teaching_type: a.teaching_type,
+          section: a.section_number,
+          group: a.group_number,
+          weekly_hours: a.weekly_hours,
+          wish_order: a.wish_order_satisfied,
+          from_excel: false,
+        };
+      });
+      setSlots(loaded);
+      setSavedCount(loaded.length);
+    }
+
     setLoading(false);
     setLoaded(true);
   }
@@ -400,6 +434,13 @@ export default function AdminAssignmentBoardPage() {
             <Save className="w-4 h-4" />
             {saving ? 'جارٍ الحفظ...' : 'تأكيد وحفظ الإسناد'}
           </button>
+          {savedCount > 0 && (
+            <button onClick={announceResults} disabled={announcing}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
+              <Megaphone className="w-4 h-4" />
+              {announcing ? 'جارٍ الإعلان...' : 'إعلان النتائج للأساتذة'}
+            </button>
+          )}
         </div>
       </div>
 
