@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     profs: 0, locked: 0, modules: 0, wishes: 0, conflicts: 0,
   });
 
-  // إغلاق القائمة تلقائياً عند اختيار تبويب (على الهاتف)
+  // إغلاق القائمة تلقائياً عند  اختيار تبويب (على الهاتف)
   function selectTab(t: AdminTab) {
     setTab(t);
     setSidebarOpen(false);
