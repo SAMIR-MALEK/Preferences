@@ -125,50 +125,54 @@ export default function AdminAssignmentBoardPage() {
       const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
       const newSlots: SlotAssignment[] = [];
-      // Section trackers per module+type
-      const sectionTracker = new Map<string, number>();
+      const usedLecSlots = new Map<string, number>(); // module_id -> عدد مجموعات المحاضرة المُستخدَمة
 
       for (const row of raw.slice(1)) {
         const profNameRaw = String(row[0] || '').trim();
         const semesterStr = String(row[4] || '').trim();
         if (semesterStr !== 'السداسي الأول') continue;
 
-        // ابحث عن الأستاذ
         const prof = profs.find(p =>
           p.name.replace(/\s+/g, '') === profNameRaw.replace(/\s+/g, '') ||
-          profNameRaw.includes(p.name.split(' ')[0])
+          profNameRaw.replace(/\s+/g, '').startsWith(p.name.replace(/\s+/g, '').substring(0, 6))
         );
 
         for (let i = 0; i < 5; i++) {
-          const wishCol = 5 + i * 3;
-          const resultCol = 6 + i * 3;
-          const typeCol = 7 + i * 3;
-          const wish = String(row[wishCol] || '').trim();
-          const result = String(row[resultCol] || '').trim();
-          const tType = String(row[typeCol] || '').trim() as 'محاضرة' | 'أعمال موجهة';
+          const wish = String(row[5 + i * 3] || '').trim();
+          const result = String(row[6 + i * 3] || '').trim();
+          const tType = String(row[7 + i * 3] || '').trim() as 'محاضرة' | 'أعمال موجهة';
 
           if (result !== 'لبيت الرغبة' || !wish) continue;
 
-          // استخرج اسم المقياس والمستوى
-          const match = wish.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+          const match = wish.match(/^(.+?)\s*\(([^()]+)\)\s*$/);
           if (!match) continue;
           const modName = match[1].trim().replace(/^\(/, '').trim();
           const levelName = match[2].trim();
 
-          // ابحث في قاعدة البيانات
-          const mod = modules.find(m =>
-            m.name_ar.replace(/\s+/g, '').includes(modName.replace(/\s+/g, '').substring(0, 8)) &&
-            m.level_name.includes(levelName.substring(0, 5))
-          );
+          const mod = modules.find(m => {
+            const mNorm = m.name_ar.replace(/[\s()]/g, '');
+            const wNorm = modName.replace(/[\s()]/g, '');
+            const lNorm = m.level_name.replace(/\s+/g, '');
+            const lSearch = levelName.replace(/\s+/g, '').substring(0, 5);
+            return (mNorm.includes(wNorm.substring(0, 8)) || wNorm.includes(mNorm.substring(0, 8)))
+              && lNorm.includes(lSearch);
+          });
 
           if (!mod) continue;
 
-          const key = `${mod.id}__${tType}`;
-          const currentSection = (sectionTracker.get(key) || 0) + 1;
-
           if (tType === 'محاضرة') {
-            if (currentSection > mod.num_sections) continue;
-            sectionTracker.set(key, currentSection);
+            // قاعدة صارمة: أستاذ واحد = مجموعة محاضرة واحدة فقط
+            const alreadyHasLecture = newSlots.some(s =>
+              s.module_id === mod.id &&
+              s.teaching_type === 'محاضرة' &&
+              s.professor_id === (prof?.id || null) &&
+              s.professor_name === (prof?.name || profNameRaw)
+            );
+            if (alreadyHasLecture) continue;
+
+            const used = usedLecSlots.get(mod.id) || 0;
+            if (used >= mod.num_sections) continue;
+
             newSlots.push({
               module_id: mod.id,
               module_name: mod.name_ar,
@@ -176,25 +180,32 @@ export default function AdminAssignmentBoardPage() {
               professor_id: prof?.id || null,
               professor_name: prof?.name || profNameRaw,
               teaching_type: 'محاضرة',
-              section: currentSection,
+              section: used + 1,
               group: null,
               weekly_hours: slotHours('محاضرة', mod.weekly_sessions),
               wish_order: i + 1,
               from_excel: true,
             });
+            usedLecSlots.set(mod.id, used + 1);
+
           } else {
-            // TD — أسند فوجاً واحداً
-            const groupKey = `${mod.id}__TD__${prof?.id}`;
-            const currentGroup = (sectionTracker.get(groupKey) || 0) + 1;
-            // ابحث عن أول section/group فارغ
-            let assigned = false;
-            for (let s = 1; s <= mod.num_sections && !assigned; s++) {
+            // TD: فوج واحد فقط لكل أستاذ في نفس المقياس
+            const alreadyHasTD = newSlots.some(s =>
+              s.module_id === mod.id &&
+              s.teaching_type === 'أعمال موجهة' &&
+              s.professor_id === (prof?.id || null) &&
+              s.professor_name === (prof?.name || profNameRaw)
+            );
+            if (alreadyHasTD) continue;
+
+            for (let s = 1; s <= mod.num_sections; s++) {
+              let assigned = false;
               for (let g = 1; g <= mod.num_groups && !assigned; g++) {
-                const exists = newSlots.some(sl =>
+                const taken = newSlots.some(sl =>
                   sl.module_id === mod.id && sl.teaching_type === 'أعمال موجهة' &&
                   sl.section === s && sl.group === g
                 );
-                if (!exists) {
+                if (!taken) {
                   newSlots.push({
                     module_id: mod.id,
                     module_name: mod.name_ar,
@@ -211,13 +222,14 @@ export default function AdminAssignmentBoardPage() {
                   assigned = true;
                 }
               }
+              if (assigned) break;
             }
           }
         }
       }
 
       setSlots(newSlots);
-      setMessage({ type: 'success', text: `تم استيراد ${toArabicNum(newSlots.length)} إسناداً من Excel` });
+      setMessage({ type: 'success', text: `تم استيراد ${newSlots.length} إسناداً من Excel` });
     };
     reader.readAsBinaryString(file);
     e.target.value = '';
