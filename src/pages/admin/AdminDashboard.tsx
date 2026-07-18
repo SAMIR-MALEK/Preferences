@@ -17,10 +17,12 @@ import AdminSettingsPage      from './AdminSettingsPage';
 import AdminImportPage        from './AdminImportPage';
 import AdminSpecialtiesPage   from './AdminSpecialtiesPage';
 import AdminEmailPage         from './AdminEmailPage';
+import AdminSessionsPage      from './AdminSessionsPage';
+import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'wishes' | 'assignment' | 'settings' | 'email';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'settings' | 'email';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
