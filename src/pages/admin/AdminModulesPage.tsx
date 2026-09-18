@@ -6,7 +6,7 @@ import { UE_TYPES, DELIVERY_MODES } from '../../types';
 import * as XLSX from 'xlsx';
 import { Plus, Trash2, Save, X, BookOpen, ChevronDown, ChevronUp, CheckCircle, AlertCircle, Pencil, Download } from 'lucide-react';
 
-const emptyModForm = { name: '', hasTD: false, spec: '', ue: 'أساسية' as UEType, mode: 'حضوري' as DeliveryMode, weeklySessions: 1 };
+const emptyModForm = { name: '', hasLectures: true, hasTD: false, spec: '', ue: 'أساسية' as UEType, mode: 'حضوري' as DeliveryMode, weeklySessions: 1 };
 
 interface Props {
   allowedLevelCodes?: string[] | null; // إن وُجدت، يُحصر العرض بهذه الرموز فقط (لرئيس القسم)
@@ -77,6 +77,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
   function startEditModule(mod: Module) {
     setModForm({
       name: mod.name_ar,
+      hasLectures: mod.has_lectures,
       hasTD: mod.has_td,
       spec: (mod.specialty_match || []).join(', '),
       ue: mod.ue_type || 'أساسية',
@@ -99,9 +100,9 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
     const spec = modForm.spec.split(',').map(s => s.trim()).filter(Boolean);
     const { data, error } = await supabase.from('modules').insert({
       level_id: lvlId, code, name_ar: modForm.name.trim(), semester: sem,
-      has_lectures: true, has_td: modForm.mode === 'عن بعد' ? false : modForm.hasTD,
+      has_lectures: modForm.hasLectures, has_td: modForm.mode === 'عن بعد' ? false : modForm.hasTD,
       weekly_sessions: modForm.weeklySessions,
-      weekly_hours_lecture: 2.25, weekly_hours_td: (modForm.mode === 'عن بعد' ? false : modForm.hasTD) ? 1.5 : 0,
+      weekly_hours_lecture: modForm.hasLectures ? 2.25 : 0, weekly_hours_td: (modForm.mode === 'عن بعد' ? false : modForm.hasTD) ? 1.5 : 0,
       specialty_match: spec,
       ue_type: modForm.ue,
       delivery_mode: modForm.mode,
@@ -125,8 +126,10 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
     const hasTD = modForm.mode === 'عن بعد' ? false : modForm.hasTD;
     const { data, error } = await supabase.from('modules').update({
       name_ar: modForm.name.trim(),
+      has_lectures: modForm.hasLectures,
       has_td: hasTD,
       weekly_sessions: modForm.weeklySessions,
+      weekly_hours_lecture: modForm.hasLectures ? 2.25 : 0,
       weekly_hours_td: hasTD ? 1.5 : 0,
       specialty_match: spec,
       ue_type: modForm.ue,
@@ -473,13 +476,18 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
                     <input value={modForm.spec} onChange={e => setModForm(f => ({ ...f, spec: e.target.value }))}
                       placeholder="تخصص الأستاذ المفضّل للإسناد (فاصلة بين كل تخصص، اختياري)"
                       className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none bg-white" />
+                    <label className="flex items-center gap-2 text-sm cursor-pointer text-gray-600">
+                      <input type="checkbox" checked={modForm.hasLectures}
+                        onChange={e => setModForm(f => ({ ...f, hasLectures: e.target.checked, hasTD: !e.target.checked ? false : f.hasTD }))} />
+                      يشمل محاضرة — 2.25س/أسبوع لكل مجموعة
+                    </label>
                     <label className={`flex items-center gap-2 text-sm cursor-pointer ${modForm.mode === 'عن بعد' ? 'text-gray-300' : 'text-gray-600'}`}>
                       <input type="checkbox" checked={modForm.hasTD} disabled={modForm.mode === 'عن بعد'}
                         onChange={e => setModForm(f => ({ ...f, hasTD: e.target.checked }))} />
                       يشمل أعمال موجهة (TD) — 1.5س/أسبوع لكل فوج
                       {modForm.mode === 'عن بعد' && <span className="text-xs">(غير متاح في نمط عن بعد)</span>}
                     </label>
-                    <div className="space-y-1">
+                    {modForm.hasLectures && <div className="space-y-1">
                       <label className="text-xs text-gray-500 block">عدد مرات المحاضرة في الأسبوع</label>
                       <div className="flex gap-2">
                         {[1, 2].map(n => (
