@@ -7,9 +7,9 @@ import {
   ChevronDown, ChevronUp, X, Plus, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Megaphone
 } from 'lucide-react';
 
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 // Types
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 interface Prof {
   id: string;
   name: string;
