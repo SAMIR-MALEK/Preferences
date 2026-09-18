@@ -1,3 +1,4 @@
+// v18-09-2026
 import { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
@@ -7,9 +8,9 @@ import {
   ChevronDown, ChevronUp, X, Plus, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Megaphone
 } from 'lucide-react';
 
-// ═════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // Types
-// ═════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 interface Prof {
   id: string;
   name: string;
