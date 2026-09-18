@@ -308,7 +308,7 @@ export default function AdminAssignmentBoardPage() {
     setMessage(null);
 
     await supabase.from('assignments').delete()
-      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1);
+      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مؤقت');
 
     const toInsert = slots
       .filter(s => s.professor_id)
@@ -328,6 +328,12 @@ export default function AdminAssignmentBoardPage() {
         score: null,
       }));
 
+    console.log('Inserting:', toInsert.length, 'slots');
+    if (toInsert.length === 0) {
+      setMessage({ type: 'error', text: 'لا توجد إسنادات للحفظ' });
+      setSaving(false);
+      return;
+    }
     const { error } = await supabase.from('assignments').insert(toInsert);
     if (error) {
       setMessage({ type: 'error', text: 'خطأ في الحفظ: ' + error.message });
