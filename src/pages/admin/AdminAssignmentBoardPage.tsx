@@ -103,6 +103,7 @@ export default function AdminAssignmentBoardPage() {
         name_ar: m.name_ar,
         level_id: m.level_id,
         level_name: m.level?.name_ar || '—',
+        level_code: m.level?.code || '',
         has_lectures: m.has_lectures,
         has_td: m.has_td,
         weekly_sessions: m.weekly_sessions || 1,
