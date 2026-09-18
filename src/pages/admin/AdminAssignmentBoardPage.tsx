@@ -114,6 +114,37 @@ export default function AdminAssignmentBoardPage() {
       }));
     }
 
+    // تحميل الإسنادات المؤقتة
+    const { data: existing } = await supabase
+      .from('assignments')
+      .select('professor_id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, wish_order_satisfied')
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .eq('status', 'مؤقت');
+
+    if (existing && existing.length > 0) {
+      const mMap = new Map(modList.map((m: ModuleInfo) => [m.id, m]));
+      const pMap = new Map(profList.map((p: Prof) => [p.id, p]));
+      const loadedSlots: SlotAssignment[] = existing.map((a: any) => {
+        const mod = mMap.get(a.module_id);
+        const prof = pMap.get(a.professor_id);
+        return {
+          module_id: a.module_id,
+          module_name: mod?.name_ar || a.module_id,
+          level_name: mod?.level_name || '—',
+          professor_id: a.professor_id,
+          professor_name: prof?.name || '—',
+          teaching_type: a.teaching_type,
+          section: a.section_number,
+          group: a.group_number,
+          weekly_hours: a.weekly_hours,
+          wish_order: a.wish_order_satisfied,
+        };
+      });
+      setSlots(loadedSlots);
+      setSavedCount(loadedSlots.length);
+    }
+
     setLoading(false);
     setLoaded(true);
   }
@@ -308,7 +339,7 @@ export default function AdminAssignmentBoardPage() {
     setMessage(null);
 
     await supabase.from('assignments').delete()
-      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1);
+      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مؤقت');
 
     const toInsert = slots
       .filter(s => s.professor_id)
@@ -328,6 +359,12 @@ export default function AdminAssignmentBoardPage() {
         score: null,
       }));
 
+    console.log('Inserting:', toInsert.length, 'slots');
+    if (toInsert.length === 0) {
+      setMessage({ type: 'error', text: 'لا توجد إسنادات للحفظ' });
+      setSaving(false);
+      return;
+    }
     const { error } = await supabase.from('assignments').insert(toInsert);
     if (error) {
       setMessage({ type: 'error', text: 'خطأ في الحفظ: ' + error.message });
