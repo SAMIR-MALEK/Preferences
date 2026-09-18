@@ -158,14 +158,31 @@ export default function AdminAssignmentBoardPage() {
           const modName = match[1].trim().replace(/^\(/, '').trim();
           const levelName = match[2].trim();
 
-          const mod = modules.find(m => {
+          // مطابقة محسّنة: المستوى أولاً ثم اسم المقياس
+          const wNormFull = modName.replace(/[\s()]/g, '');
+          const lSearchFull = levelName.replace(/\s+/g, '');
+
+          // أولاً: مطابقة تامة للمستوى + جزئية للمقياس
+          let mod = modules.find(m => {
             const mNorm = m.name_ar.replace(/[\s()]/g, '');
-            const wNorm = modName.replace(/[\s()]/g, '');
             const lNorm = m.level_name.replace(/\s+/g, '');
-            const lSearch = levelName.replace(/\s+/g, '').substring(0, 5);
-            return (mNorm.includes(wNorm.substring(0, 8)) || wNorm.includes(mNorm.substring(0, 8)))
-              && lNorm.includes(lSearch);
+            const levelMatch = lNorm === lSearchFull || lNorm.includes(lSearchFull) || lSearchFull.includes(lNorm);
+            const moduleMatch = mNorm === wNormFull ||
+              (wNormFull.length >= 6 && mNorm.includes(wNormFull.substring(0, Math.min(12, wNormFull.length)))) ||
+              (mNorm.length >= 6 && wNormFull.includes(mNorm.substring(0, Math.min(12, mNorm.length))));
+            return levelMatch && moduleMatch;
           });
+
+          // ثانياً إن لم يُوجَد: مطابقة أوسع
+          if (!mod) {
+            mod = modules.find(m => {
+              const mNorm = m.name_ar.replace(/[\s()]/g, '');
+              const lNorm = m.level_name.replace(/\s+/g, '');
+              const lSearch5 = lSearchFull.substring(0, 5);
+              return lNorm.includes(lSearch5) &&
+                (mNorm.includes(wNormFull.substring(0, 8)) || wNormFull.includes(mNorm.substring(0, 8)));
+            });
+          }
 
           if (!mod) continue;
 
