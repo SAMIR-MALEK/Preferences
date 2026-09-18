@@ -87,33 +87,30 @@ export default function AdminAssignmentBoardPage() {
       supabase.from('level_semesters').select('level_id, num_sections, num_groups').eq('semester', 1),
     ]);
 
-    if (profData) {
-      setProfs(profData.map(p => ({
-        id: p.id,
-        name: `${p.last_name} ${p.first_name}`,
-        rank: p.rank,
-        max_hours: p.max_weekly_hours || 9,
-      })));
-    }
+    const localProfs: Prof[] = profData ? profData.map((p: any) => ({
+      id: p.id,
+      name: p.last_name + ' ' + p.first_name,
+      rank: p.rank,
+      max_hours: p.max_weekly_hours || 9,
+    })) : [];
+    setProfs(localProfs);
 
-    if (modData && lsData) {
-      const lsMap = new Map(lsData.map(ls => [ls.level_id, ls]));
-      setModules(modData.map((m: any) => {
-        const ls = lsMap.get(m.level_id);
-        return {
-          id: m.id,
-          name_ar: m.name_ar,
-          level_id: m.level_id,
-          level_name: m.level?.name_ar || '—',
-          level_code: m.level?.code || '',
-          has_lectures: m.has_lectures,
-          has_td: m.has_td,
-          weekly_sessions: m.weekly_sessions || 1,
-          num_sections: ls?.num_sections || 1,
-          num_groups: ls?.num_groups || 1,
-        };
-      }));
-    }
+    const lsMap = new Map((lsData || []).map((ls: any) => [ls.level_id, ls]));
+    const localModules: ModuleInfo[] = modData ? modData.map((m: any) => {
+      const ls = lsMap.get(m.level_id) as any;
+      return {
+        id: m.id,
+        name_ar: m.name_ar,
+        level_id: m.level_id,
+        level_name: m.level?.name_ar || '—',
+        has_lectures: m.has_lectures,
+        has_td: m.has_td,
+        weekly_sessions: m.weekly_sessions || 1,
+        num_sections: ls?.num_sections || 1,
+        num_groups: ls?.num_groups || 1,
+      };
+    }) : [];
+    setModules(localModules);
 
     // تحميل الإسنادات المؤقتة
     const { data: existing } = await supabase
@@ -124,8 +121,8 @@ export default function AdminAssignmentBoardPage() {
       .eq('status', 'مؤقت');
 
     if (existing && existing.length > 0) {
-      const mMap = new Map(modList.map((m: ModuleInfo) => [m.id, m]));
-      const pMap = new Map(profList.map((p: Prof) => [p.id, p]));
+      const mMap = new Map(localModules.map((m: ModuleInfo) => [m.id, m]));
+      const pMap = new Map(localProfs.map((p: Prof) => [p.id, p]));
       const loadedSlots: SlotAssignment[] = existing.map((a: any) => {
         const mod = mMap.get(a.module_id);
         const prof = pMap.get(a.professor_id);
