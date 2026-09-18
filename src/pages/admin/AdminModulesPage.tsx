@@ -487,18 +487,20 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
                       يشمل أعمال موجهة (TD) — 1.5س/أسبوع لكل فوج
                       {modForm.mode === 'عن بعد' && <span className="text-xs">(غير متاح في نمط عن بعد)</span>}
                     </label>
-                    {modForm.hasLectures && <div className="space-y-1">
-                      <label className="text-xs text-gray-500 block">عدد مرات المحاضرة في الأسبوع</label>
-                      <div className="flex gap-2">
-                        {[1, 2].map(n => (
-                          <button key={n} type="button"
-                            onClick={() => setModForm(f => ({ ...f, weeklySessions: n }))}
-                            className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-all ${modForm.weeklySessions === n ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
-                            {n === 1 ? 'مرة واحدة (2.25س)' : 'مرتان (4.5س)'}
-                          </button>
-                        ))}
+                    {modForm.hasLectures && (
+                      <div className="space-y-1">
+                        <label className="text-xs text-gray-500 block">عدد مرات المحاضرة في الأسبوع</label>
+                        <div className="flex gap-2">
+                          {[1, 2].map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setModForm(f => ({ ...f, weeklySessions: n }))}
+                              className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition-all ${modForm.weeklySessions === n ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                              {n === 1 ? 'مرة واحدة (2.25س)' : 'مرتان (4.5س)'}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div className="flex gap-2">
                       <button onClick={() => editingMod ? updateModule() : addModule(level.id, sem)}
                         className="flex items-center gap-1.5 text-white px-4 py-2 rounded-xl text-sm font-medium"
