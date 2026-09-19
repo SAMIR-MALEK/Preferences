@@ -540,6 +540,10 @@ interface AssignmentRequest {
             <Upload className="w-4 h-4" /> استيراد Excel
           </button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleExcel} className="hidden" />
+          <button onClick={() => setShowAnnounceModal(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
+            <Megaphone className="w-4 h-4" /> إعلان النتائج
+          </button>
           <button onClick={saveToDB} disabled={saving || slots.length === 0}
             className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
             <Save className="w-4 h-4" />
