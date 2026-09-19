@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum, toArabicFixed } from '../../lib/utils';
@@ -14,7 +15,7 @@ import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -59,6 +60,7 @@ export default function ProfessorDashboard() {
     { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock, disabled: !profileComplete },
     { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete },
     { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
+    { id: 'results' as ProfTab, label: 'نتائجي', icon: Award, disabled: !profileComplete },
   ];
 
   return (
@@ -153,6 +155,7 @@ export default function ProfessorDashboard() {
           />
         )}
         {tab === 'card' && <WishCard prof={profData} />}
+        {tab === 'results' && <AssignmentResults prof={profData} />}
       </div>
     </div>
   );
