@@ -155,7 +155,7 @@ export default function ProfessorDashboard() {
           />
         )}
         {tab === 'card' && <WishCard prof={profData} />}
-        {tab === 'results' && <AssignmentResults prof={profData} />}
+        {tab === 'results' && profData && <AssignmentResults prof={profData} />}
       </div>
     </div>
   );
