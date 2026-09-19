@@ -82,7 +82,7 @@ export default function AssignmentResults({ prof }: Props) {
     // الرغبات غير الملبّاة
     const { data: wishes } = await supabase
       .from('wishes')
-      .select('wish_order, teaching_type, module:modules(name_ar, level:levels(name_ar))')
+      .select('wish_order, module_id, teaching_type, module:modules(name_ar, level:levels(name_ar))')
       .eq('professor_id', prof.id)
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', SEMESTER)
@@ -92,7 +92,7 @@ export default function AssignmentResults({ prof }: Props) {
       // مقارنة بـ module_id + teaching_type معاً لتجنب التناقض
       const assignedKeys = new Set(assignments.map((a: any) => a.module_id + '__' + a.teaching_type));
       setUnassigned(wishes
-        .filter((w: any) => !assignedKeys.has((w.module?.id || '') + '__' + w.teaching_type))
+        .filter((w: any) => !assignedKeys.has((w.module_id || '') + '__' + w.teaching_type))
         .map((w: any) => ({
           wish_order: w.wish_order,
           module_name: w.module?.name_ar || '—',
@@ -182,7 +182,7 @@ export default function AssignmentResults({ prof }: Props) {
     if (slotSearch) filtered = filtered.filter(s =>
       s.module_name.includes(slotSearch) || s.level_name.includes(slotSearch)
     );
-    if (levelFilter) filtered = filtered.filter(s => s.level_name.includes(levelFilter));
+    if (levelFilter) filtered = filtered.filter(s => s.level_name === levelFilter);
     return [...filtered].sort((a, b) => profRank(a) - profRank(b));
   }
 
@@ -326,6 +326,18 @@ export default function AssignmentResults({ prof }: Props) {
 
           {showFreeSlots && (
             <div className="space-y-3">
+              <div className="flex gap-2 mb-2">
+                <input type="text" placeholder="ابحث عن مقياس..." value={slotSearch}
+                  onChange={e => setSlotSearch(e.target.value)}
+                  className="flex-1 border border-amber-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-400 bg-white" />
+                <select value={levelFilter} onChange={e => setLevelFilter(e.target.value)}
+                  className="border border-amber-200 rounded-xl px-3 py-2 text-xs focus:outline-none bg-white min-w-[140px]">
+                  <option value="">كل المستويات</option>
+                  {Array.from(new Set(freeSlots.map(s => s.level_name))).sort().map(l => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
               <div className="bg-white rounded-xl border border-amber-200 overflow-hidden max-h-80 overflow-y-auto">
                 {freeSlots.length === 0 ? (
                   <p className="text-center text-gray-400 py-6 text-sm">لا توجد مقاييس شاغرة حالياً</p>
