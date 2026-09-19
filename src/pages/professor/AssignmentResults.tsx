@@ -33,6 +33,19 @@ interface FreeSlot {
   weekly_sessions: number;
 }
 
+interface Appeal {
+  id: string;
+  appeal_type: 'رغبة_غير_ملبّاة' | 'خطأ_في_الإسناد';
+  wish_order?: number;
+  module_id?: string;
+  module_name?: string;
+  assignment_id?: string;
+  assigned_module_name?: string;
+  reason: string;
+  status: 'معلّق' | 'مقبول' | 'مرفوض';
+  admin_reply?: string;
+}
+
 interface Props {
   prof: Professor;
 }
@@ -49,6 +62,14 @@ export default function AssignmentResults({ prof }: Props) {
   const [slotSearch, setSlotSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
   const [existingRequests, setExistingRequests] = useState<string[]>([]);
+  const [showAppealForm, setShowAppealForm] = useState(false);
+  const [appeals, setAppeals] = useState<Appeal[]>([]);
+  const [appealType, setAppealType] = useState<'رغبة_غير_ملبّاة' | 'خطأ_في_الإسناد'>('رغبة_غير_ملبّاة');
+  const [appealWishOrder, setAppealWishOrder] = useState<number | ''>('');
+  const [appealModuleId, setAppealModuleId] = useState('');
+  const [appealAssignmentId, setAppealAssignmentId] = useState('');
+  const [appealReason, setAppealReason] = useState('');
+  const [sendingAppeal, setSendingAppeal] = useState(false);
 
   const totalHours = assigned.reduce((s, a) => s + a.weekly_hours, 0);
   const maxHours = prof.max_weekly_hours || 9;
@@ -170,6 +191,16 @@ export default function AssignmentResults({ prof }: Props) {
       .eq('semester', SEMESTER);
     if (reqs) setExistingRequests(reqs.map((r: any) => r.module_id));
 
+    // تحميل الطعون المرسلة
+    const { data: appealsData } = await supabase
+      .from('assignment_appeals')
+      .select('id, appeal_type, wish_order, module_id, reason, status, admin_reply, assignment_id')
+      .eq('professor_id', prof.id)
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', SEMESTER)
+      .order('created_at', { ascending: false });
+    if (appealsData) setAppeals(appealsData as Appeal[]);
+
     setLoading(false);
   }
 
@@ -189,6 +220,46 @@ export default function AssignmentResults({ prof }: Props) {
   }
 
   // ترتيب ذكي حسب تخصص الأستاذ
+  async function sendAppeal() {
+    if (!appealReason.trim()) {
+      setMessage({ type: 'error', text: 'يرجى كتابة سبب الطعن' });
+      return;
+    }
+    if (appealType === 'رغبة_غير_ملبّاة' && !appealWishOrder) {
+      setMessage({ type: 'error', text: 'يرجى اختيار الرغبة' });
+      return;
+    }
+    if (appealType === 'خطأ_في_الإسناد' && !appealAssignmentId) {
+      setMessage({ type: 'error', text: 'يرجى اختيار المقياس المُسنَد بالخطأ' });
+      return;
+    }
+    setSendingAppeal(true);
+    const toInsert: any = {
+      professor_id: prof.id,
+      academic_year: ACADEMIC_YEAR,
+      semester: SEMESTER,
+      appeal_type: appealType,
+      reason: appealReason,
+    };
+    if (appealType === 'رغبة_غير_ملبّاة') {
+      toInsert.wish_order = Number(appealWishOrder);
+      toInsert.module_id = unassigned.find(u => u.wish_order === Number(appealWishOrder)) ? undefined : undefined;
+    } else {
+      toInsert.assignment_id = appealAssignmentId;
+    }
+    const { error } = await supabase.from('assignment_appeals').insert(toInsert);
+    if (error) {
+      setMessage({ type: 'error', text: 'خطأ في إرسال الطعن' });
+    } else {
+      setMessage({ type: 'success', text: '✓ تم إرسال طعنك — ستُعلَم بالرد' });
+      setAppealReason('');
+      setAppealWishOrder('');
+      setShowAppealForm(false);
+      await loadData();
+    }
+    setSendingAppeal(false);
+  }
+
   function sortedSlots() {
     const profSpec = (prof as any).degree_speciality || '';
     const profRank = (s: FreeSlot) => {
@@ -423,6 +494,101 @@ export default function AssignmentResults({ prof }: Props) {
           )}
         </div>
       )}
+
+      {/* قسم الطعون */}
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-bold text-red-800">تقديم طعن</h4>
+            <p className="text-red-600 text-sm mt-0.5">في حال عدم الرضا عن نتائج الإسناد</p>
+          </div>
+          <button onClick={() => setShowAppealForm(!showAppealForm)}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors">
+            {showAppealForm ? 'إخفاء' : 'تقديم طعن'}
+          </button>
+        </div>
+
+        {/* الطعون المرسلة مسبقاً */}
+        {appeals.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-red-700">طعونك المرسلة:</p>
+            {appeals.map(a => (
+              <div key={a.id} className="bg-white rounded-xl p-3 border border-red-100 text-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-medium text-gray-700">
+                    {a.appeal_type === 'رغبة_غير_ملبّاة' ? `رغبة ${a.wish_order} غير ملبّاة` : 'خطأ في الإسناد'}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    a.status === 'معلّق' ? 'bg-amber-100 text-amber-700' :
+                    a.status === 'مقبول' ? 'bg-green-100 text-green-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>{a.status}</span>
+                </div>
+                <p className="text-gray-500 text-xs">{a.reason}</p>
+                {a.admin_reply && (
+                  <p className="text-[#1a3a6b] text-xs mt-1 bg-blue-50 rounded-lg p-2">
+                    <strong>رد الإدارة:</strong> {a.admin_reply}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* نموذج الطعن */}
+        {showAppealForm && (
+          <div className="bg-white rounded-xl p-4 border border-red-200 space-y-3">
+            {/* نوع الطعن */}
+            <div className="flex gap-2">
+              {(['رغبة_غير_ملبّاة', 'خطأ_في_الإسناد'] as const).map(t => (
+                <button key={t} onClick={() => setAppealType(t)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
+                    appealType === t ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-500 border-gray-200'
+                  }`}>
+                  {t === 'رغبة_غير_ملبّاة' ? 'رغبة لم تُلبَّ' : 'خطأ في الإسناد'}
+                </button>
+              ))}
+            </div>
+
+            {/* اختيار الرغبة غير الملبّاة */}
+            {appealType === 'رغبة_غير_ملبّاة' && (
+              <select value={appealWishOrder} onChange={e => setAppealWishOrder(Number(e.target.value))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400">
+                <option value="">اختر الرغبة...</option>
+                {unassigned.map(u => (
+                  <option key={u.wish_order} value={u.wish_order}>
+                    الرغبة {u.wish_order} — {u.level_name} — {u.module_name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* اختيار المقياس المُسنَد بالخطأ */}
+            {appealType === 'خطأ_في_الإسناد' && (
+              <select value={appealAssignmentId} onChange={e => setAppealAssignmentId(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400">
+                <option value="">اختر المقياس...</option>
+                {assigned.map((a, i) => (
+                  <option key={i} value={a.module_id}>
+                    الرغبة {a.wish_order} — {a.level_name} — {a.module_name} ({a.teaching_type})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* سبب الطعن */}
+            <textarea value={appealReason} onChange={e => setAppealReason(e.target.value)}
+              placeholder="اشرح سبب طعنك بالتفصيل..."
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 resize-none" />
+
+            <button onClick={sendAppeal} disabled={sendingAppeal}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+              {sendingAppeal ? 'جارٍ الإرسال...' : 'إرسال الطعن'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
