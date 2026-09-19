@@ -103,11 +103,11 @@ export default function AssignmentResults({ prof }: Props) {
     }
 
     // الـ slots الفارغة المتاحة
-    const { data: allSlots } = await supabase
-      .from('modules')
-      .select('id, name_ar, level_id, has_lectures, has_td, weekly_sessions, level:levels(name_ar)')
-      .eq('semester', SEMESTER)
-      .eq('is_active', true);
+    const [{ data: allSlots }, { data: levelSemesters }] = await Promise.all([
+      supabase.from('modules').select('id, name_ar, level_id, has_lectures, has_td, weekly_sessions, level:levels(name_ar)').eq('semester', SEMESTER).eq('is_active', true),
+      supabase.from('level_semesters').select('level_id, num_sections, num_groups').eq('semester', SEMESTER),
+    ]);
+    const lsMap = new Map((levelSemesters || []).map((ls: any) => [ls.level_id, ls]));
 
     const { data: filledAssignments } = await supabase
       .from('assignments')
@@ -117,9 +117,18 @@ export default function AssignmentResults({ prof }: Props) {
       .in('status', ['نهائي', 'مؤقت']);
 
     if (allSlots && filledAssignments) {
+      // المحاضرات الشاغرة (مجموعة واحدة على الأقل بدون أستاذ)
       const filledLec = new Set(filledAssignments.filter((a: any) => a.teaching_type === 'محاضرة').map((a: any) => a.module_id));
+
+      // الأعمال الموجهة — نحسب عدد الأفواج الممتلئة لكل مقياس
+      const tdFilled = new Map<string, number>();
+      filledAssignments.filter((a: any) => a.teaching_type === 'أعمال موجهة').forEach((a: any) => {
+        tdFilled.set(a.module_id, (tdFilled.get(a.module_id) || 0) + 1);
+      });
+
       const slots: FreeSlot[] = [];
       allSlots.forEach((m: any) => {
+        // محاضرة شاغرة
         if (m.has_lectures && !filledLec.has(m.id)) {
           slots.push({
             module_id: m.id, module_name: m.name_ar,
@@ -128,6 +137,25 @@ export default function AssignmentResults({ prof }: Props) {
             weekly_hours: 2.25 * (m.weekly_sessions || 1),
             weekly_sessions: m.weekly_sessions || 1,
           });
+        }
+        // TD فيه فوج شاغر واحد على الأقل
+        if (m.has_td) {
+          // نجلب عدد الأفواج من level_semesters لاحقاً — نستخدم تقديراً بسيطاً
+          const filledCount = tdFilled.get(m.id) || 0;
+          const ls = lsMap.get(m.level_id);
+          const totalGroups = ls ? ls.num_sections * ls.num_groups : 8;
+          if (filledCount < totalGroups) {
+            // تحقق بسيط: إن لم تكن كل الأفواج ممتلئة
+            if (true) {
+              slots.push({
+                module_id: m.id, module_name: m.name_ar,
+                level_name: m.level?.name_ar || '—', level_id: m.level_id,
+                teaching_type: 'أعمال موجهة',
+                weekly_hours: 1.5,
+                weekly_sessions: 1,
+              });
+            }
+          }
         }
       });
       setFreeSlots(slots);
@@ -343,7 +371,7 @@ export default function AssignmentResults({ prof }: Props) {
                   <p className="text-center text-gray-400 py-6 text-sm">لا توجد مقاييس شاغرة حالياً</p>
                 ) : (
                   <div className="divide-y divide-gray-50">
-                    {freeSlots.map((slot, i) => {
+                    {sortedSlots().map((slot, i) => {
                       const isSelected = selectedSlots.some(s => s.module_id === slot.module_id);
                       const alreadyRequested = existingRequests.includes(slot.module_id);
                       const priority = (() => {
