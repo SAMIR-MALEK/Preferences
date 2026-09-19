@@ -46,6 +46,8 @@ export default function AssignmentResults({ prof }: Props) {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showFreeSlots, setShowFreeSlots] = useState(false);
+  const [slotSearch, setSlotSearch] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
   const [existingRequests, setExistingRequests] = useState<string[]>([]);
 
   const totalHours = assigned.reduce((s, a) => s + a.weekly_hours, 0);
@@ -80,7 +82,7 @@ export default function AssignmentResults({ prof }: Props) {
     // الرغبات غير الملبّاة
     const { data: wishes } = await supabase
       .from('wishes')
-      .select('wish_order, module_id, teaching_type, module:modules(name_ar, level:levels(name_ar))')
+      .select('wish_order, teaching_type, module:modules(name_ar, level:levels(name_ar))')
       .eq('professor_id', prof.id)
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', SEMESTER)
@@ -90,7 +92,7 @@ export default function AssignmentResults({ prof }: Props) {
       // مقارنة بـ module_id + teaching_type معاً لتجنب التناقض
       const assignedKeys = new Set(assignments.map((a: any) => a.module_id + '__' + a.teaching_type));
       setUnassigned(wishes
-        .filter((w: any) => !assignedKeys.has((w.module_id || '') + '__' + w.teaching_type))
+        .filter((w: any) => !assignedKeys.has((w.module?.id || '') + '__' + w.teaching_type))
         .map((w: any) => ({
           wish_order: w.wish_order,
           module_name: w.module?.name_ar || '—',
@@ -158,6 +160,32 @@ export default function AssignmentResults({ prof }: Props) {
     setMessage(null);
   }
 
+  // ترتيب ذكي حسب تخصص الأستاذ
+  function sortedSlots() {
+    const profSpec = (prof as any).degree_speciality || '';
+    const profRank = (s: FreeSlot) => {
+      const n = s.module_name + ' ' + s.level_name;
+      // نفس الكلمات المفتاحية من تخصص الأستاذ
+      const specWords = profSpec.split(' ').filter((w: string) => w.length > 3);
+      const matchCount = specWords.filter((w: string) => n.includes(w)).length;
+      if (matchCount > 0) return 0; // أعلى أولوية
+      // نفس المستوى العام (ليسانس/ماستر)
+      const profLevel = profSpec.includes('جنائي') ? 'جنائي' :
+        profSpec.includes('أعمال') ? 'أعمال' :
+        profSpec.includes('عقاري') ? 'عقاري' :
+        profSpec.includes('صحة') ? 'صحة' : '';
+      if (profLevel && n.includes(profLevel)) return 1;
+      return 2; // باقي المقاييس
+    };
+
+    let filtered = freeSlots;
+    if (slotSearch) filtered = filtered.filter(s =>
+      s.module_name.includes(slotSearch) || s.level_name.includes(slotSearch)
+    );
+    if (levelFilter) filtered = filtered.filter(s => s.level_name.includes(levelFilter));
+    return [...filtered].sort((a, b) => profRank(a) - profRank(b));
+  }
+
   async function sendRequests() {
     if (selectedSlots.length === 0) return;
     setSending(true);
@@ -200,7 +228,7 @@ export default function AssignmentResults({ prof }: Props) {
   return (
     <div className="space-y-5" dir="rtl">
       <div>
-        <h3 className="font-display font-bold text-gray-900 text-lg">نتائج الإسناد الأولية — السداسي الأول</h3>
+        <h3 className="font-display font-bold text-gray-900 text-lg">النتائج الأولية — إسناد مقاييس السداسي الأول</h3>
         <p className="text-gray-500 text-sm mt-0.5">هذه نتائج أولية مؤقتة قابلة للتعديل</p>
       </div>
 
@@ -271,7 +299,7 @@ export default function AssignmentResults({ prof }: Props) {
                   <span className="text-gray-600">{w.level_name} — {w.module_name}</span>
                 </div>
                 <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full">
-                  هذا المقياس مُسنَد — طلبه أستاذ آخر برغبة أعلى أولوية
+                  تنافس عليها أكثر من أستاذ بنفس الأولوية
                 </span>
               </div>
             ))}
@@ -306,6 +334,12 @@ export default function AssignmentResults({ prof }: Props) {
                     {freeSlots.map((slot, i) => {
                       const isSelected = selectedSlots.some(s => s.module_id === slot.module_id);
                       const alreadyRequested = existingRequests.includes(slot.module_id);
+                      const priority = (() => {
+                        const profSpec = (prof as any).degree_speciality || '';
+                        const specWords = profSpec.split(' ').filter((w: string) => w.length > 3);
+                        const n = slot.module_name + ' ' + slot.level_name;
+                        return specWords.some((w: string) => n.includes(w)) ? 'high' : 'normal';
+                      })();
                       return (
                         <button key={i} onClick={() => !alreadyRequested && toggleSlot(slot)} disabled={alreadyRequested}
                           className={`w-full px-4 py-3 flex items-center justify-between text-right transition-all ${
@@ -319,6 +353,7 @@ export default function AssignmentResults({ prof }: Props) {
                               {isSelected && <X className="w-2.5 h-2.5 text-white" />}
                             </div>
                             <span className="text-sm text-gray-700">{slot.level_name} — {slot.module_name}</span>
+                            {priority === 'high' && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">مقترح</span>}
                             {alreadyRequested && <span className="text-xs text-gray-400">(طُلب مسبقاً)</span>}
                           </div>
                           <div className="flex items-center gap-2 text-xs">
