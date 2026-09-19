@@ -631,7 +631,7 @@ interface AssignmentRequest {
 
       {/* ═══ TAB: الأساتذة ═══ */}
       {tab === 'profs' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
@@ -769,7 +769,7 @@ interface AssignmentRequest {
           </div>
 
           {/* طلبات الاستكمال */}
-          {requestsTab === 'requests' && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {requestsTab === 'requests' && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
           {requestsLoading ? (
             <div className="flex justify-center py-10">
               <div className="w-6 h-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full animate-spin" />
@@ -827,7 +827,7 @@ interface AssignmentRequest {
 
           {/* الطعون */}
           {requestsTab === 'appeals' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
               {appeals.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">لا توجد طعون واردة</div>
               ) : (
@@ -900,7 +900,7 @@ interface AssignmentRequest {
           {levelGroups.map(lvl => {
             const isExp = expandedLevel === lvl.name;
             return (
-              <div key={lvl.name} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div key={lvl.name} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
                 <button onClick={() => setExpandedLevel(isExp ? null : lvl.name)}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-right">
                   <div className="flex items-center gap-3">
@@ -973,7 +973,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
+                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
@@ -1019,7 +1019,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
+                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
