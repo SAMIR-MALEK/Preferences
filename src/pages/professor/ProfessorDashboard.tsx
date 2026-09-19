@@ -33,12 +33,24 @@ export default function ProfessorDashboard() {
 
   // Reload prof data after changes
   const [profData, setProfData] = useState(prof);
+  const [hasResults, setHasResults] = useState(false);
   useEffect(() => { setProfData(prof); }, [prof]);
 
   const profileComplete = isProfileComplete(profData);
   const [tab, setTab] = useState<ProfTab>(profileComplete ? 'home' : 'profile');
 
   // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
+  useEffect(() => {
+    // فحص وجود نتائج إسناد أولية
+    supabase.from('assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('professor_id', prof.id)
+      .eq('academic_year', '2026-2027')
+      .eq('semester', 1)
+      .eq('status', 'نهائي')
+      .then(({ count }) => setHasResults((count || 0) > 0));
+  }, [prof.id]);
+
   useEffect(() => {
     if (!profileComplete && tab !== 'profile') {
       setTab('profile');
@@ -60,7 +72,7 @@ export default function ProfessorDashboard() {
     { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock, disabled: !profileComplete },
     { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete },
     { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
-    { id: 'results' as ProfTab, label: 'نتائجي', icon: Award, disabled: !profileComplete },
+    { id: 'results' as ProfTab, label: 'الإسناد الأولي', icon: Award, disabled: !profileComplete },
   ];
 
   return (
@@ -125,6 +137,20 @@ export default function ProfessorDashboard() {
 
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-5">
+        {tab === 'home' && hasResults && (
+          <div
+            onClick={() => setTab('results')}
+            className="cursor-pointer bg-gradient-to-l from-[#1a3a6b] to-[#0d2040] text-white rounded-2xl p-5 flex items-center gap-4 shadow-lg hover:shadow-xl transition-all mb-2 animate-fade-in">
+            <div className="w-12 h-12 bg-[#c9a227] rounded-xl flex items-center justify-center flex-shrink-0">
+              <Award className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-lg">صدرت نتائج الإسناد الأولية للسداسي الأول</p>
+              <p className="text-white/70 text-sm mt-0.5">اضغط هنا للاطلاع على المقاييس المُسنَدة إليك</p>
+            </div>
+            <div className="text-white/50 text-2xl">←</div>
+          </div>
+        )}
         {tab === 'home' && (
           <ProfHome
             prof={profData}

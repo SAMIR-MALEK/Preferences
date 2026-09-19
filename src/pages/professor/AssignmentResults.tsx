@@ -80,7 +80,7 @@ export default function AssignmentResults({ prof }: Props) {
     // الرغبات غير الملبّاة
     const { data: wishes } = await supabase
       .from('wishes')
-      .select('wish_order, teaching_type, module:modules(name_ar, level:levels(name_ar))')
+      .select('wish_order, module_id, teaching_type, module:modules(name_ar, level:levels(name_ar))')
       .eq('professor_id', prof.id)
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', SEMESTER)
@@ -90,7 +90,7 @@ export default function AssignmentResults({ prof }: Props) {
       // مقارنة بـ module_id + teaching_type معاً لتجنب التناقض
       const assignedKeys = new Set(assignments.map((a: any) => a.module_id + '__' + a.teaching_type));
       setUnassigned(wishes
-        .filter((w: any) => !assignedKeys.has((w.module?.id || '') + '__' + w.teaching_type))
+        .filter((w: any) => !assignedKeys.has((w.module_id || '') + '__' + w.teaching_type))
         .map((w: any) => ({
           wish_order: w.wish_order,
           module_name: w.module?.name_ar || '—',
@@ -200,7 +200,7 @@ export default function AssignmentResults({ prof }: Props) {
   return (
     <div className="space-y-5" dir="rtl">
       <div>
-        <h3 className="font-display font-bold text-gray-900 text-lg">النتائج الأولية — إسناد مقاييس السداسي الأول</h3>
+        <h3 className="font-display font-bold text-gray-900 text-lg">نتائج الإسناد الأولية — السداسي الأول</h3>
         <p className="text-gray-500 text-sm mt-0.5">هذه نتائج أولية مؤقتة قابلة للتعديل</p>
       </div>
 
