@@ -941,7 +941,7 @@ interface AssignmentRequest {
                         : [];
 
                       return (
-                        <div key={mod.id} className="border border-gray-100 rounded-xl p-3 space-y-3">
+                        <div key={mod.id} className="border border-gray-100 rounded-xl p-3 space-y-3" style={{overflow:"visible"}}>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-800 text-sm">{mod.name_ar}</span>
                             {mod.weekly_sessions > 1 && (
@@ -973,7 +973,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:100}}>
+                                      <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
@@ -1019,7 +1019,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute top-full mt-1 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:100}}>
+                                      <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
