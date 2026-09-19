@@ -42,6 +42,7 @@ export default function ProfessorDashboard() {
   // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
   useEffect(() => {
     // فحص وجود نتائج إسناد أولية
+    if (!prof?.id) return;
     supabase.from('assignments')
       .select('id', { count: 'exact', head: true })
       .eq('professor_id', prof.id)
@@ -49,7 +50,7 @@ export default function ProfessorDashboard() {
       .eq('semester', 1)
       .eq('status', 'نهائي')
       .then(({ count }) => setHasResults((count || 0) > 0));
-  }, [prof.id]);
+  }, [prof?.id]);
 
   useEffect(() => {
     if (!profileComplete && tab !== 'profile') {
