@@ -93,6 +93,8 @@ interface Appeal {
   professor_name: string;
   appeal_type: string;
   wish_order?: number;
+  wish_orders?: number[];
+  assignment_ids?: string[];
   module_name?: string;
   reason: string;
   status: string;
@@ -481,7 +483,7 @@ interface AssignmentRequest {
   async function loadAppeals() {
     const { data } = await supabase
       .from('assignment_appeals')
-      .select('id, appeal_type, wish_order, reason, status, admin_reply, created_at, professor:professors(last_name, first_name), module:modules(name_ar)')
+      .select('id, appeal_type, wish_order, wish_orders, assignment_ids, reason, status, admin_reply, created_at, professor:professors(last_name, first_name), module:modules(name_ar)')
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', 1)
       .order('created_at', { ascending: false });
@@ -491,6 +493,8 @@ interface AssignmentRequest {
         professor_name: a.professor ? a.professor.last_name + ' ' + a.professor.first_name : '—',
         appeal_type: a.appeal_type,
         wish_order: a.wish_order,
+        wish_orders: a.wish_orders,
+        assignment_ids: a.assignment_ids,
         module_name: a.module?.name_ar,
         reason: a.reason,
         status: a.status,
@@ -834,7 +838,11 @@ interface AssignmentRequest {
                         <div>
                           <span className="font-bold text-gray-800">{a.professor_name}</span>
                           <span className="text-xs text-gray-500 mr-2">
-                            {a.appeal_type === 'رغبة_غير_ملبّاة' ? `رغبة ${a.wish_order} غير ملبّاة` : 'خطأ في الإسناد'}
+{a.appeal_type === 'رغبة_غير_ملبّاة'
+                              ? (a.wish_orders && a.wish_orders.length > 0
+                                ? `رغبات غير ملبّاة: ${a.wish_orders.join('، ')}`
+                                : a.wish_order ? `رغبة ${a.wish_order} غير ملبّاة` : 'رغبة غير ملبّاة')
+                              : 'خطأ في الإسناد'}
                           </span>
                         </div>
                         <span className={`text-xs px-2 py-1 rounded-full ${
