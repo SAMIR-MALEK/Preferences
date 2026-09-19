@@ -395,7 +395,7 @@ export default function AssignmentResults({ prof }: Props) {
                   <span className="text-gray-600">{w.level_name} — {w.module_name}</span>
                 </div>
                 <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full">
-                  تنافس عليها أكثر من أستاذ بنفس الأولوية
+                  لم يتم تلبية الرغبة
                 </span>
               </div>
             ))}
