@@ -87,9 +87,10 @@ export default function AssignmentResults({ prof }: Props) {
       .order('wish_order');
 
     if (wishes && assignments) {
-      const assignedModuleIds = new Set(assignments.map((a: any) => a.module_id));
+      // مقارنة بـ module_id + teaching_type معاً لتجنب التناقض
+      const assignedKeys = new Set(assignments.map((a: any) => a.module_id + '__' + a.teaching_type));
       setUnassigned(wishes
-        .filter((w: any) => !assignedModuleIds.has(w.module?.id))
+        .filter((w: any) => !assignedKeys.has((w.module?.id || '') + '__' + w.teaching_type))
         .map((w: any) => ({
           wish_order: w.wish_order,
           module_name: w.module?.name_ar || '—',
