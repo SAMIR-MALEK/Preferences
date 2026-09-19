@@ -65,9 +65,8 @@ export default function AssignmentResults({ prof }: Props) {
   const [showAppealForm, setShowAppealForm] = useState(false);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [appealType, setAppealType] = useState<'رغبة_غير_ملبّاة' | 'خطأ_في_الإسناد'>('رغبة_غير_ملبّاة');
-  const [appealWishOrder, setAppealWishOrder] = useState<number | ''>('');
-  const [appealModuleId, setAppealModuleId] = useState('');
-  const [appealAssignmentId, setAppealAssignmentId] = useState('');
+  const [appealSelectedWishes, setAppealSelectedWishes] = useState<number[]>([]);
+  const [appealSelectedAssignments, setAppealSelectedAssignments] = useState<string[]>([]);
   const [appealReason, setAppealReason] = useState('');
   const [sendingAppeal, setSendingAppeal] = useState(false);
 
@@ -225,12 +224,12 @@ export default function AssignmentResults({ prof }: Props) {
       setMessage({ type: 'error', text: 'يرجى كتابة سبب الطعن' });
       return;
     }
-    if (appealType === 'رغبة_غير_ملبّاة' && !appealWishOrder) {
-      setMessage({ type: 'error', text: 'يرجى اختيار الرغبة' });
+    if (appealType === 'رغبة_غير_ملبّاة' && appealSelectedWishes.length === 0) {
+      setMessage({ type: 'error', text: 'يرجى اختيار رغبة واحدة على الأقل' });
       return;
     }
-    if (appealType === 'خطأ_في_الإسناد' && !appealAssignmentId) {
-      setMessage({ type: 'error', text: 'يرجى اختيار المقياس المُسنَد بالخطأ' });
+    if (appealType === 'خطأ_في_الإسناد' && appealSelectedAssignments.length === 0) {
+      setMessage({ type: 'error', text: 'يرجى اختيار مقياس واحد على الأقل' });
       return;
     }
     setSendingAppeal(true);
@@ -240,20 +239,18 @@ export default function AssignmentResults({ prof }: Props) {
       semester: SEMESTER,
       appeal_type: appealType,
       reason: appealReason,
+      // نخزن الاختيارات كـ JSON في حقل الشرح مع الأسباب
+      wish_orders: appealType === 'رغبة_غير_ملبّاة' ? appealSelectedWishes : null,
+      assignment_ids: appealType === 'خطأ_في_الإسناد' ? appealSelectedAssignments : null,
     };
-    if (appealType === 'رغبة_غير_ملبّاة') {
-      toInsert.wish_order = Number(appealWishOrder);
-      toInsert.module_id = unassigned.find(u => u.wish_order === Number(appealWishOrder)) ? undefined : undefined;
-    } else {
-      toInsert.assignment_id = appealAssignmentId;
-    }
     const { error } = await supabase.from('assignment_appeals').insert(toInsert);
     if (error) {
       setMessage({ type: 'error', text: 'خطأ في إرسال الطعن' });
     } else {
       setMessage({ type: 'success', text: '✓ تم إرسال طعنك — ستُعلَم بالرد' });
       setAppealReason('');
-      setAppealWishOrder('');
+      setAppealSelectedWishes([]);
+      setAppealSelectedAssignments([]);
       setShowAppealForm(false);
       await loadData();
     }
@@ -550,30 +547,52 @@ export default function AssignmentResults({ prof }: Props) {
               ))}
             </div>
 
-            {/* اختيار الرغبة غير الملبّاة */}
+            {/* اختيار الرغبات غير الملبّاة */}
             {appealType === 'رغبة_غير_ملبّاة' && (
-              <select value={appealWishOrder} onChange={e => setAppealWishOrder(Number(e.target.value))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400">
-                <option value="">اختر الرغبة...</option>
-                {unassigned.map(u => (
-                  <option key={u.wish_order} value={u.wish_order}>
-                    الرغبة {u.wish_order} — {u.level_name} — {u.module_name}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">اختر الرغبة/الرغبات التي تطعن فيها:</p>
+                <div className="border border-gray-200 rounded-xl divide-y divide-gray-50">
+                  {unassigned.map(u => (
+                    <label key={u.wish_order} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50">
+                      <input type="checkbox"
+                        checked={appealSelectedWishes.includes(u.wish_order)}
+                        onChange={e => {
+                          if (e.target.checked) setAppealSelectedWishes(prev => [...prev, u.wish_order]);
+                          else setAppealSelectedWishes(prev => prev.filter(w => w !== u.wish_order));
+                        }}
+                        className="w-4 h-4 accent-red-600" />
+                      <span className="text-sm text-gray-700">
+                        <span className="text-red-600 font-bold ml-1">الرغبة {u.wish_order}</span>
+                        {u.level_name} — {u.module_name} ({u.teaching_type})
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             )}
 
-            {/* اختيار المقياس المُسنَد بالخطأ */}
+            {/* اختيار المقاييس المُسنَدة بالخطأ */}
             {appealType === 'خطأ_في_الإسناد' && (
-              <select value={appealAssignmentId} onChange={e => setAppealAssignmentId(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400">
-                <option value="">اختر المقياس...</option>
-                {assigned.map((a, i) => (
-                  <option key={i} value={a.module_id}>
-                    الرغبة {a.wish_order} — {a.level_name} — {a.module_name} ({a.teaching_type})
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">اختر المقياس/المقاييس التي تطعن في إسنادها:</p>
+                <div className="border border-gray-200 rounded-xl divide-y divide-gray-50">
+                  {assigned.map((a, i) => (
+                    <label key={i} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50">
+                      <input type="checkbox"
+                        checked={appealSelectedAssignments.includes(a.module_id)}
+                        onChange={e => {
+                          if (e.target.checked) setAppealSelectedAssignments(prev => [...prev, a.module_id]);
+                          else setAppealSelectedAssignments(prev => prev.filter(id => id !== a.module_id));
+                        }}
+                        className="w-4 h-4 accent-red-600" />
+                      <span className="text-sm text-gray-700">
+                        <span className="text-[#1a3a6b] font-bold ml-1">الرغبة {a.wish_order}</span>
+                        {a.level_name} — {a.module_name} ({a.teaching_type})
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* سبب الطعن */}
