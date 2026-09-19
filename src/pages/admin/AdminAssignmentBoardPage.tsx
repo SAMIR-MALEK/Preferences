@@ -630,7 +630,6 @@ interface AssignmentRequest {
                               <span className="text-[#c9a227]">
   {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`}{s.wish_order ? ` (ر${s.wish_order})` : ''}
                               </span>
-                              {s.wish_order && <span className="text-gray-400">(ر{s.wish_order})</span>}
                               <button onClick={() => assignProf(`${s.module_id}__${s.teaching_type}__${s.section}__${s.group}`, null)}
                                 className="text-gray-400 hover:text-red-500 transition-colors">
                                 <X className="w-3 h-3" />
