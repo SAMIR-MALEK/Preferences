@@ -78,6 +78,10 @@ export default function AdminAssignmentBoardPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [requests, setRequests] = useState<AssignmentRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
+  const [showAnnounceModal, setShowAnnounceModal] = useState(false);
+  const [selectedProfIds, setSelectedProfIds] = useState<Set<string>>(new Set());
+  const [announcing, setAnnouncing] = useState(false);
+  const [announceSearch, setAnnounceSearch] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const ACADEMIC_YEAR = '2026-2027';
 
@@ -390,6 +394,27 @@ interface AssignmentRequest {
     setSaving(false);
   }
 
+  async function announceToSelected() {
+    if (selectedProfIds.size === 0) return;
+    setAnnouncing(true);
+    const ids = Array.from(selectedProfIds);
+    const { error } = await supabase
+      .from('assignments')
+      .update({ status: 'نهائي' })
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .eq('status', 'مؤقت')
+      .in('professor_id', ids);
+    if (error) {
+      setMessage({ type: 'error', text: 'خطأ في الإعلان: ' + error.message });
+    } else {
+      setMessage({ type: 'success', text: '✓ تم إعلان النتائج لـ ' + ids.length + ' أستاذ' });
+      setSelectedProfIds(new Set());
+      setShowAnnounceModal(false);
+    }
+    setAnnouncing(false);
+  }
+
   async function loadRequests() {
     setRequestsLoading(true);
     const { data } = await supabase
@@ -624,6 +649,54 @@ interface AssignmentRequest {
       )}
 
       {/* ═══ TAB: المقاييس والـ Slots ═══ */}
+      {/* Modal إعلان النتائج */}
+      {showAnnounceModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAnnounceModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-bold text-gray-900 text-lg">إعلان النتائج لأساتذة محددين</h3>
+              <button onClick={() => setShowAnnounceModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <input type="text" placeholder="ابحث عن أستاذ..." value={announceSearch}
+              onChange={e => setAnnounceSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#1a3a6b]" />
+            <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50">
+              {profs.filter(p => p.name.includes(announceSearch)).map(p => {
+                const hasAssignment = slots.some(s => s.professor_id === p.id);
+                if (!hasAssignment) return null;
+                const isSelected = selectedProfIds.has(p.id);
+                return (
+                  <button key={p.id} onClick={() => {
+                    const next = new Set(selectedProfIds);
+                    isSelected ? next.delete(p.id) : next.add(p.id);
+                    setSelectedProfIds(next);
+                  }} className={`w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-gray-50 transition-colors ${isSelected ? 'bg-emerald-50' : ''}`}>
+                    <div className={`w-4 h-4 rounded border-2 flex-shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'}`}>
+                      {isSelected && <CheckCircle className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className="flex-1 text-sm text-gray-800">{p.name}</span>
+                    <span className="text-xs text-gray-400">{profHours(slots, p.id).toFixed(2)}س</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <button onClick={() => setSelectedProfIds(new Set(profs.filter(p => slots.some(s => s.professor_id === p.id)).map(p => p.id)))}
+                  className="text-xs text-[#1a3a6b] hover:underline">تحديد الكل</button>
+                <button onClick={() => setSelectedProfIds(new Set())}
+                  className="text-xs text-gray-400 hover:underline">إلغاء التحديد</button>
+              </div>
+              <button onClick={announceToSelected} disabled={announcing || selectedProfIds.size === 0}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-40 transition-colors">
+                <Megaphone className="w-4 h-4" />
+                {announcing ? 'جارٍ الإعلان...' : 'إعلان لـ ' + selectedProfIds.size + ' أستاذ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {(tab as any) === 'requests' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {requestsLoading ? (
