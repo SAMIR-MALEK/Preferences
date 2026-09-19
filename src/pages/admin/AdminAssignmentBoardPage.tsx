@@ -75,8 +75,23 @@ export default function AdminAssignmentBoardPage() {
   const [profSearch, setProfSearch] = useState('');
   const [sortKey, setSortKey] = useState<'name' | 'rank' | 'hours'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [requests, setRequests] = useState<AssignmentRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const ACADEMIC_YEAR = '2026-2027';
+
+interface AssignmentRequest {
+  id: string;
+  professor_id: string;
+  professor_name: string;
+  module_id: string;
+  module_name: string;
+  level_name: string;
+  teaching_type: string;
+  weekly_hours: number;
+  status: string;
+  created_at: string;
+}
 
   // ── تحميل البيانات الأساسية من Supabase ──
   async function loadBaseData() {
@@ -374,6 +389,54 @@ export default function AdminAssignmentBoardPage() {
     setSaving(false);
   }
 
+  async function loadRequests() {
+    setRequestsLoading(true);
+    const { data } = await supabase
+      .from('assignment_requests')
+      .select('id, professor_id, module_id, teaching_type, weekly_hours, status, created_at, professor:professors(last_name, first_name), module:modules(name_ar, level:levels(name_ar))')
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .order('created_at', { ascending: false });
+    if (data) {
+      setRequests(data.map((r: any) => ({
+        id: r.id,
+        professor_id: r.professor_id,
+        professor_name: r.professor ? r.professor.last_name + ' ' + r.professor.first_name : '—',
+        module_id: r.module_id,
+        module_name: r.module?.name_ar || '—',
+        level_name: r.module?.level?.name_ar || '—',
+        teaching_type: r.teaching_type,
+        weekly_hours: r.weekly_hours,
+        status: r.status,
+        created_at: r.created_at,
+      })));
+    }
+    setRequestsLoading(false);
+  }
+
+  async function handleRequest(id: string, action: 'مقبول' | 'مرفوض', req?: AssignmentRequest) {
+    await supabase.from('assignment_requests').update({ status: action }).eq('id', id);
+    if (action === 'مقبول' && req) {
+      const mod = modules.find(m => m.id === req.module_id);
+      await supabase.from('assignments').insert({
+        professor_id: req.professor_id,
+        module_id: req.module_id,
+        level_id: mod?.level_id,
+        academic_year: ACADEMIC_YEAR,
+        semester: 1,
+        teaching_type: req.teaching_type,
+        section_number: 1,
+        group_number: null,
+        weekly_hours: req.weekly_hours,
+        wish_order_satisfied: 0,
+        status: 'نهائي',
+        conflict_resolved: false,
+        score: null,
+      });
+    }
+    await loadRequests();
+  }
+
   function toggleSort(key: 'name' | 'rank' | 'hours') {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
@@ -477,6 +540,15 @@ export default function AdminAssignmentBoardPage() {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'slots' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500'}`}>
           <BookOpen className="w-4 h-4" /> المقاييس والـ Slots
         </button>
+        <button onClick={() => { setTab('requests' as any); loadRequests(); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${(tab as any) === 'requests' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500'}`}>
+          <Bell className="w-4 h-4" /> الطلبات الواردة
+          {requests.filter(r => r.status === 'معلّق').length > 0 && (
+            <span className="bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+              {requests.filter(r => r.status === 'معلّق').length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ═══ TAB: الأساتذة ═══ */}
@@ -551,6 +623,64 @@ export default function AdminAssignmentBoardPage() {
       )}
 
       {/* ═══ TAB: المقاييس والـ Slots ═══ */}
+      {(tab as any) === 'requests' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {requestsLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="w-6 h-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : requests.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">لا توجد طلبات واردة</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الأستاذ</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">المقياس</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">المستوى</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">نوع التدريس</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الساعات</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الحالة</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {requests.map(r => (
+                  <tr key={r.id} className={r.status !== 'معلّق' ? 'opacity-50' : ''}>
+                    <td className="px-4 py-3 font-medium text-gray-800">{r.professor_name}</td>
+                    <td className="px-4 py-3 text-gray-600">{r.module_name}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{r.level_name}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{r.teaching_type}</td>
+                    <td className="px-4 py-3 font-bold text-[#1a3a6b]">{r.weekly_hours.toFixed(2)}س</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        r.status === 'معلّق' ? 'bg-amber-100 text-amber-700' :
+                        r.status === 'مقبول' ? 'bg-green-100 text-green-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>{r.status}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.status === 'معلّق' && (
+                        <div className="flex gap-2">
+                          <button onClick={() => handleRequest(r.id, 'مقبول', r)}
+                            className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                            <ThumbsUp className="w-3 h-3" /> قبول
+                          </button>
+                          <button onClick={() => handleRequest(r.id, 'مرفوض')}
+                            className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                            <ThumbsDown className="w-3 h-3" /> رفض
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {tab === 'slots' && (
         <div className="space-y-3">
           {levelGroups.map(lvl => {
