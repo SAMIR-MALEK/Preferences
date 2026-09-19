@@ -80,7 +80,6 @@ export default function AdminAssignmentBoardPage() {
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [showAnnounceModal, setShowAnnounceModal] = useState(false);
   const [selectedProfIds, setSelectedProfIds] = useState<Set<string>>(new Set());
-  const [announcing, setAnnouncing] = useState(false);
   const [announceSearch, setAnnounceSearch] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const ACADEMIC_YEAR = '2026-2027';
