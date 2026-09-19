@@ -5,7 +5,8 @@ import { toArabicNum } from '../../lib/utils';
 import * as XLSX from 'xlsx';
 import {
   Upload, Save, CheckCircle, AlertCircle, Users, BookOpen,
-  ChevronDown, ChevronUp, X, Plus, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Megaphone
+  ChevronDown, ChevronUp, X, Plus, RefreshCw,
+  ArrowUpDown, ArrowUp, ArrowDown, Megaphone, Bell, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
