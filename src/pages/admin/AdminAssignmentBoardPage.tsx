@@ -78,11 +78,27 @@ export default function AdminAssignmentBoardPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [requests, setRequests] = useState<AssignmentRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
+  const [appeals, setAppeals] = useState<Appeal[]>([]);
+  const [replyingId, setReplyingId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [requestsTab, setRequestsTab] = useState<'requests' | 'appeals'>('requests');
   const [showAnnounceModal, setShowAnnounceModal] = useState(false);
   const [selectedProfIds, setSelectedProfIds] = useState<Set<string>>(new Set());
   const [announceSearch, setAnnounceSearch] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const ACADEMIC_YEAR = '2026-2027';
+
+interface Appeal {
+  id: string;
+  professor_name: string;
+  appeal_type: string;
+  wish_order?: number;
+  module_name?: string;
+  reason: string;
+  status: string;
+  admin_reply: string;
+  created_at: string;
+}
 
 interface AssignmentRequest {
   id: string;
@@ -462,6 +478,35 @@ interface AssignmentRequest {
     await loadRequests();
   }
 
+  async function loadAppeals() {
+    const { data } = await supabase
+      .from('assignment_appeals')
+      .select('id, appeal_type, wish_order, reason, status, admin_reply, created_at, professor:professors(last_name, first_name), module:modules(name_ar)')
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .order('created_at', { ascending: false });
+    if (data) {
+      setAppeals(data.map((a: any) => ({
+        id: a.id,
+        professor_name: a.professor ? a.professor.last_name + ' ' + a.professor.first_name : '—',
+        appeal_type: a.appeal_type,
+        wish_order: a.wish_order,
+        module_name: a.module?.name_ar,
+        reason: a.reason,
+        status: a.status,
+        admin_reply: a.admin_reply || '',
+        created_at: a.created_at,
+      })));
+    }
+  }
+
+  async function replyToAppeal(id: string, action: 'مقبول' | 'مرفوض') {
+    await supabase.from('assignment_appeals').update({ status: action, admin_reply: replyText }).eq('id', id);
+    setReplyingId(null);
+    setReplyText('');
+    await loadAppeals();
+  }
+
   function toggleSort(key: 'name' | 'rank' | 'hours') {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
@@ -569,12 +614,12 @@ interface AssignmentRequest {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'slots' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500'}`}>
           <BookOpen className="w-4 h-4" /> المقاييس والـ Slots
         </button>
-        <button onClick={() => { setTab('requests' as any); loadRequests(); }}
+        <button onClick={() => { setTab('requests' as any); loadRequests(); loadAppeals(); }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${(tab as any) === 'requests' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500'}`}>
           <Bell className="w-4 h-4" /> الطلبات الواردة
-          {requests.filter(r => r.status === 'معلّق').length > 0 && (
+          {(requests.filter(r => r.status === 'معلّق').length + appeals.filter(a => a.status === 'معلّق').length) > 0 && (
             <span className="bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-              {requests.filter(r => r.status === 'معلّق').length}
+              {requests.filter(r => r.status === 'معلّق').length + appeals.filter(a => a.status === 'معلّق').length}
             </span>
           )}
         </button>
@@ -700,7 +745,27 @@ interface AssignmentRequest {
       )}
 
       {(tab as any) === 'requests' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="space-y-4">
+          {/* تبويبات داخلية */}
+          <div className="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
+            <button onClick={() => setRequestsTab('requests')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${requestsTab === 'requests' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500'}`}>
+              طلبات الاستكمال
+              {requests.filter(r => r.status === 'معلّق').length > 0 && (
+                <span className="mr-1.5 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">{requests.filter(r => r.status === 'معلّق').length}</span>
+              )}
+            </button>
+            <button onClick={() => setRequestsTab('appeals')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${requestsTab === 'appeals' ? 'bg-white text-[#1a3a6b] shadow-sm' : 'text-gray-500'}`}>
+              الطعون
+              {appeals.filter(a => a.status === 'معلّق').length > 0 && (
+                <span className="mr-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{appeals.filter(a => a.status === 'معلّق').length}</span>
+              )}
+            </button>
+          </div>
+
+          {/* طلبات الاستكمال */}
+          {requestsTab === 'requests' && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {requestsLoading ? (
             <div className="flex justify-center py-10">
               <div className="w-6 h-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full animate-spin" />
@@ -753,6 +818,71 @@ interface AssignmentRequest {
                 ))}
               </tbody>
             </table>
+          )}
+          </div>}
+
+          {/* الطعون */}
+          {requestsTab === 'appeals' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {appeals.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">لا توجد طعون واردة</div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {appeals.map(a => (
+                    <div key={a.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="font-bold text-gray-800">{a.professor_name}</span>
+                          <span className="text-xs text-gray-500 mr-2">
+                            {a.appeal_type === 'رغبة_غير_ملبّاة' ? `رغبة ${a.wish_order} غير ملبّاة` : 'خطأ في الإسناد'}
+                          </span>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          a.status === 'معلّق' ? 'bg-amber-100 text-amber-700' :
+                          a.status === 'مقبول' ? 'bg-green-100 text-green-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>{a.status}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 bg-gray-50 rounded-xl p-3">{a.reason}</p>
+                      {a.admin_reply && (
+                        <p className="text-sm text-[#1a3a6b] bg-blue-50 rounded-xl p-3">
+                          <strong>ردك:</strong> {a.admin_reply}
+                        </p>
+                      )}
+                      {a.status === 'معلّق' && (
+                        replyingId === a.id ? (
+                          <div className="space-y-2">
+                            <textarea value={replyText} onChange={e => setReplyText(e.target.value)}
+                              placeholder="اكتب ردك على الطعن..."
+                              rows={2}
+                              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none" />
+                            <div className="flex gap-2">
+                              <button onClick={() => replyToAppeal(a.id, 'مقبول')}
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-xl text-sm font-bold transition-colors">
+                                قبول الطعن
+                              </button>
+                              <button onClick={() => replyToAppeal(a.id, 'مرفوض')}
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-sm font-bold transition-colors">
+                                رفض الطعن
+                              </button>
+                              <button onClick={() => setReplyingId(null)}
+                                className="bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm transition-colors">
+                                إلغاء
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setReplyingId(a.id); setReplyText(''); }}
+                            className="text-sm text-[#1a3a6b] hover:underline">
+                            الرد على الطعن
+                          </button>
+                        )
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
