@@ -271,7 +271,7 @@ export default function AssignmentResults({ prof }: Props) {
                   <span className="text-gray-600">{w.level_name} — {w.module_name}</span>
                 </div>
                 <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full">
-                  أُسنِد هذا المقياس لأستاذ ذي أولوية أعلى
+                  هذا المقياس مُسنَد — طلبه أستاذ آخر برغبة أعلى أولوية
                 </span>
               </div>
             ))}
