@@ -154,7 +154,7 @@ interface AssignmentRequest {
       .select('professor_id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, wish_order_satisfied')
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', 1)
-      .eq('status', 'مؤقت');
+      .in('status', ['مؤقت', 'نهائي']);
 
     if (existing && existing.length > 0) {
       const mMap = new Map(localModules.map((m: ModuleInfo) => [m.id, m]));
