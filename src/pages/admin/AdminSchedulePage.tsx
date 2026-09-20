@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import { ChevronDown, X, Plus, Save, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { X, Save, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 const ACADEMIC_YEAR = '2026-2027';
+const SLOT_NUMBERS = [1, 2, 3, 4, 5];
 
 interface TimeSlot { id: string; day: string; slot_number: number; start_time: string; end_time: string; }
 interface Room { id: string; name: string; type: string; capacity: number; }
@@ -25,8 +26,11 @@ interface ScheduleCell {
   assignment_id: string;
   room_id: string;
   time_slot_id: string;
-  assignment?: Assignment;
-  room?: Room;
+}
+interface ModalState {
+  day: string;
+  slotId: string;
+  slotLabel: string;
 }
 
 export default function AdminSchedulePage() {
@@ -46,17 +50,18 @@ export default function AdminSchedulePage() {
   const [selectedProfessor, setSelectedProfessor] = useState('');
   const [selectedRoom, setSelectedRoom] = useState('');
 
-  // picking
-  const [pickingCell, setPickingCell] = useState<{ day: string; slotId: string } | null>(null);
-  const [pickingAssignment, setPickingAssignment] = useState('');
-  const [pickingRoom, setPickingRoom] = useState('');
+  // Modal
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [modalAssignment, setModalAssignment] = useState('');
+  const [modalRoom, setModalRoom] = useState('');
+  const [modalSearch, setModalSearch] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     setLoading(true);
     const [{ data: ts }, { data: rm }, { data: lv }, { data: asgn }, { data: sched }] = await Promise.all([
-      supabase.from('time_slots').select('*').eq('is_active', true).order('day').order('slot_number'),
+      supabase.from('time_slots').select('*').eq('is_active', true).order('slot_number'),
       supabase.from('rooms').select('*').eq('is_active', true).order('name'),
       supabase.from('levels').select('id, name_ar').order('display_order'),
       supabase.from('assignments')
@@ -85,87 +90,81 @@ export default function AdminSchedulePage() {
     setLoading(false);
   }
 
-  // حذف خلية
+  function getSlotId(day: string, slotNum: number): string | null {
+    return timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum)?.id || null;
+  }
+
+  function getSlotLabel(slotNum: number): string {
+    const slot = timeSlots.find(ts => ts.slot_number === slotNum);
+    if (!slot) return '';
+    return `${slot.start_time.substring(0, 5)} — ${slot.end_time.substring(0, 5)}`;
+  }
+
+  function getCellSchedules(day: string, slotNum: number): ScheduleCell[] {
+    const slotId = getSlotId(day, slotNum);
+    if (!slotId) return [];
+    return schedule.filter(s => s.time_slot_id === slotId);
+  }
+
+  function getFilteredAssignments(): Assignment[] {
+    let list = assignments;
+    if (viewMode === 'group' && selectedLevel) {
+      list = list.filter(a => a.level_id === selectedLevel && a.section_number === selectedSection);
+    } else if (viewMode === 'professor' && selectedProfessor) {
+      list = list.filter(a => a.professor_name === selectedProfessor);
+    }
+    if (modalSearch) {
+      list = list.filter(a =>
+        a.module_name.includes(modalSearch) || a.professor_name.includes(modalSearch)
+      );
+    }
+    return list;
+  }
+
   async function removeCell(scheduleId: string) {
     await supabase.from('schedules').delete().eq('id', scheduleId);
     setSchedule(prev => prev.filter(s => s.id !== scheduleId));
+    setMessage({ type: 'success', text: 'تم حذف الحصة' });
   }
 
-  // إضافة خلية
   async function addCell() {
-    if (!pickingCell || !pickingAssignment || !pickingRoom) return;
-    setSaving(true);
-    const slotObj = timeSlots.find(ts => ts.id === pickingCell.slotId && ts.day === pickingCell.day);
-    if (!slotObj) { setSaving(false); return; }
-
-    // تحقق من التعارض
-    const conflict = schedule.find(s => {
-      const sSlot = timeSlots.find(ts => ts.id === s.time_slot_id);
-      return sSlot?.day === pickingCell.day && s.time_slot_id === pickingCell.slotId && (
-        s.assignment_id === pickingAssignment || s.room_id === pickingRoom
-      );
-    });
-    if (conflict) {
-      setMessage({ type: 'error', text: 'تعارض — هذه القاعة أو الإسناد محجوز في هذا التوقيت' });
-      setSaving(false);
+    if (!modal || !modalAssignment || !modalRoom) {
+      setMessage({ type: 'error', text: 'يرجى اختيار الإسناد والقاعة' });
       return;
     }
-
+    // تحقق من التعارض
+    const conflict = schedule.find(s =>
+      s.time_slot_id === modal.slotId &&
+      (s.assignment_id === modalAssignment || s.room_id === modalRoom)
+    );
+    if (conflict) {
+      setMessage({ type: 'error', text: 'تعارض — هذه القاعة أو الإسناد محجوز في هذا التوقيت' });
+      return;
+    }
+    setSaving(true);
     const { data, error } = await supabase.from('schedules').insert({
-      assignment_id: pickingAssignment,
-      room_id: pickingRoom,
-      time_slot_id: pickingCell.slotId,
+      assignment_id: modalAssignment,
+      room_id: modalRoom,
+      time_slot_id: modal.slotId,
       academic_year: ACADEMIC_YEAR,
       semester: 1,
       status: 'مسودة',
     }).select().single();
 
-    if (error) setMessage({ type: 'error', text: error.message });
-    else {
+    if (error) {
+      setMessage({ type: 'error', text: error.message });
+    } else {
       setSchedule(prev => [...prev, data]);
       setMessage({ type: 'success', text: 'تمت إضافة الحصة' });
+      setModal(null);
+      setModalAssignment('');
+      setModalRoom('');
+      setModalSearch('');
     }
-    setPickingCell(null);
-    setPickingAssignment('');
-    setPickingRoom('');
     setSaving(false);
   }
 
-  // الساعات الفريدة
-  const uniqueSlotNumbers = [1, 2, 3, 4, 5];
-
-  // الأساتذة الفريدون
   const professors = [...new Set(assignments.map(a => a.professor_name))].sort();
-
-  // تصفية الإسنادات حسب العرض
-  function getFilteredAssignments() {
-    if (viewMode === 'group') {
-      return assignments.filter(a => a.level_id === selectedLevel && a.section_number === selectedSection);
-    }
-    if (viewMode === 'professor') return assignments.filter(a => a.professor_name === selectedProfessor);
-    return assignments;
-  }
-
-  // إيجاد الحصة في خلية معينة
-  function getCellSchedule(day: string, slotNum: number) {
-    const slotsForDay = timeSlots.filter(ts => ts.day === day && ts.slot_number === slotNum);
-    const slotIds = slotsForDay.map(ts => ts.id);
-    return schedule.filter(s => slotIds.includes(s.time_slot_id));
-  }
-  
-  function getSlotId(day: string, slotNum: number): string | null {
-    const slot = timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum);
-    return slot?.id || null;
-  }
-
-  function getSlotTime(slotNum: number) {
-    const slot = timeSlots.find(ts => ts.slot_number === slotNum && ts.day === 'السبت');
-    if (!slot) {
-      const anySlot = timeSlots.find(ts => ts.slot_number === slotNum);
-      return anySlot ? `${anySlot.start_time.substring(0, 5)} — ${anySlot.end_time.substring(0, 5)}` : '';
-    }
-    return `${slot.start_time.substring(0, 5)} — ${slot.end_time.substring(0, 5)}`;
-  }
 
   if (loading) return (
     <div className="flex justify-center py-10">
@@ -204,7 +203,7 @@ export default function AdminSchedulePage() {
       </div>
 
       {/* فلاتر */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-3 flex-wrap items-center">
         {viewMode === 'group' && (
           <>
             <select value={selectedLevel} onChange={e => { setSelectedLevel(e.target.value); setSelectedSection(1); }}
@@ -231,103 +230,73 @@ export default function AdminSchedulePage() {
             {professors.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         )}
-        {viewMode === 'room' && (
-          <select value={selectedRoom} onChange={e => setSelectedRoom(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1a3a6b] bg-white min-w-[200px]">
-            <option value="">اختر القاعة...</option>
-            {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-        )}
       </div>
 
-      {/* الجدول الأسبوعي */}
+      {/* الجدول */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
+          <table className="w-full text-xs border-collapse" style={{ minWidth: 800 }}>
             <thead>
               <tr className="bg-[#1a3a6b] text-white">
-                <th className="px-3 py-3 text-right font-semibold min-w-[80px]">اليوم</th>
-                {uniqueSlotNumbers.map(slotNum => (
-                  <th key={slotNum} className="px-2 py-3 text-center font-semibold min-w-[140px] border-r border-white/10">
-                    <div>{toArabicNum(slotNum)}</div>
-                    <div className="text-[10px] text-white/70 font-normal">{getSlotTime(slotNum)}</div>
+                <th className="px-4 py-3 text-right font-semibold w-24 border-l border-white/10">اليوم</th>
+                {SLOT_NUMBERS.map(slotNum => (
+                  <th key={slotNum} className="px-3 py-3 text-center font-semibold border-l border-white/10" style={{ minWidth: 160 }}>
+                    <div className="text-sm">{getSlotLabel(slotNum)}</div>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {DAYS.map((day, di) => (
-                <tr key={day} className={di % 2 === 0 ? 'bg-gray-50/50' : 'bg-white'}>
-                  <td className="px-3 py-2 font-bold text-[#1a3a6b] text-sm border-b border-gray-100 whitespace-nowrap">
+                <tr key={day} className={di % 2 === 0 ? 'bg-gray-50/40' : 'bg-white'}>
+                  <td className="px-4 py-3 font-bold text-[#1a3a6b] text-sm border border-gray-100 whitespace-nowrap align-middle">
                     {day}
                   </td>
-                  {uniqueSlotNumbers.map(slotNum => {
-                    const cellSchedules = getCellSchedule(day, slotNum);
-                    const slotObjId = getSlotId(day, slotNum);
-                    const slotObj = timeSlots.find(ts => ts.id === slotObjId);
-                    const isPicking = pickingCell?.day === day && pickingCell?.slotId === slotObj?.id;
+                  {SLOT_NUMBERS.map(slotNum => {
+                    const slotId = getSlotId(day, slotNum);
+                    const cells = getCellSchedules(day, slotNum);
+                    const slotLabel = getSlotLabel(slotNum);
 
                     return (
-                      <td key={slotNum} className="border border-gray-100 p-1 align-top min-h-[80px]" style={{ minWidth: 140, verticalAlign: 'top' }}>
+                      <td key={slotNum}
+                        onClick={() => {
+                          if (slotId) {
+                            setModal({ day, slotId, slotLabel });
+                            setModalAssignment('');
+                            setModalRoom('');
+                            setModalSearch('');
+                          }
+                        }}
+                        className="border border-gray-100 p-1.5 align-top cursor-pointer hover:bg-blue-50/30 transition-colors"
+                        style={{ minWidth: 160, minHeight: 80 }}>
                         <div className="space-y-1 min-h-[70px]">
-                          {cellSchedules.map(cell => {
+                          {cells.map(cell => {
                             const asgn = assignments.find(a => a.id === cell.assignment_id);
                             const room = rooms.find(r => r.id === cell.room_id);
                             return (
                               <div key={cell.id}
-                                className="bg-[#1a3a6b]/08 border border-[#1a3a6b]/20 rounded-lg p-1.5 relative group">
-                                <button onClick={() => removeCell(cell.id)}
-                                  className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all">
-                                  <X className="w-3 h-3" />
+                                onClick={e => e.stopPropagation()}
+                                className="bg-[#1a3a6b] text-white rounded-lg p-1.5 relative group">
+                                <button
+                                  onClick={e => { e.stopPropagation(); removeCell(cell.id); }}
+                                  className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center transition-all">
+                                  <X className="w-2.5 h-2.5 text-white" />
                                 </button>
-                                <p className="font-bold text-[#1a3a6b] leading-tight">{asgn?.module_name}</p>
-                                <p className="text-gray-500 leading-tight">{asgn?.professor_name}</p>
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <span className={`px-1 rounded text-[9px] ${asgn?.teaching_type === 'محاضرة' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                <p className="font-bold leading-tight text-[11px] ml-4">{asgn?.module_name}</p>
+                                <p className="text-white/80 leading-tight text-[10px]">{asgn?.professor_name}</p>
+                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                  <span className="bg-white/20 px-1 rounded text-[9px]">
                                     {asgn?.teaching_type === 'محاضرة' ? `م${asgn.section_number}` : `ف${asgn?.group_number}`}
                                   </span>
-                                  {room && <span className="text-gray-400 text-[9px]">{room.name}</span>}
+                                  {room && <span className="bg-[#c9a227] text-white px-1 rounded text-[9px]">{room.name}</span>}
                                 </div>
                               </div>
                             );
                           })}
-
-                          {/* زر إضافة */}
-                          {slotObj && (
-                            isPicking ? (
-                              <div className="bg-white border-2 border-[#1a3a6b] rounded-lg p-2 space-y-1.5">
-                                <select value={pickingAssignment} onChange={e => setPickingAssignment(e.target.value)}
-                                  className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none bg-white">
-                                  <option value="">اختر الإسناد...</option>
-                                  {getFilteredAssignments().map(a => (
-                                    <option key={a.id} value={a.id}>
-                                      {a.module_name} — {a.teaching_type === 'محاضرة' ? `م${a.section_number}` : `ف${a.group_number}`} — {a.professor_name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <select value={pickingRoom} onChange={e => setPickingRoom(e.target.value)}
-                                  className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none bg-white">
-                                  <option value="">اختر القاعة...</option>
-                                  {rooms.map(r => <option key={r.id} value={r.id}>{r.name} ({r.capacity})</option>)}
-                                </select>
-                                <div className="flex gap-1">
-                                  <button onClick={addCell} disabled={saving}
-                                    className="flex-1 bg-[#1a3a6b] text-white rounded-lg py-1 text-[10px] font-bold disabled:opacity-50">
-                                    {saving ? '...' : 'إضافة'}
-                                  </button>
-                                  <button onClick={() => setPickingCell(null)}
-                                    className="px-2 bg-gray-100 rounded-lg text-[10px] text-gray-500">
-                                    ✕
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setPickingCell({ day, slotId: slotObj.id })}
-                                className="w-full h-8 border-2 border-dashed border-gray-200 rounded-lg text-gray-300 hover:border-[#1a3a6b] hover:text-[#1a3a6b] transition-all flex items-center justify-center">
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            )
+                          {cells.length === 0 && (
+                            <div className="flex items-center justify-center h-16 text-gray-200 text-lg hover:text-[#1a3a6b]/30 transition-colors">
+                              +
+                            </div>
                           )}
                         </div>
                       </td>
@@ -339,6 +308,76 @@ export default function AdminSchedulePage() {
           </table>
         </div>
       </div>
+
+      {/* Modal إضافة حصة */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4"
+            onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-display font-bold text-gray-900 text-lg">إضافة حصة</h3>
+                <p className="text-gray-500 text-sm">{modal.day} — {modal.slotLabel}</p>
+              </div>
+              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* بحث */}
+            <input type="text" placeholder="ابحث عن مقياس أو أستاذ..." value={modalSearch}
+              onChange={e => setModalSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#1a3a6b]" />
+
+            {/* قائمة الإسنادات */}
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block">الإسناد</label>
+              <div className="border border-gray-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
+                {getFilteredAssignments().length === 0 ? (
+                  <p className="text-center text-gray-400 py-4 text-sm">لا توجد إسنادات متاحة</p>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {getFilteredAssignments().map(a => (
+                      <button key={a.id}
+                        onClick={() => setModalAssignment(a.id)}
+                        className={`w-full text-right px-4 py-3 text-sm transition-all ${modalAssignment === a.id ? 'bg-[#1a3a6b] text-white' : 'hover:bg-gray-50 text-gray-700'}`}>
+                        <div className="font-medium">{a.module_name}</div>
+                        <div className={`text-xs mt-0.5 ${modalAssignment === a.id ? 'text-white/70' : 'text-gray-400'}`}>
+                          {a.professor_name} —
+                          {a.teaching_type === 'محاضرة' ? ` م${a.section_number}` : ` ف${a.group_number}`} —
+                          {a.level_name}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* قائمة القاعات */}
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block">القاعة</label>
+              <div className="flex flex-wrap gap-2">
+                {rooms.map(r => (
+                  <button key={r.id}
+                    onClick={() => setModalRoom(r.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border-2 transition-all ${modalRoom === r.id ? 'bg-[#c9a227] text-white border-[#c9a227]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+                    {r.name}
+                    <span className={`mr-1 text-[10px] ${modalRoom === r.id ? 'text-white/70' : 'text-gray-400'}`}>({r.capacity})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={addCell} disabled={saving || !modalAssignment || !modalRoom}
+              className="w-full flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white py-3 rounded-xl font-bold transition-colors disabled:opacity-40">
+              <Save className="w-4 h-4" />
+              {saving ? 'جارٍ الحفظ...' : 'إضافة الحصة'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
