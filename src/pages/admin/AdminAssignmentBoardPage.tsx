@@ -945,7 +945,7 @@ interface AssignmentRequest {
                 </button>
 
                 {isExp && (
-                  <div className="border-t border-gray-100 p-4 space-y-4">
+                  <div className="border-t border-gray-100 p-4 space-y-4" style={{overflow:"visible"}}>
                     {lvl.modules.map(mod => {
                       // بناء خلايا المحاضرات
                       const lectureCells = mod.has_lectures
@@ -985,7 +985,7 @@ interface AssignmentRequest {
                           {lectureCells.length > 0 && (
                             <div>
                               <p className="text-xs text-gray-400 mb-1.5">محاضرات ({toArabicNum(lectureCells.length)} مجموعة)</p>
-                              <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-2" style={{overflow:"visible"}}>
                                 {lectureCells.map(cell => (
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
@@ -1005,7 +1005,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999}}>
+                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl min-w-[220px]" style={{zIndex:9999}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
@@ -1032,7 +1032,7 @@ interface AssignmentRequest {
                           {tdCells.length > 0 && (
                             <div>
                               <p className="text-xs text-gray-400 mb-1.5">أعمال موجهة ({toArabicNum(tdCells.length)} فوج)</p>
-                              <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-2" style={{overflow:"visible"}}>
                                 {tdCells.map(cell => (
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
@@ -1051,7 +1051,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999}}>
+                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl min-w-[220px]" style={{zIndex:9999}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
