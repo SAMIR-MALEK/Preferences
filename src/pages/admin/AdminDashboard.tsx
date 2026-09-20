@@ -6,7 +6,7 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail
+  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -17,12 +17,14 @@ import AdminSettingsPage      from './AdminSettingsPage';
 import AdminImportPage        from './AdminImportPage';
 import AdminSpecialtiesPage   from './AdminSpecialtiesPage';
 import AdminEmailPage         from './AdminEmailPage';
+import AdminRoomsPage         from './AdminRoomsPage';
+import AdminSchedulePage      from './AdminSchedulePage';
 import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'settings' | 'email';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'settings' | 'email';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -84,7 +86,9 @@ export default function AdminDashboard() {
     { id: 'email',      label: 'إرسال بريد',         icon: Mail       },
     { id: 'assignment', label: 'الإسناد',            icon: Award      },
     { id: 'board',      label: 'لوحة الإسناد',       icon: Layers     },
-    { id: 'settings',   label: 'الإعدادات',          icon: Settings   },
+    { id: 'rooms',      label: 'القاعات',             icon: MapPin     },
+    { id: 'schedule',   label: 'التوقيت',             icon: CalendarDays },
+    { id: 'settings',     label: 'الإعدادات',          icon: Settings   },
   ];
 
   // رئيس القسم لا يرى تبويبي الإسناد والإعدادات وإرسال البريد (حكر على العميد/نائب العميد)
@@ -207,6 +211,8 @@ export default function AdminDashboard() {
         {tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
         {!isDeptHead && tab === 'assignment' && <AdminAssignmentPage />}
         {!isDeptHead && tab === 'board'      && <AdminAssignmentBoardPage />}
+        {!isDeptHead && tab === 'rooms'      && <AdminRoomsPage />}
+        {!isDeptHead && tab === 'schedule'    && <AdminSchedulePage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
