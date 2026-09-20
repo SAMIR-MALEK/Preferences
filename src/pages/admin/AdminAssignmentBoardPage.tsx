@@ -68,7 +68,6 @@ export default function AdminAssignmentBoardPage() {
   const [saving, setSaving] = useState(false);
   const [announcing, setAnnouncing] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
-  const [finalCount, setFinalCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<'profs' | 'slots'>('profs');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -158,15 +157,6 @@ interface AssignmentRequest {
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', 1)
       .in('status', ['مؤقت', 'نهائي']);
-
-    // تحقق من وجود إسنادات نهائية
-    const { count: finalAssignmentsCount } = await supabase
-      .from('assignments')
-      .select('id', { count: 'exact', head: true })
-      .eq('academic_year', ACADEMIC_YEAR)
-      .eq('semester', 1)
-      .eq('status', 'نهائي');
-    setFinalCount(finalAssignmentsCount || 0);
 
     if (existing && existing.length > 0) {
       const mMap = new Map(localModules.map((m: ModuleInfo) => [m.id, m]));
@@ -388,7 +378,7 @@ interface AssignmentRequest {
     await supabase.from('assignments').delete()
       .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مؤقت');
 
-    // 2. اجلب الإسنادات النهائية الموجودة لتجنب التكرار
+    // 2. اجلب النهائي لتجنب التكرار
     const { data: existingFinal } = await supabase
       .from('assignments')
       .select('professor_id, module_id, teaching_type, section_number, group_number')
@@ -420,9 +410,8 @@ interface AssignmentRequest {
         score: null,
       }));
 
-    console.log('Inserting:', toInsert.length, 'slots');
     if (toInsert.length === 0) {
-      setMessage({ type: 'error', text: 'لا توجد إسنادات للحفظ' });
+      setMessage({ type: 'success', text: 'لا توجد إسنادات جديدة للحفظ — كل شيء محفوظ' });
       setSaving(false);
       return;
     }
@@ -453,7 +442,6 @@ interface AssignmentRequest {
       setMessage({ type: 'success', text: '✓ تم إعلان النتائج لـ ' + ids.length + ' أستاذ' });
       setSelectedProfIds(new Set());
       setShowAnnounceModal(false);
-      setFinalCount(prev => prev + ids.length);
     }
     setAnnouncing(false);
   }
@@ -627,12 +615,6 @@ interface AssignmentRequest {
         </div>
       </div>
 
-      {finalCount > 0 && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm bg-amber-50 text-amber-700 border border-amber-200">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>يوجد <strong>{finalCount}</strong> إسناداً نهائياً منشوراً — الحفظ الجديد سيُضيف إسنادات مؤقتة إضافية</span>
-        </div>
-      )}
       {message && (
         <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -663,7 +645,7 @@ interface AssignmentRequest {
 
       {/* ═══ TAB: الأساتذة ═══ */}
       {tab === 'profs' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
@@ -801,7 +783,7 @@ interface AssignmentRequest {
           </div>
 
           {/* طلبات الاستكمال */}
-          {requestsTab === 'requests' && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {requestsTab === 'requests' && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
           {requestsLoading ? (
             <div className="flex justify-center py-10">
               <div className="w-6 h-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full animate-spin" />
@@ -859,7 +841,7 @@ interface AssignmentRequest {
 
           {/* الطعون */}
           {requestsTab === 'appeals' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
               {appeals.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">لا توجد طعون واردة</div>
               ) : (
@@ -932,7 +914,7 @@ interface AssignmentRequest {
           {levelGroups.map(lvl => {
             const isExp = expandedLevel === lvl.name;
             return (
-              <div key={lvl.name} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div key={lvl.name} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
                 <button onClick={() => setExpandedLevel(isExp ? null : lvl.name)}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-right">
                   <div className="flex items-center gap-3">
@@ -945,7 +927,7 @@ interface AssignmentRequest {
                 </button>
 
                 {isExp && (
-                  <div className="border-t border-gray-100 p-4 space-y-4" style={{overflow:"visible"}}>
+                  <div className="border-t border-gray-100 p-4 space-y-4">
                     {lvl.modules.map(mod => {
                       // بناء خلايا المحاضرات
                       const lectureCells = mod.has_lectures
@@ -985,7 +967,7 @@ interface AssignmentRequest {
                           {lectureCells.length > 0 && (
                             <div>
                               <p className="text-xs text-gray-400 mb-1.5">محاضرات ({toArabicNum(lectureCells.length)} مجموعة)</p>
-                              <div className="flex flex-wrap gap-2" style={{overflow:"visible"}}>
+                              <div className="flex flex-wrap gap-2">
                                 {lectureCells.map(cell => (
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
@@ -1005,7 +987,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl min-w-[220px]" style={{zIndex:9999}}>
+                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
@@ -1032,7 +1014,7 @@ interface AssignmentRequest {
                           {tdCells.length > 0 && (
                             <div>
                               <p className="text-xs text-gray-400 mb-1.5">أعمال موجهة ({toArabicNum(tdCells.length)} فوج)</p>
-                              <div className="flex flex-wrap gap-2" style={{overflow:"visible"}}>
+                              <div className="flex flex-wrap gap-2">
                                 {tdCells.map(cell => (
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
@@ -1051,7 +1033,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl min-w-[220px]" style={{zIndex:9999}}>
+                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
