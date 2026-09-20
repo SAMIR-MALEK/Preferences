@@ -56,7 +56,7 @@ export default function AdminSchedulePage() {
   async function loadData() {
     setLoading(true);
     const [{ data: ts }, { data: rm }, { data: lv }, { data: asgn }, { data: sched }] = await Promise.all([
-      supabase.from('time_slots').select('*').eq('is_active', true).order('slot_number'),
+      supabase.from('time_slots').select('*').eq('is_active', true).order('day').order('slot_number'),
       supabase.from('rooms').select('*').eq('is_active', true).order('name'),
       supabase.from('levels').select('id, name_ar').order('display_order'),
       supabase.from('assignments')
@@ -132,7 +132,7 @@ export default function AdminSchedulePage() {
   }
 
   // الساعات الفريدة
-  const uniqueSlotNumbers = [...new Set(timeSlots.map(ts => ts.slot_number))].sort();
+  const uniqueSlotNumbers = [1, 2, 3, 4, 5];
 
   // الأساتذة الفريدون
   const professors = [...new Set(assignments.map(a => a.professor_name))].sort();
@@ -152,10 +152,19 @@ export default function AdminSchedulePage() {
     const slotIds = slotsForDay.map(ts => ts.id);
     return schedule.filter(s => slotIds.includes(s.time_slot_id));
   }
+  
+  function getSlotId(day: string, slotNum: number): string | null {
+    const slot = timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum);
+    return slot?.id || null;
+  }
 
   function getSlotTime(slotNum: number) {
-    const slot = timeSlots.find(ts => ts.slot_number === slotNum);
-    return slot ? `${slot.start_time.substring(0, 5)} — ${slot.end_time.substring(0, 5)}` : '';
+    const slot = timeSlots.find(ts => ts.slot_number === slotNum && ts.day === 'السبت');
+    if (!slot) {
+      const anySlot = timeSlots.find(ts => ts.slot_number === slotNum);
+      return anySlot ? `${anySlot.start_time.substring(0, 5)} — ${anySlot.end_time.substring(0, 5)}` : '';
+    }
+    return `${slot.start_time.substring(0, 5)} — ${slot.end_time.substring(0, 5)}`;
   }
 
   if (loading) return (
@@ -254,7 +263,8 @@ export default function AdminSchedulePage() {
                   </td>
                   {uniqueSlotNumbers.map(slotNum => {
                     const cellSchedules = getCellSchedule(day, slotNum);
-                    const slotObj = timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum);
+                    const slotObjId = getSlotId(day, slotNum);
+                    const slotObj = timeSlots.find(ts => ts.id === slotObjId);
                     const isPicking = pickingCell?.day === day && pickingCell?.slotId === slotObj?.id;
 
                     return (
