@@ -72,6 +72,7 @@ export default function AdminSchedulePage() {
         .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1),
     ]);
 
+    console.log('timeSlots loaded:', ts?.length, ts);
     if (ts) setTimeSlots(ts);
     if (rm) setRooms(rm);
     if (lv) setLevels(lv);
