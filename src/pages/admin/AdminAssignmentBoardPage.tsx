@@ -68,6 +68,7 @@ export default function AdminAssignmentBoardPage() {
   const [saving, setSaving] = useState(false);
   const [announcing, setAnnouncing] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  const [finalCount, setFinalCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<'profs' | 'slots'>('profs');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -157,6 +158,15 @@ interface AssignmentRequest {
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', 1)
       .in('status', ['مؤقت', 'نهائي']);
+
+    // تحقق من وجود إسنادات نهائية
+    const { count: finalAssignmentsCount } = await supabase
+      .from('assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .eq('status', 'نهائي');
+    setFinalCount(finalAssignmentsCount || 0);
 
     if (existing && existing.length > 0) {
       const mMap = new Map(localModules.map((m: ModuleInfo) => [m.id, m]));
@@ -374,11 +384,26 @@ interface AssignmentRequest {
     setSaving(true);
     setMessage(null);
 
+    // 1. احذف المؤقت فقط
     await supabase.from('assignments').delete()
       .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مؤقت');
 
+    // 2. اجلب الإسنادات النهائية الموجودة لتجنب التكرار
+    const { data: existingFinal } = await supabase
+      .from('assignments')
+      .select('professor_id, module_id, teaching_type, section_number, group_number')
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .eq('status', 'نهائي');
+
+    const finalKeys = new Set((existingFinal || []).map((a: any) =>
+      `${a.professor_id}__${a.module_id}__${a.teaching_type}__${a.section_number}__${a.group_number}`
+    ));
+
+    // 3. أضف فقط ما لم يكن نهائياً مسبقاً
     const toInsert = slots
       .filter(s => s.professor_id)
+      .filter(s => !finalKeys.has(`${s.professor_id}__${s.module_id}__${s.teaching_type}__${s.section}__${s.group}`))
       .map(s => ({
         professor_id: s.professor_id,
         module_id: s.module_id,
@@ -428,6 +453,7 @@ interface AssignmentRequest {
       setMessage({ type: 'success', text: '✓ تم إعلان النتائج لـ ' + ids.length + ' أستاذ' });
       setSelectedProfIds(new Set());
       setShowAnnounceModal(false);
+      setFinalCount(prev => prev + ids.length);
     }
     setAnnouncing(false);
   }
@@ -601,6 +627,12 @@ interface AssignmentRequest {
         </div>
       </div>
 
+      {finalCount > 0 && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm bg-amber-50 text-amber-700 border border-amber-200">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>يوجد <strong>{finalCount}</strong> إسناداً نهائياً منشوراً — الحفظ الجديد سيُضيف إسنادات مؤقتة إضافية</span>
+        </div>
+      )}
       {message && (
         <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
