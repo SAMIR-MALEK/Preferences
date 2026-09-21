@@ -1,6 +1,7 @@
 // v18-09-2026
 import { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 import { toArabicNum } from '../../lib/utils';
 import * as XLSX from 'xlsx';
 import {
@@ -61,6 +62,7 @@ function profHours(slots: SlotAssignment[], profId: string): number {
 
 // ═══════════════════════════════════════════════════════
 export default function AdminAssignmentBoardPage() {
+  const { user } = useAuth();
   const [profs, setProfs] = useState<Prof[]>([]);
   const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [slots, setSlots] = useState<SlotAssignment[]>([]);
@@ -99,6 +101,8 @@ interface Appeal {
   reason: string;
   status: string;
   admin_reply: string;
+  replied_by_name?: string;
+  replied_at?: string;
   created_at: string;
 }
 
@@ -497,7 +501,7 @@ interface AssignmentRequest {
   async function loadAppeals() {
     const { data } = await supabase
       .from('assignment_appeals')
-      .select('id, appeal_type, wish_order, wish_orders, assignment_ids, reason, status, admin_reply, created_at, professor:professors(last_name, first_name), module:modules(name_ar)')
+      .select('id, appeal_type, wish_order, wish_orders, assignment_ids, reason, status, admin_reply, replied_at, created_at, professor:professors(last_name, first_name), module:modules(name_ar), replied_by:admins(full_name)')
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', 1)
       .order('created_at', { ascending: false });
@@ -513,13 +517,20 @@ interface AssignmentRequest {
         reason: a.reason,
         status: a.status,
         admin_reply: a.admin_reply || '',
+        replied_by_name: a.replied_by?.full_name,
+        replied_at: a.replied_at,
         created_at: a.created_at,
       })));
     }
   }
 
   async function replyToAppeal(id: string, action: 'مقبول' | 'مرفوض') {
-    await supabase.from('assignment_appeals').update({ status: action, admin_reply: replyText }).eq('id', id);
+    await supabase.from('assignment_appeals').update({
+      status: action,
+      admin_reply: replyText,
+      replied_by: user?.admin?.id,
+      replied_at: new Date().toISOString(),
+    }).eq('id', id);
     setReplyingId(null);
     setReplyText('');
     await loadAppeals();
