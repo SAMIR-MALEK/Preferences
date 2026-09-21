@@ -6,6 +6,7 @@ import { Upload, Plus, Save, Trash2, CheckCircle, AlertCircle, Pencil, X } from 
 
 interface Room {
   id: string;
+  code: string;
   name: string;
   capacity: number;
   floor: number;
@@ -15,7 +16,7 @@ interface Room {
 
 const ROOM_TYPES = ['مدرج', 'قاعة محاضرات', 'قاعة', 'مخبر'];
 
-const emptyRoom = { name: '', capacity: 30, floor: 0, type: 'قاعة', is_active: true };
+const emptyRoom = { code: '', name: '', capacity: 30, floor: 0, type: 'قاعة', is_active: true };
 
 export default function AdminRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -71,10 +72,11 @@ export default function AdminRoomsPage() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
       const toInsert = raw.slice(1).filter(r => r[0]).map(r => ({
-        name: String(r[0] || '').trim(),
-        capacity: Number(r[1]) || 30,
-        floor: Number(r[2]) || 0,
-        type: String(r[3] || 'قاعة').trim(),
+        code: String(r[0] || '').trim(),
+        name: String(r[1] || '').trim(),
+        capacity: Number(r[2]) || 30,
+        floor: Number(r[3]) || 0,
+        type: String(r[4] || 'قاعة').trim(),
         is_active: true,
       }));
       if (toInsert.length === 0) { setMessage({ type: 'error', text: 'لا توجد بيانات في الملف' }); return; }
@@ -121,7 +123,12 @@ export default function AdminRoomsPage() {
       {showAddForm && (
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-3">
           <h3 className="font-semibold text-gray-800">قاعة جديدة</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">الرمز (كود)</label>
+              <input value={addForm.code} onChange={e => setAddForm(f => ({ ...f, code: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1a3a6b]" placeholder="R001" />
+            </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">اسم القاعة</label>
               <input value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
@@ -170,6 +177,7 @@ export default function AdminRoomsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الرمز</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">القاعة</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">النوع</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">الطاقة</th>
@@ -182,6 +190,10 @@ export default function AdminRoomsPage() {
               <tr key={room.id}>
                 {editingId === room.id ? (
                   <>
+                    <td className="px-4 py-2">
+                      <input value={editForm.code} onChange={e => setEditForm(f => ({ ...f, code: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none" placeholder="R001" />
+                    </td>
                     <td className="px-4 py-2">
                       <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                         className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#1a3a6b]" />
@@ -209,6 +221,7 @@ export default function AdminRoomsPage() {
                   </>
                 ) : (
                   <>
+                    <td className="px-4 py-3 text-xs font-mono text-gray-500 bg-gray-50">{room.code}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{room.name}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -222,7 +235,7 @@ export default function AdminRoomsPage() {
                     <td className="px-4 py-3 text-gray-500 text-xs">الطابق {toArabicNum(room.floor)}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button onClick={() => { setEditingId(room.id); setEditForm({ name: room.name, capacity: room.capacity, floor: room.floor, type: room.type, is_active: room.is_active }); }}
+                        <button onClick={() => { setEditingId(room.id); setEditForm({ code: room.code || '', name: room.name, capacity: room.capacity, floor: room.floor, type: room.type, is_active: room.is_active }); }}
                           className="text-gray-400 hover:text-[#1a3a6b] transition-colors"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => deleteRoom(room.id)}
                           className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
@@ -241,7 +254,7 @@ export default function AdminRoomsPage() {
 
       {/* تعليمات Excel */}
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700">
-        <strong>تنسيق ملف Excel:</strong> العمود A = اسم القاعة | B = الطاقة | C = الطابق | D = النوع (مدرج / قاعة محاضرات / قاعة / مخبر)
+        <strong>تنسيق ملف Excel:</strong> العمود A = الرمز (R001) | B = اسم القاعة | C = الطاقة | D = الطابق | E = النوع (مدرج / قاعة محاضرات / قاعة / مخبر)
       </div>
     </div>
   );
