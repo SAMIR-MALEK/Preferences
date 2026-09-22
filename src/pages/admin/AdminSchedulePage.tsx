@@ -215,6 +215,8 @@ export default function AdminSchedulePage() {
   function getCellEntries(day: string, slotNum: number): ScheduleEntry[] {
     const slotId = getSlotId(day, slotNum);
     if (!slotId || !selectedLevel) return [];
+    const allInSlot = schedule.filter(s => s.time_slot_id === slotId);
+    console.log('slot:', day, slotNum, 'slotId:', slotId, 'entries:', allInSlot.length, 'selectedLevel:', selectedLevel, 'selectedSection:', selectedSection);
     return schedule.filter(s => {
       if (s.time_slot_id !== slotId) return false;
       if (!s.assignment_id) return true;
