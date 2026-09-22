@@ -93,7 +93,7 @@ export default function AdminDashboard() {
 
   // رئيس القسم لا يرى تبويبي الإسناد والإعدادات وإرسال البريد (حكر على العميد/نائب العميد)
   const nav = isDeptHead
-    ? allNav.filter(item => item.id !== 'assignment' && item.id !== 'settings' && item.id !== 'email')
+    ? allNav.filter(item => !['assignment', 'settings', 'email'].includes(item.id))
     : allNav;
 
   return (
@@ -210,9 +210,9 @@ export default function AdminDashboard() {
         {tab === 'specialties' && <AdminSpecialtiesPage />}
         {tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
         {!isDeptHead && tab === 'assignment' && <AdminAssignmentPage />}
-        {!isDeptHead && tab === 'board'      && <AdminAssignmentBoardPage />}
-        {!isDeptHead && tab === 'rooms'      && <AdminRoomsPage />}
-        {!isDeptHead && tab === 'schedule'    && <AdminSchedulePage />}
+        {tab === 'board'      && <AdminAssignmentBoardPage />}
+        {tab === 'rooms'      && <AdminRoomsPage />}
+        {tab === 'schedule'   && <AdminSchedulePage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
