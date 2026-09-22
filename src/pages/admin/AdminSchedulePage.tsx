@@ -250,9 +250,9 @@ export default function AdminSchedulePage() {
     const { data, error } = await supabase.from('schedules').insert(insertData).select().single();
     if (error) { setMessage({ type: 'error', text: error.message }); }
     else {
-      setSchedule(prev => [...prev, { ...data, created_by_name: user?.admin?.full_name }]);
       setMessage({ type: 'success', text: 'تمت إضافة الحصة' });
       setModal(null); setModalAssignment(''); setModalRoom('');
+      await loadData();
     }
     setSaving(false);
   }
