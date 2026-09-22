@@ -11,6 +11,7 @@ const SLOT_NUMBERS = [1, 2, 3, 4, 5];
 interface TimeSlot { id: string; day: string; slot_number: number; start_time: string; end_time: string; }
 interface Room { id: string; name: string; code: string; type: string; capacity: number; }
 interface Level { id: string; name_ar: string; }
+interface LevelSemester { level_id: string; num_sections: number; num_groups: number; }
 interface Assignment {
   id: string;
   professor_id: string;
@@ -40,6 +41,7 @@ export default function AdminSchedulePage() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
+  const [levelSemesters, setLevelSemesters] = useState<LevelSemester[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,10 +66,11 @@ export default function AdminSchedulePage() {
 
   async function loadData() {
     setLoading(true);
-    const [{ data: ts }, { data: rm }, { data: lv }, { data: asgn }, { data: sched }] = await Promise.all([
+    const [{ data: ts }, { data: rm }, { data: lv }, { data: ls }, { data: asgn }, { data: sched }] = await Promise.all([
       supabase.from('time_slots').select('*').order('slot_number'),
       supabase.from('rooms').select('*').eq('is_active', true).order('name'),
       supabase.from('levels').select('id, name_ar').order('display_order'),
+      supabase.from('level_semesters').select('level_id, num_sections, num_groups').eq('semester', 1),
       supabase.from('assignments')
         .select('id, section_number, group_number, teaching_type, weekly_hours, professor:professors(id, last_name, first_name), module:modules(name_ar, weekly_sessions), level:levels(id, name_ar)')
         .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).in('status', ['نهائي', 'مؤقت']),
@@ -79,6 +82,7 @@ export default function AdminSchedulePage() {
     if (ts) setTimeSlots(ts);
     if (rm) setRooms(rm);
     if (lv) setLevels(lv);
+    if (ls) setLevelSemesters(ls);
     if (asgn) setAssignments(asgn.map((a: any) => ({
       id: a.id,
       professor_id: a.professor?.id || '',
@@ -100,6 +104,13 @@ export default function AdminSchedulePage() {
     setLoading(false);
   }
 
+  // المجموعة التي ينتمي إليها الفوج
+  function getSectionForGroup(levelId: string, groupNumber: number): number {
+    const ls = levelSemesters.find(l => l.level_id === levelId);
+    if (!ls || ls.num_groups === 0) return 1;
+    return Math.ceil(groupNumber / ls.num_groups);
+  }
+
   function getSlotId(day: string, slotNum: number) {
     return timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum)?.id || null;
   }
@@ -110,12 +121,13 @@ export default function AdminSchedulePage() {
     return `${slot.start_time.substring(0,5)}–${slot.end_time.substring(0,5)}`;
   }
 
-  // الأفواج التابعة لمجموعة معينة في مستوى معين
+  // الأفواج التابعة لمجموعة معينة — من level_semesters
   function getGroupsForSection(levelId: string, section: number): number[] {
-    const groups = assignments
-      .filter(a => a.level_id === levelId && a.section_number === section && a.teaching_type === 'أعمال موجهة' && a.group_number !== null)
-      .map(a => a.group_number as number);
-    return [...new Set(groups)].sort((a, b) => a - b);
+    const ls = levelSemesters.find(l => l.level_id === levelId);
+    if (!ls) return [];
+    const numGroups = ls.num_groups;
+    const startGroup = (section - 1) * numGroups + 1;
+    return Array.from({ length: numGroups }, (_, i) => startGroup + i);
   }
 
   // الإسنادات المجدولة في slot معين
@@ -133,10 +145,12 @@ export default function AdminSchedulePage() {
           profIds.add(a.professor_id);
           if (a.teaching_type === 'محاضرة') {
             groups.add(`${a.level_id}_${a.section_number}_lec`);
-            // كل أفواج المجموعة محجوزة إن كان هناك محاضرة
             groups.add(`${a.level_id}_${a.section_number}_td_all`);
           } else {
+            // الفوج محجوز — والمجموعة الأم محجوزة أيضاً
             groups.add(`${a.level_id}_${a.section_number}_${a.group_number}`);
+            const sec = getSectionForGroup(a.level_id, a.group_number || 0);
+            groups.add(`${a.level_id}_${sec}_td_partial`);
           }
         }
       }
