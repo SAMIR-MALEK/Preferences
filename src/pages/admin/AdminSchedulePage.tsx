@@ -242,7 +242,7 @@ export default function AdminSchedulePage() {
     const insertData: any = {
       room_id: modalRoom, time_slot_id: modal.slotId,
       academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة',
-      created_by: user?.admin?.id,
+      ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
     };
     if (modalTab === 'assigned') insertData.assignment_id = modalAssignment;
     else { insertData.assignment_id = null; insertData.custom_module = customModule; insertData.custom_professor = customProfessor; }
@@ -290,17 +290,21 @@ export default function AdminSchedulePage() {
             <option value="">— اختر المستوى —</option>
             {levels.map(l => <option key={l.id} value={l.id}>{l.name_ar}</option>)}
           </select>
-          {selectedLevel && (
+          {selectedLevel && (() => {
+            const ls = levelSemesters.find(l => l.level_id === selectedLevel);
+            const numSections = ls?.num_sections || 1;
+            return (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">المجموعة:</span>
-              {[1,2,3,4].map(s => (
+              {Array.from({length: numSections}, (_,i) => i+1).map(s => (
                 <button key={s} onClick={() => { setSelectedSection(s); setSelectedGroup(0); }}
                   className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${selectedSection===s?'bg-[#1a3a6b] text-white':'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                   {toArabicNum(s)}
                 </button>
               ))}
             </div>
-          )}
+            );
+          })()}
         </div>
 
         {selectedLevel && (
