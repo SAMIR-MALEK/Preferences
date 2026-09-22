@@ -75,7 +75,7 @@ export default function AdminSchedulePage() {
         .select('id, section_number, group_number, teaching_type, weekly_hours, professor:professors(id, last_name, first_name), module:modules(name_ar, weekly_sessions), level:levels(id, name_ar)')
         .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).in('status', ['نهائي', 'مؤقت']),
       supabase.from('schedules')
-        .select('id, assignment_id, room_id, time_slot_id, status, custom_module, custom_professor, created_by:admins(full_name)')
+        .select('id, assignment_id, room_id, time_slot_id, status, custom_module, custom_professor')
         .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1),
     ]);
 
@@ -99,7 +99,6 @@ export default function AdminSchedulePage() {
       id: s.id, assignment_id: s.assignment_id, room_id: s.room_id,
       time_slot_id: s.time_slot_id, status: s.status,
       custom_module: s.custom_module, custom_professor: s.custom_professor,
-      created_by_name: s.created_by?.full_name,
     })));
     setLoading(false);
   }
