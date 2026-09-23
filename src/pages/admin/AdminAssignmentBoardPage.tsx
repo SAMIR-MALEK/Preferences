@@ -45,6 +45,7 @@ interface SlotAssignment {
   weekly_hours: number;
   wish_order?: number;
   from_excel?: boolean;
+  assignment_db_id?: string;
 }
 
 // ساعات كل slot
@@ -157,7 +158,7 @@ interface AssignmentRequest {
     // تحميل الإسنادات المؤقتة
     const { data: existing } = await supabase
       .from('assignments')
-      .select('professor_id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, wish_order_satisfied')
+      .select('id, professor_id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, wish_order_satisfied')
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', 1)
       .in('status', ['مؤقت', 'نهائي']);
@@ -333,44 +334,86 @@ interface AssignmentRequest {
   }
 
   // ── تعيين أستاذ لـ slot ──
-  function assignProf(slotKey: string, profId: string | null) {
+  async function assignProf(slotKey: string, profId: string | null) {
     const [modId, type, sec, grp] = slotKey.split('__');
-    setSlots(prev => {
-      const exists = prev.find(s =>
-        s.module_id === modId && s.teaching_type === type &&
-        s.section === Number(sec) && String(s.group) === grp
-      );
-      const prof = profs.find(p => p.id === profId);
-      const mod = modules.find(m => m.id === modId);
-      if (exists) {
-        if (profId === null) {
-          return prev.filter(s => !(
-            s.module_id === modId && s.teaching_type === type &&
-            s.section === Number(sec) && String(s.group) === grp
-          ));
+    const mod = modules.find(m => m.id === modId);
+    const prof = profs.find(p => p.id === profId);
+    const secNum = Number(sec);
+    const grpVal = grp === 'null' ? null : Number(grp);
+
+    const existing = slots.find(s =>
+      s.module_id === modId && s.teaching_type === type &&
+      s.section === secNum && String(s.group) === grp
+    );
+
+    if (profId === null) {
+      // حذف مباشر من DB
+      if (existing?.assignment_db_id) {
+        await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
+      } else {
+        // حذف بالبحث عن التطابق
+        const { data: found } = await supabase.from('assignments')
+          .select('id')
+          .eq('module_id', modId)
+          .eq('teaching_type', type)
+          .eq('section_number', secNum)
+          .eq('academic_year', ACADEMIC_YEAR)
+          .eq('semester', 1)
+          .in('status', ['نهائي', 'مؤقت'])
+          .limit(1);
+        if (found && found.length > 0) {
+          await supabase.from('assignments').delete().eq('id', found[0].id);
         }
-        return prev.map(s =>
-          s.module_id === modId && s.teaching_type === type &&
-          s.section === Number(sec) && String(s.group) === grp
-            ? { ...s, professor_id: profId, professor_name: prof?.name || '' }
-            : s
-        );
-      } else if (profId) {
-        return [...prev, {
-          module_id: modId,
-          module_name: mod?.name_ar || '',
-          level_name: mod?.level_name || '',
-          professor_id: profId,
-          professor_name: prof?.name || '',
-          teaching_type: type as 'محاضرة' | 'أعمال موجهة',
-          section: Number(sec),
-          group: grp === 'null' ? null : Number(grp),
-          weekly_hours: slotHours(type, mod?.weekly_sessions || 1),
-        }];
       }
-      return prev;
-    });
+      setSlots(prev => prev.filter(s => !(
+        s.module_id === modId && s.teaching_type === type &&
+        s.section === secNum && String(s.group) === grp
+      )));
+    } else if (existing) {
+      // تحديث الأستاذ في DB
+      if (existing?.assignment_db_id) {
+        await supabase.from('assignments').update({ professor_id: profId }).eq('id', existing.assignment_db_id);
+      }
+      setSlots(prev => prev.map(s =>
+        s.module_id === modId && s.teaching_type === type &&
+        s.section === secNum && String(s.group) === grp
+          ? { ...s, professor_id: profId, professor_name: prof?.name || '' }
+          : s
+      ));
+    } else if (profId && mod) {
+      // إضافة جديد في DB
+      const hours = slotHours(type, mod.weekly_sessions || 1);
+      const { data: newRow } = await supabase.from('assignments').insert({
+        professor_id: profId,
+        module_id: modId,
+        level_id: mod.level_id,
+        academic_year: ACADEMIC_YEAR,
+        semester: 1,
+        teaching_type: type,
+        section_number: secNum,
+        group_number: grpVal,
+        weekly_hours: hours,
+        wish_order_satisfied: 0,
+        status: 'مؤقت',
+        conflict_resolved: false,
+        score: null,
+      }).select().single();
+
+      setSlots(prev => [...prev, {
+        module_id: modId,
+        module_name: mod.name_ar || '',
+        level_name: mod.level_name || '',
+        professor_id: profId,
+        professor_name: prof?.name || '',
+        teaching_type: type as 'محاضرة' | 'أعمال موجهة',
+        section: secNum,
+        group: grpVal,
+        weekly_hours: hours,
+        assignment_db_id: newRow?.id,
+      }]);
+    }
     setPickingSlot(null);
+    setProfSearch('');
   }
 
   // ── حفظ نهائي ──
