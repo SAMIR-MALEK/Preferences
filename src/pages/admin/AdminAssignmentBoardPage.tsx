@@ -180,6 +180,7 @@ interface AssignmentRequest {
           group: a.group_number,
           weekly_hours: a.weekly_hours,
           wish_order: a.wish_order_satisfied,
+          assignment_db_id: a.id,
         };
       });
       setSlots(loadedSlots);
