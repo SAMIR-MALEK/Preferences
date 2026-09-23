@@ -299,10 +299,11 @@ interface AssignmentRequest {
 
             for (let s = 1; s <= mod.num_sections; s++) {
               let assigned = false;
-              for (let g = 1; g <= mod.num_groups && !assigned; g++) {
+              for (let g = 0; g < mod.num_groups && !assigned; g++) {
+                const realGroup = (s - 1) * mod.num_groups + g + 1;
                 const taken = newSlots.some(sl =>
                   sl.module_id === mod.id && sl.teaching_type === 'أعمال موجهة' &&
-                  sl.section === s && sl.group === g
+                  sl.section === s && sl.group === realGroup
                 );
                 if (!taken) {
                   newSlots.push({
@@ -313,7 +314,7 @@ interface AssignmentRequest {
                     professor_name: prof?.name || profNameRaw,
                     teaching_type: 'أعمال موجهة',
                     section: s,
-                    group: g,
+                    group: realGroup,
                     weekly_hours: 1.5,
                     wish_order: i + 1,
                     from_excel: true,
@@ -998,13 +999,14 @@ interface AssignmentRequest {
                       // بناء خلايا الأعمال الموجهة
                       const tdCells = mod.has_td
                         ? Array.from({ length: mod.num_sections }, (_, i) => i + 1).flatMap(sec =>
-                            Array.from({ length: mod.num_groups }, (_, j) => j + 1).map(grp => {
-                              const key = `${mod.id}__أعمال موجهة__${sec}__${grp}`;
+                            Array.from({ length: mod.num_groups }, (_, j) => {
+                              const realGrp = (sec - 1) * mod.num_groups + j + 1;
+                              const key = `${mod.id}__أعمال موجهة__${sec}__${realGrp}`;
                               const assigned = slots.find(s =>
                                 s.module_id === mod.id && s.teaching_type === 'أعمال موجهة' &&
-                                s.section === sec && s.group === grp
+                                s.section === sec && s.group === realGrp
                               );
-                              return { key, sec, group: grp, assigned };
+                              return { key, sec, group: realGrp, assigned };
                             })
                           )
                         : [];
