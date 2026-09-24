@@ -63,6 +63,7 @@ export default function AssignmentResults({ prof }: Props) {
   const [levelFilter, setLevelFilter] = useState('');
   const [existingRequests, setExistingRequests] = useState<string[]>([]);
   const [showAppealForm, setShowAppealForm] = useState(false);
+  const [appealsOpen, setAppealsOpen] = useState(false);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [appealType, setAppealType] = useState<'رغبة_غير_ملبّاة' | 'خطأ_في_الإسناد'>('رغبة_غير_ملبّاة');
   const [appealSelectedWishes, setAppealSelectedWishes] = useState<number[]>([]);
@@ -191,6 +192,12 @@ export default function AssignmentResults({ prof }: Props) {
     if (reqs) setExistingRequests(reqs.map((r: any) => r.module_id));
 
     // تحميل الطعون المرسلة
+    // جلب إعداد باب الطعون
+    const { data: settingsData } = await supabase
+      .from('academic_settings')
+      .select('appeals_open')
+      .single();
+    setAppealsOpen(settingsData?.appeals_open === true);
     const { data: appealsData } = await supabase
       .from('assignment_appeals')
       .select('id, appeal_type, wish_order, module_id, reason, status, admin_reply, assignment_id')
