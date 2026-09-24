@@ -14,6 +14,8 @@ interface AssignedModule {
   teaching_type: string;
   weekly_hours: number;
   wish_order: number;
+  group_number?: number | null;
+  section_number?: number | null;
 }
 
 interface UnassignedWish {
