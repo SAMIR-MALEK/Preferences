@@ -417,7 +417,9 @@ export default function AssignmentResults({ prof }: Props) {
                   <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">محاضرات</p>
                 </div>
               )}
-              {lectures.map((a, i) => (
+              {lectures.map((a, i) => {
+                const isDouble = a.weekly_hours >= 4.5;
+                return (
                 <div key={i} className="px-5 py-3 flex items-start justify-between">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
@@ -428,14 +430,15 @@ export default function AssignmentResults({ prof }: Props) {
                     </div>
                     <p className="font-semibold text-gray-800">{a.module_name}</p>
                     <p className="text-xs text-gray-500">{a.level_name}</p>
-
+                    {isDouble && <p className="text-xs text-blue-500 font-medium">حصتان أسبوعياً</p>}
                   </div>
                   <div className="text-left">
                     <span className="font-bold text-[#1a3a6b] text-lg">{a.weekly_hours.toFixed(2)}</span>
                     <span className="text-gray-400 text-xs mr-1">س/أسبوع</span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               {/* الأعمال الموجهة */}
               {tds.length > 0 && (
@@ -443,7 +446,10 @@ export default function AssignmentResults({ prof }: Props) {
                   <p className="text-xs font-bold text-teal-600 uppercase tracking-wide">أعمال موجهة</p>
                 </div>
               )}
-              {tds.map((a, i) => (
+              {tds.map((a, i) => {
+                const groupCount = a.groups.length || 1;
+                const groupLabel = groupCount === 1 ? 'فوج واحد' : groupCount === 2 ? 'فوجان' : `${toArabicNum(groupCount)} أفواج`;
+                return (
                 <div key={i} className="px-5 py-3 flex items-start justify-between">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
@@ -454,15 +460,15 @@ export default function AssignmentResults({ prof }: Props) {
                     </div>
                     <p className="font-semibold text-gray-800">{a.module_name}</p>
                     <p className="text-xs text-gray-500">{a.level_name}</p>
-
+                    {groupCount > 0 && <p className="text-xs text-teal-500 font-medium">{groupLabel}</p>}
                   </div>
                   <div className="text-left">
                     <span className="font-bold text-teal-600 text-lg">{a.weekly_hours.toFixed(2)}</span>
                     <span className="text-gray-400 text-xs mr-1">س/أسبوع</span>
-
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         );
