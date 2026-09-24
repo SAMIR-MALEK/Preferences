@@ -83,7 +83,7 @@ export default function AssignmentResults({ prof }: Props) {
     // الإسنادات النهائية للأستاذ
     const { data: assignments } = await supabase
       .from('assignments')
-      .select('module_id, teaching_type, weekly_hours, wish_order_satisfied, module:modules(name_ar, level:levels(name_ar))')
+      .select('module_id, teaching_type, weekly_hours, wish_order_satisfied, section_number, group_number, module:modules(name_ar, level:levels(name_ar))')
       .eq('professor_id', prof.id)
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('semester', SEMESTER)
@@ -97,6 +97,8 @@ export default function AssignmentResults({ prof }: Props) {
         teaching_type: a.teaching_type,
         weekly_hours: a.weekly_hours,
         wish_order: a.wish_order_satisfied,
+        group_number: a.group_number,
+        section_number: a.section_number,
       })));
     }
 
@@ -362,29 +364,119 @@ export default function AssignmentResults({ prof }: Props) {
       )}
 
       {/* المقاييس المُسنَدة */}
-      {assigned.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 bg-green-50 border-b border-green-100">
-            <h4 className="font-semibold text-green-800 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" /> المقاييس المُسنَدة ({toArabicNum(assigned.length)})
-            </h4>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {assigned.map((a, i) => (
-              <div key={i} className="px-5 py-3 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-[#c9a227] font-bold ml-2">الرغبة {toArabicNum(a.wish_order)}</span>
-                  <span className="font-medium text-gray-800">{a.level_name} — {a.module_name}</span>
+      {assigned.length > 0 && (() => {
+        // دمج الأفواج لنفس المقياس ونفس النوع
+        const grouped: {
+          module_name: string; level_name: string; teaching_type: string;
+          weekly_hours: number; wish_order: number; groups: number[]; sections: number[];
+        }[] = [];
+
+        assigned.forEach(a => {
+          const key = `${a.module_name}__${a.teaching_type}`;
+          const existing = grouped.find(g => `${g.module_name}__${g.teaching_type}` === key);
+          if (existing) {
+            existing.weekly_hours += a.weekly_hours;
+            if (a.group_number) existing.groups.push(a.group_number);
+            if (a.section_number && !a.group_number) existing.sections.push(a.section_number);
+          } else {
+            grouped.push({
+              module_name: a.module_name,
+              level_name: a.level_name,
+              teaching_type: a.teaching_type,
+              weekly_hours: a.weekly_hours,
+              wish_order: a.wish_order,
+              groups: a.group_number ? [a.group_number] : [],
+              sections: (!a.group_number && a.section_number) ? [a.section_number] : [],
+            });
+          }
+        });
+
+        // ترتيب: المحاضرات أولاً ثم الأعمال الموجهة
+        grouped.sort((a, b) => {
+          if (a.teaching_type === 'محاضرة' && b.teaching_type !== 'محاضرة') return -1;
+          if (a.teaching_type !== 'محاضرة' && b.teaching_type === 'محاضرة') return 1;
+          return a.wish_order - b.wish_order;
+        });
+
+        const lectures = grouped.filter(g => g.teaching_type === 'محاضرة');
+        const tds = grouped.filter(g => g.teaching_type !== 'محاضرة');
+
+        return (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 bg-green-50 border-b border-green-100">
+              <h4 className="font-semibold text-green-800 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" /> المقاييس المُسنَدة ({toArabicNum(grouped.length)})
+              </h4>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {/* المحاضرات */}
+              {lectures.length > 0 && (
+                <div className="px-5 py-2 bg-blue-50/40">
+                  <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">محاضرات</p>
                 </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-500">{a.teaching_type}</span>
-                  <span className="font-bold text-[#1a3a6b]">{a.weekly_hours.toFixed(2)}س</span>
+              )}
+              {lectures.map((a, i) => (
+                <div key={i} className="px-5 py-3 flex items-start justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      {a.wish_order > 0
+                        ? <span className="text-xs text-[#c9a227] font-bold bg-amber-50 px-2 py-0.5 rounded-full">الرغبة {toArabicNum(a.wish_order)}</span>
+                        : <span className="text-xs text-gray-400 font-bold bg-gray-100 px-2 py-0.5 rounded-full">إسناد إداري</span>
+                      }
+                    </div>
+                    <p className="font-semibold text-gray-800">{a.module_name}</p>
+                    <p className="text-xs text-gray-500">{a.level_name}</p>
+                    {a.sections.length > 0 && (
+                      <p className="text-xs text-blue-600">
+                        {a.sections.length === 1 ? `المجموعة ${a.sections[0]}` : `المجموعات: ${a.sections.join('، ')}`}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <span className="font-bold text-[#1a3a6b] text-lg">{a.weekly_hours.toFixed(2)}</span>
+                    <span className="text-gray-400 text-xs mr-1">س/أسبوع</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+
+              {/* الأعمال الموجهة */}
+              {tds.length > 0 && (
+                <div className="px-5 py-2 bg-teal-50/40">
+                  <p className="text-xs font-bold text-teal-600 uppercase tracking-wide">أعمال موجهة</p>
+                </div>
+              )}
+              {tds.map((a, i) => (
+                <div key={i} className="px-5 py-3 flex items-start justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      {a.wish_order > 0
+                        ? <span className="text-xs text-[#c9a227] font-bold bg-amber-50 px-2 py-0.5 rounded-full">الرغبة {toArabicNum(a.wish_order)}</span>
+                        : <span className="text-xs text-gray-400 font-bold bg-gray-100 px-2 py-0.5 rounded-full">إسناد إداري</span>
+                      }
+                    </div>
+                    <p className="font-semibold text-gray-800">{a.module_name}</p>
+                    <p className="text-xs text-gray-500">{a.level_name}</p>
+                    {a.groups.length > 0 && (
+                      <p className="text-xs text-teal-600">
+                        {a.groups.length === 1
+                          ? `الفوج ${a.groups[0]}`
+                          : `${a.groups.length} أفواج: ف${a.groups.join('، ف')}`}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <span className="font-bold text-teal-600 text-lg">{a.weekly_hours.toFixed(2)}</span>
+                    <span className="text-gray-400 text-xs mr-1">س/أسبوع</span>
+                    {a.groups.length > 1 && (
+                      <p className="text-xs text-teal-400">{a.groups.length} حصص</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* الرغبات غير الملبّاة */}
       {unassigned.length > 0 && (
