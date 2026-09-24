@@ -335,8 +335,8 @@ export default function AssignmentResults({ prof }: Props) {
   return (
     <div className="space-y-5" dir="rtl">
       <div>
-        <h3 className="font-display font-bold text-gray-900 text-lg">النتائج الأولية — إسناد مقاييس السداسي الأول</h3>
-        <p className="text-gray-500 text-sm mt-0.5">هذه نتائج أولية مؤقتة قابلة للتعديل</p>
+        <h3 className="font-display font-bold text-gray-900 text-lg">النتائج بعد دراسة الطعون — إسناد مقاييس السداسي الأول</h3>
+        <p className="text-gray-500 text-sm mt-0.5">النتائج النهائية لإسناد مقاييس السداسي الأول</p>
       </div>
 
       {/* الحجم الساعي */}
@@ -428,11 +428,7 @@ export default function AssignmentResults({ prof }: Props) {
                     </div>
                     <p className="font-semibold text-gray-800">{a.module_name}</p>
                     <p className="text-xs text-gray-500">{a.level_name}</p>
-                    {a.sections.length > 0 && (
-                      <p className="text-xs text-blue-600">
-                        {a.sections.length === 1 ? `المجموعة ${a.sections[0]}` : `المجموعات: ${a.sections.join('، ')}`}
-                      </p>
-                    )}
+
                   </div>
                   <div className="text-left">
                     <span className="font-bold text-[#1a3a6b] text-lg">{a.weekly_hours.toFixed(2)}</span>
@@ -458,20 +454,12 @@ export default function AssignmentResults({ prof }: Props) {
                     </div>
                     <p className="font-semibold text-gray-800">{a.module_name}</p>
                     <p className="text-xs text-gray-500">{a.level_name}</p>
-                    {a.groups.length > 0 && (
-                      <p className="text-xs text-teal-600">
-                        {a.groups.length === 1
-                          ? `الفوج ${a.groups[0]}`
-                          : `${a.groups.length} أفواج: ف${a.groups.join('، ف')}`}
-                      </p>
-                    )}
+
                   </div>
                   <div className="text-left">
                     <span className="font-bold text-teal-600 text-lg">{a.weekly_hours.toFixed(2)}</span>
                     <span className="text-gray-400 text-xs mr-1">س/أسبوع</span>
-                    {a.groups.length > 1 && (
-                      <p className="text-xs text-teal-400">{a.groups.length} حصص</p>
-                    )}
+
                   </div>
                 </div>
               ))}
@@ -480,8 +468,8 @@ export default function AssignmentResults({ prof }: Props) {
         );
       })()}
 
-      {/* الرغبات غير الملبّاة */}
-      {unassigned.length > 0 && (
+      {/* الرغبات غير الملبّاة — مخفية */}
+      {false && unassigned.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-3 bg-red-50 border-b border-red-100">
             <h4 className="font-semibold text-red-700 flex items-center gap-2">
