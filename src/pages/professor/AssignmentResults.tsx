@@ -503,13 +503,17 @@ export default function AssignmentResults({ prof }: Props) {
       <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="font-bold text-red-800">تقديم طعن</h4>
-            <p className="text-red-600 text-sm mt-0.5">في حال عدم الرضا عن نتائج الإسناد</p>
+            <h4 className="font-bold text-red-800">الطعون</h4>
+            <p className="text-red-600 text-sm mt-0.5">
+              {appealsOpen ? 'في حال عدم الرضا عن نتائج الإسناد' : 'باب الطعون مغلق حالياً'}
+            </p>
           </div>
-          <button onClick={() => setShowAppealForm(!showAppealForm)}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors">
-            {showAppealForm ? 'إخفاء' : 'تقديم طعن'}
-          </button>
+          {appealsOpen && (
+            <button onClick={() => setShowAppealForm(!showAppealForm)}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors">
+              {showAppealForm ? 'إخفاء' : 'تقديم طعن'}
+            </button>
+          )}
         </div>
 
         {/* الطعون المرسلة مسبقاً */}
@@ -540,7 +544,7 @@ export default function AssignmentResults({ prof }: Props) {
         )}
 
         {/* نموذج الطعن */}
-        {showAppealForm && (
+        {appealsOpen && showAppealForm && (
           <div className="bg-white rounded-xl p-4 border border-red-200 space-y-3">
             {/* نوع الطعن */}
             <div className="flex gap-2">
