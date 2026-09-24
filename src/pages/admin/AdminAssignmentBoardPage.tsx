@@ -77,6 +77,7 @@ export default function AdminAssignmentBoardPage() {
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null);
   const [pickingSlot, setPickingSlot] = useState<string | null>(null);
   const [profSearch, setProfSearch] = useState('');
+  const [dragging, setDragging] = useState<string | null>(null); // slotKey المسحوب
   const [sortKey, setSortKey] = useState<'name' | 'rank' | 'hours'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [requests, setRequests] = useState<AssignmentRequest[]>([]);
@@ -336,6 +337,42 @@ interface AssignmentRequest {
   }
 
   // ── تعيين أستاذ لـ slot ──
+  async function handleDrop(targetKey: string, ctrlKey: boolean) {
+    if (!dragging || dragging === targetKey) { setDragging(null); return; }
+
+    const [srcModId, srcType, srcSec, srcGrp] = dragging.split('__');
+    const [tgtModId] = targetKey.split('__');
+
+    // فقط داخل نفس المقياس
+    if (srcModId !== tgtModId) { setDragging(null); return; }
+
+    const srcSlot = slots.find(s =>
+      s.module_id === srcModId && s.teaching_type === srcType &&
+      s.section === Number(srcSec) && String(s.group) === srcGrp
+    );
+    if (!srcSlot?.professor_id) { setDragging(null); return; }
+
+    const tgtSlot = slots.find(s => {
+      const [,tType,tSec,tGrp] = targetKey.split('__');
+      return s.module_id === tgtModId && s.teaching_type === tType &&
+        s.section === Number(tSec) && String(s.group) === tGrp;
+    });
+
+    if (tgtSlot?.professor_id) {
+      // استبدال — الاثنان يتبادلان
+      await assignProf(targetKey, srcSlot.professor_id);
+      await assignProf(dragging, tgtSlot.professor_id);
+    } else if (ctrlKey) {
+      // نسخ — يبقى الأصل ويُضاف للهدف
+      await assignProf(targetKey, srcSlot.professor_id);
+    } else {
+      // نقل — يُحذف من الأصل ويُضاف للهدف
+      await assignProf(targetKey, srcSlot.professor_id);
+      await assignProf(dragging, null);
+    }
+    setDragging(null);
+  }
+
   async function assignProf(slotKey: string, profId: string | null) {
     const [modId, type, sec, grp] = slotKey.split('__');
     const mod = modules.find(m => m.id === modId);
@@ -1028,7 +1065,13 @@ interface AssignmentRequest {
                                 {lectureCells.map(cell => (
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
-                                      <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded-xl text-xs">
+                                      <div
+                                        draggable
+                                        onDragStart={() => setDragging(cell.key)}
+                                        onDragEnd={() => setDragging(null)}
+                                        onDragOver={e => e.preventDefault()}
+                                        onDrop={e => handleDrop(cell.key, e.ctrlKey)}
+                                        className={`flex items-center gap-1.5 bg-green-50 border text-green-800 px-3 py-2 rounded-xl text-xs cursor-grab active:cursor-grabbing transition-all ${dragging === cell.key ? 'opacity-50 border-dashed border-green-400' : 'border-green-200'}`}>
                                         <span className="text-gray-400">م{cell.sec}</span>
                                         <span className="font-medium">{cell.assigned.professor_name}</span>
                                         <span className="text-green-600">{cell.assigned.weekly_hours}س</span>
@@ -1037,8 +1080,11 @@ interface AssignmentRequest {
                                         </button>
                                       </div>
                                     ) : (
-                                      <button onClick={() => setPickingSlot(pickingSlot === cell.key ? null : cell.key)}
-                                        className="flex items-center gap-1.5 bg-gray-50 border-2 border-dashed border-gray-200 hover:border-[#1a3a6b] text-gray-400 hover:text-[#1a3a6b] px-3 py-2 rounded-xl text-xs transition-all">
+                                      <button
+                                        onDragOver={e => e.preventDefault()}
+                                        onDrop={e => handleDrop(cell.key, e.ctrlKey)}
+                                        onClick={() => { const newKey = pickingSlot === cell.key ? null : cell.key; setPickingSlot(newKey); if (newKey) setProfSearch(''); }}
+                                        className={`flex items-center gap-1.5 bg-gray-50 border-2 border-dashed text-gray-400 px-3 py-2 rounded-xl text-xs transition-all ${dragging ? 'border-[#1a3a6b] text-[#1a3a6b] bg-blue-50' : 'border-gray-200 hover:border-[#1a3a6b] hover:text-[#1a3a6b]'}`}>
                                         <span>م{cell.sec}</span>
                                         <Plus className="w-3 h-3" />
                                       </button>
@@ -1075,7 +1121,13 @@ interface AssignmentRequest {
                                 {tdCells.map(cell => (
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
-                                      <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-xl text-xs">
+                                      <div
+                                        draggable
+                                        onDragStart={() => setDragging(cell.key)}
+                                        onDragEnd={() => setDragging(null)}
+                                        onDragOver={e => e.preventDefault()}
+                                        onDrop={e => handleDrop(cell.key, e.ctrlKey)}
+                                        className={`flex items-center gap-1.5 bg-amber-50 border text-amber-900 px-3 py-2 rounded-xl text-xs cursor-grab active:cursor-grabbing transition-all ${dragging === cell.key ? 'opacity-50 border-dashed border-amber-400' : 'border-amber-200'}`}>
                                         <span className="text-gray-400">ف{cell.group}</span>
                                         <span className="font-medium">{cell.assigned.professor_name}</span>
                                         <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
@@ -1083,8 +1135,11 @@ interface AssignmentRequest {
                                         </button>
                                       </div>
                                     ) : (
-                                      <button onClick={() => setPickingSlot(pickingSlot === cell.key ? null : cell.key)}
-                                        className="flex items-center gap-1.5 bg-gray-50 border-2 border-dashed border-gray-200 hover:border-[#c9a227] text-gray-400 hover:text-[#c9a227] px-3 py-2 rounded-xl text-xs transition-all">
+                                      <button
+                                        onDragOver={e => e.preventDefault()}
+                                        onDrop={e => handleDrop(cell.key, e.ctrlKey)}
+                                        onClick={() => { const newKey = pickingSlot === cell.key ? null : cell.key; setPickingSlot(newKey); if (newKey) setProfSearch(''); }}
+                                        className={`flex items-center gap-1.5 bg-gray-50 border-2 border-dashed text-gray-400 px-3 py-2 rounded-xl text-xs transition-all ${dragging ? 'border-[#c9a227] text-[#c9a227] bg-amber-50' : 'border-gray-200 hover:border-[#c9a227] hover:text-[#c9a227]'}`}>
                                         <span>م{cell.sec}-ف{cell.group}</span>
                                         <Plus className="w-3 h-3" />
                                       </button>
