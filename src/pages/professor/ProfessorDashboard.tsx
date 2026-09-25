@@ -34,6 +34,7 @@ export default function ProfessorDashboard() {
   // Reload prof data after changes
   const [profData, setProfData] = useState(prof);
   const [hasResults, setHasResults] = useState(false);
+  const [resultsPublished, setResultsPublished] = useState(false);
   useEffect(() => { setProfData(prof); }, [prof]);
 
   const profileComplete = isProfileComplete(profData);
@@ -41,6 +42,13 @@ export default function ProfessorDashboard() {
 
   // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
   useEffect(() => {
+    // جلب إعداد النشر
+    supabase.from('academic_settings')
+      .select('results_published')
+      .eq('academic_year', '2026-2027')
+      .single()
+      .then(({ data }) => setResultsPublished(data?.results_published === true));
+
     // فحص وجود نتائج إسناد أولية
     if (!prof?.id) return;
     supabase.from('assignments')
@@ -73,7 +81,7 @@ export default function ProfessorDashboard() {
     { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock, disabled: !profileComplete },
     { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete },
     { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
-    { id: 'results' as ProfTab, label: 'الإسناد الأولي', icon: Award, disabled: !profileComplete },
+    ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد الأولي', icon: Award, disabled: !profileComplete }] : []),
   ];
 
   return (
@@ -182,7 +190,7 @@ export default function ProfessorDashboard() {
           />
         )}
         {tab === 'card' && <WishCard prof={profData} />}
-        {tab === 'results' && profData && <AssignmentResults prof={profData} />}
+        {tab === 'results' && profData && resultsPublished && <AssignmentResults prof={profData} />}
       </div>
     </div>
   );
