@@ -35,6 +35,7 @@ export default function ProfessorDashboard() {
   const [profData, setProfData] = useState(prof);
   const [hasResults, setHasResults] = useState(false);
   const [resultsPublished, setResultsPublished] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
   useEffect(() => { setProfData(prof); }, [prof]);
 
   const profileComplete = isProfileComplete(profData);
@@ -44,10 +45,10 @@ export default function ProfessorDashboard() {
   useEffect(() => {
     // جلب إعداد النشر
     supabase.from('academic_settings')
-      .select('results_published')
+      .select('*')
       .eq('academic_year', '2026-2027')
       .single()
-      .then(({ data }) => setResultsPublished(data?.results_published === true));
+      .then(({ data }) => { if(data) { setSettings(data); setResultsPublished(data.results_published === true); } });
 
     // فحص وجود نتائج إسناد أولية
     if (!prof?.id) return;
@@ -151,7 +152,7 @@ export default function ProfessorDashboard() {
             <span className="text-2xl flex-shrink-0">⏳</span>
             <div>
               <p className="font-bold text-amber-800 text-sm">النتائج النهائية قيد التدقيق</p>
-              <p className="text-amber-600 text-xs mt-0.5">سيتم نشر نتائج الإسناد النهائية للسداسي الأول بعد التدقيق واجتماع لجنة توزيع الأعباء البيداغوجية — ستُعلَم فور الإعلان.</p>
+              <p className="text-amber-600 text-xs mt-0.5">سيتم نشر نتائج الإسناد النهائية للسداسي الأول بعد التدقيق.</p>
             </div>
           </div>
         )}
@@ -237,7 +238,7 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
         <div className="relative mt-4 pt-4 border-t border-white/10 flex items-center gap-2">
           <Bell className="w-4 h-4 text-[#c9a227]" />
           <span className="text-xs text-gray-300">
-            باب التسجيل <span className="text-green-400 font-bold">مفتوح</span> — الموسم الجامعي 2026/2027
+            باب التسجيل <span className={settings?.registration_s1_open ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{settings?.registration_s1_open ? 'مفتوح' : 'مغلق'}</span> — الموسم الجامعي 2026/2027
           </span>
         </div>
       </div>
