@@ -390,7 +390,13 @@ interface AssignmentRequest {
       // حذف مباشر من DB
       if (existing?.assignment_db_id) {
         await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
-      await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', { module_id: modId, type, sec: secNum, group: grpVal });
+      await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
+        prof_name: existing.professor_name,
+        module_name: existing.module_name,
+        teaching_type: type,
+        section: secNum,
+        group: grpVal,
+      });
       } else {
         // حذف بالبحث عن التطابق
         const { data: found } = await supabase.from('assignments')
@@ -404,7 +410,13 @@ interface AssignmentRequest {
           .limit(1);
         if (found && found.length > 0) {
           await supabase.from('assignments').delete().eq('id', found[0].id);
-          await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', { module_id: modId, type, sec: secNum, group: grpVal });
+          await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
+            prof_name: existing?.professor_name || '—',
+            module_name: existing?.module_name || '—',
+            teaching_type: type,
+            section: secNum,
+            group: grpVal,
+          });
         }
       }
       setSlots(prev => prev.filter(s => !(
@@ -425,7 +437,13 @@ interface AssignmentRequest {
     } else if (profId && mod) {
       // إضافة جديد في DB
       const hours = slotHours(type, mod.weekly_sessions || 1);
-      await logAction(user?.admin?.id, user?.admin?.full_name, 'assign', 'assignment', { prof_name: prof?.name, module_id: modId, teaching_type: type, section: secNum, group: grpVal });
+      await logAction(user?.admin?.id, user?.admin?.full_name, 'assign', 'assignment', {
+      prof_name: prof?.name,
+      module_name: mod?.name_ar,
+      teaching_type: type,
+      section: secNum,
+      group: grpVal,
+    });
     const { data: newRow } = await supabase.from('assignments').insert({
         professor_id: profId,
         module_id: modId,
