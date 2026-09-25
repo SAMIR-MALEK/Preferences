@@ -683,9 +683,6 @@ export async function runSchedulingAlgorithm(
     const need = required - already;
     if (need <= 0) return true;
 
-    // سيتم اختيار القاعة لكل slot على حدة
-    if (!room) return false;
-
     const groupKey = a.teaching_type === 'محاضرة'
       ? `${a.level_id}_${a.section_number}_lec`
       : `${a.level_id}_${a.section_number}_${a.group_number}`;
