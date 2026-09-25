@@ -35,6 +35,7 @@ export default function ProfessorDashboard() {
   const [profData, setProfData] = useState(prof);
   const [hasResults, setHasResults] = useState(false);
   const [resultsPublished, setResultsPublished] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   useEffect(() => { setProfData(prof); }, [prof]);
 
@@ -48,7 +49,7 @@ export default function ProfessorDashboard() {
       .select('*')
       .eq('academic_year', '2026-2027')
       .single()
-      .then(({ data }) => { if(data) { setSettings(data); setResultsPublished(data.results_published === true); } });
+      .then(({ data }) => { if(data) { setSettings(data); setResultsPublished(data.results_published === true); setRegistrationOpen(data.registration_s1_open === true); } });
 
     // فحص وجود نتائج إسناد أولية
     if (!prof?.id) return;
@@ -238,7 +239,7 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
         <div className="relative mt-4 pt-4 border-t border-white/10 flex items-center gap-2">
           <Bell className="w-4 h-4 text-[#c9a227]" />
           <span className="text-xs text-gray-300">
-            باب التسجيل <span className={settings?.registration_s1_open ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{settings?.registration_s1_open ? 'مفتوح' : 'مغلق'}</span> — الموسم الجامعي 2026/2027
+            باب التسجيل <span className={registrationOpen ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{registrationOpen ? 'مفتوح' : 'مغلق'}</span> — الموسم الجامعي 2026/2027
           </span>
         </div>
       </div>
