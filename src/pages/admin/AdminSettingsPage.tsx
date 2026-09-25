@@ -20,12 +20,17 @@ export default function AdminSettingsPage() {
     setLoading(false);
   }
 
+  async function toggleSave(field: string, value: boolean) {
+    await supabase.from('academic_settings').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', settings.id);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+  }
+
   async function handleSave() {
     setSaving(true);
     const { error } = await supabase
       .from('academic_settings')
       .update({
-        registration_open: settings.registration_open,
+        registration_s1_open: settings.registration_s1_open,
         registration_deadline: settings.registration_deadline,
         results_published: settings.results_published,
         appeals_open: settings.appeals_open,
@@ -69,14 +74,14 @@ export default function AdminSettingsPage() {
                 <p className="text-xs text-gray-400">السماح للأساتذة بتسجيل رغباتهم</p>
               </div>
               <button
-                onClick={() => setSettings({ ...settings, registration_open: !settings.registration_open })}
+                onClick={() => { const v = !settings.registration_s1_open; setSettings({ ...settings, registration_s1_open: v }); toggleSave('registration_s1_open', v); }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                  settings.registration_open
+                  settings.registration_s1_open
                     ? 'bg-green-100 text-green-700 hover:bg-green-200'
                     : 'bg-red-100 text-red-700 hover:bg-red-200'
                 }`}
               >
-                {settings.registration_open ? (
+                {settings.registration_s1_open ? (
                   <><Unlock className="w-4 h-4" />مفتوح — اضغط للإغلاق</>
                 ) : (
                   <><Lock className="w-4 h-4" />مغلق — اضغط للفتح</>
@@ -109,7 +114,7 @@ export default function AdminSettingsPage() {
               <p className="text-xs text-gray-400">السماح للأساتذة برؤية نتائج الإسناد</p>
             </div>
             <button
-              onClick={() => setSettings({ ...settings, results_published: !settings.results_published })}
+              onClick={() => { const v = !settings.results_published; setSettings({ ...settings, results_published: v }); toggleSave('results_published', v); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                 settings.results_published
                   ? 'bg-green-100 text-green-700 hover:bg-green-200'
@@ -138,7 +143,7 @@ export default function AdminSettingsPage() {
                 <p className="text-xs text-gray-400">السماح للأساتذة بتقديم الطعون</p>
               </div>
               <button
-                onClick={() => setSettings({ ...settings, appeals_open: !settings.appeals_open })}
+                onClick={() => { const v = !settings.appeals_open; setSettings({ ...settings, appeals_open: v }); toggleSave('appeals_open', v); }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                   settings.appeals_open
                     ? 'bg-green-100 text-green-700 hover:bg-green-200'
