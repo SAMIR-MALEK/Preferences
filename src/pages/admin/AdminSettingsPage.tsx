@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Settings, Save, CheckCircle, Calendar, Bell, Lock, Unlock, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { logAction } from '../../lib/logAction';
 
 export default function AdminSettingsPage() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -22,6 +25,7 @@ export default function AdminSettingsPage() {
 
   async function toggleSave(field: string, value: boolean) {
     await supabase.from('academic_settings').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', settings.id);
+    await logAction(user?.admin?.id, user?.admin?.full_name, field, 'settings', { field, value });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   }
 
