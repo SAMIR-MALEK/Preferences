@@ -18,7 +18,7 @@ interface Backup {
   created_by_name: string;
   label: string;
   created_at: string;
-  data: any;
+  data?: any;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -91,7 +91,9 @@ export default function AdminAuditPage() {
   async function restoreBackup(backup: Backup) {
     if (!window.confirm(`تحذير: سيتم استعادة النسخة "${backup.label}" وستُحذف الإسنادات الحالية. هل أنت متأكد؟`)) return;
     setRestoring(true);
-    const { assignments, appeals } = backup.data;
+    // جلب data كاملة عند الاستعادة
+    const { data: fullBackup } = await supabase.from('backups').select('data').eq('id', backup.id).single();
+    const { assignments, appeals } = fullBackup?.data || {};
 
     // حذف الحالية وإعادة الاستعادة
     await supabase.from('assignments').delete().eq('academic_year', '2026-2027').eq('semester', 1);
