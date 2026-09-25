@@ -6,7 +6,7 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays
+  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -18,13 +18,14 @@ import AdminImportPage        from './AdminImportPage';
 import AdminSpecialtiesPage   from './AdminSpecialtiesPage';
 import AdminEmailPage         from './AdminEmailPage';
 import AdminRoomsPage         from './AdminRoomsPage';
+import AdminAuditPage         from './AdminAuditPage';
 import AdminSchedulePage      from './AdminSchedulePage';
 import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'settings' | 'email';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'settings' | 'email';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -88,6 +89,7 @@ export default function AdminDashboard() {
     { id: 'board',      label: 'لوحة الإسناد',       icon: Layers     },
     { id: 'rooms',      label: 'القاعات',             icon: MapPin     },
     { id: 'schedule',   label: 'التوقيت',             icon: CalendarDays },
+    { id: 'audit',      label: 'سجل التدقيق',         icon: Shield     },
     { id: 'settings',     label: 'الإعدادات',          icon: Settings   },
   ];
 
@@ -213,6 +215,7 @@ export default function AdminDashboard() {
         {tab === 'board'      && <AdminAssignmentBoardPage />}
         {tab === 'rooms'      && <AdminRoomsPage />}
         {tab === 'schedule'   && <AdminSchedulePage />}
+        {!isDeptHead && tab === 'audit'      && <AdminAuditPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
