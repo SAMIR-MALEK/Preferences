@@ -174,6 +174,7 @@ export default function ProfessorDashboard() {
         {tab === 'home' && (
           <ProfHome
             prof={profData}
+            registrationOpen={registrationOpen}
             s1Locked={s1Locked}
             s2Locked={s2Locked}
             s2Unlocked={s2Unlocked}
@@ -208,7 +209,7 @@ export default function ProfessorDashboard() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTab }: any) {
+function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTab, registrationOpen }: any) {
   const steps = [
     { n: '1', t: 'أكمل معلوماتك الشخصية', done: profileComplete, c: '#dbeafe', tc: '#1d4ed8', tab: 'profile' },
     { n: '2', t: 'سجّل رغبات السداسي الأول', done: s1Locked, c: 'rgba(26,58,107,.1)', tc: '#1a3a6b', tab: 's1' },
