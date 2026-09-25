@@ -146,7 +146,16 @@ export default function ProfessorDashboard() {
 
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-5">
-        {tab === 'home' && hasResults && (
+        {!resultsPublished && profileComplete && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">⏳</span>
+            <div>
+              <p className="font-bold text-amber-800 text-sm">النتائج النهائية قيد التدقيق</p>
+              <p className="text-amber-600 text-xs mt-0.5">سيتم نشر نتائج الإسناد النهائية للسداسي الأول بعد التدقيق واجتماع لجنة توزيع الأعباء البيداغوجية — ستُعلَم فور الإعلان.</p>
+            </div>
+          </div>
+        )}
+        {tab === 'home' && hasResults && resultsPublished && (
           <div
             onClick={() => setTab('results')}
             className="cursor-pointer bg-gradient-to-l from-[#1a3a6b] to-[#0d2040] text-white rounded-2xl p-5 flex items-center gap-4 shadow-lg hover:shadow-xl transition-all mb-2 animate-fade-in">
