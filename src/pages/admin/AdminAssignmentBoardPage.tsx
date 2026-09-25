@@ -389,7 +389,8 @@ interface AssignmentRequest {
     if (profId === null) {
       // حذف مباشر من DB
       if (existing?.assignment_db_id) {
-        await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
+        await supabase.from('schedules').delete().eq('assignment_id', existing.assignment_db_id);
+      await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
       await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
         prof_name: existing.professor_name,
         module_name: existing.module_name,
@@ -409,6 +410,7 @@ interface AssignmentRequest {
           .in('status', ['نهائي', 'مؤقت'])
           .limit(1);
         if (found && found.length > 0) {
+          await supabase.from('schedules').delete().eq('assignment_id', found[0].id);
           await supabase.from('assignments').delete().eq('id', found[0].id);
           await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
             prof_name: existing?.professor_name || '—',
