@@ -66,6 +66,21 @@ export default function AdminSchedulePage() {
 
   useEffect(() => { loadData(); }, []);
 
+  async function clearDrafts() {
+    if (!window.confirm('سيتم حذف كل الحصص بحالة "مسودة". هل تريد المتابعة؟')) return;
+    await supabase.from('schedules').delete()
+      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مسودة');
+    await loadData();
+    setMessage({ type: 'success', text: '✓ تم مسح المسودات' });
+  }
+
+  async function approveDrafts() {
+    await supabase.from('schedules').update({ status: 'معتمد' })
+      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مسودة');
+    await loadData();
+    setMessage({ type: 'success', text: '✓ تم اعتماد كل المسودات' });
+  }
+
   async function runAlgo() {
     if (!window.confirm('سيتم توليد التوقيت تلقائياً للإسنادات غير المجدولة. هل تريد المتابعة؟')) return;
     setRunning(true);
@@ -287,6 +302,14 @@ export default function AdminSchedulePage() {
         <div className="flex gap-2">
           <button onClick={loadData} className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
             <RefreshCw className="w-4 h-4" /> تحديث
+          </button>
+          <button onClick={clearDrafts}
+            className="flex items-center gap-2 bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded-xl text-sm font-medium transition-colors">
+            مسح المسودات
+          </button>
+          <button onClick={approveDrafts}
+            className="flex items-center gap-2 bg-green-100 text-green-700 hover:bg-green-200 px-3 py-2 rounded-xl text-sm font-medium transition-colors">
+            اعتماد الكل
           </button>
           <button onClick={runAlgo} disabled={running}
             className="flex items-center gap-2 bg-[#c9a227] hover:bg-[#b8911f] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
@@ -631,14 +654,26 @@ export async function runSchedulingAlgorithm(
     occupied[slotId].groups.add(groupKey);
   }
 
-  function selectRoom(a: Assignment, levelName: string): Room | null {
+  let ampIdx = 0;
+  let lrIdx = 0;
+  let rrIdx = 0;
+
+  function selectAvailableRoom(candidates: Room[], slotId: string): Room | null {
+    // ابحث عن قاعة غير محجوزة في هذا الوقت
+    return candidates.find(r => !occupied[slotId]?.roomIds.has(r.id)) || null;
+  }
+
+  function selectRoom(a: Assignment, levelName: string, slotId: string): Room | null {
     if (a.teaching_type === 'أعمال موجهة') {
-      return regularRooms.sort((x, y) => x.capacity - y.capacity).find(r => r.capacity >= 20) || regularRooms[0] || null;
+      // تناوب بين القاعات العادية
+      const sorted = regularRooms.slice().sort((x, y) => x.capacity - y.capacity);
+      return selectAvailableRoom(sorted, slotId) || null;
     }
     if (LEVELS_NEED_AMPHITHEATER.includes(levelName)) {
-      return amphitheaters.sort((x, y) => x.capacity - y.capacity)[0] || lectureRooms[0] || null;
+      // تناوب بين المدرجات الأربعة
+      return selectAvailableRoom(amphitheaters, slotId) || selectAvailableRoom(lectureRooms, slotId) || null;
     }
-    return lectureRooms.sort((x, y) => x.capacity - y.capacity)[0] || regularRooms[0] || null;
+    return selectAvailableRoom(lectureRooms, slotId) || selectAvailableRoom(regularRooms, slotId) || null;
   }
 
   function trySchedule(a: Assignment, levelName: string, targetDays: string[]): boolean {
@@ -648,7 +683,7 @@ export async function runSchedulingAlgorithm(
     const need = required - already;
     if (need <= 0) return true;
 
-    const room = selectRoom(a, levelName);
+    // سيتم اختيار القاعة لكل slot على حدة
     if (!room) return false;
 
     const groupKey = a.teaching_type === 'محاضرة'
@@ -665,6 +700,8 @@ export async function runSchedulingAlgorithm(
       for (const slotNum of slotNums) {
         const slotId = getSlotKey(day, slotNum);
         if (!slotId) continue;
+        const room = selectRoom(a, levelName, slotId);
+        if (!room) continue;
         if (isSlotFree(slotId, a.professor_id, room.id, groupKey)) {
           toInsert.push({
             assignment_id: a.id,
