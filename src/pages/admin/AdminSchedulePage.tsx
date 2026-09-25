@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import { X, Save, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { X, Save, CheckCircle, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
@@ -46,6 +46,8 @@ export default function AdminSchedulePage() {
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [algoResult, setAlgoResult] = useState<{added:number;skipped:number;conflicts:string[]} | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [selectedLevel, setSelectedLevel] = useState('');
@@ -63,6 +65,18 @@ export default function AdminSchedulePage() {
   const [customProfessor, setCustomProfessor] = useState('');
 
   useEffect(() => { loadData(); }, []);
+
+  async function runAlgo() {
+    if (!window.confirm('سيتم توليد التوقيت تلقائياً للإسنادات غير المجدولة. هل تريد المتابعة؟')) return;
+    setRunning(true);
+    setAlgoResult(null);
+    const result = await runSchedulingAlgorithm(
+      assignments, rooms, timeSlots, schedule, levelSemesters, ACADEMIC_YEAR
+    );
+    setAlgoResult(result);
+    await loadData();
+    setRunning(false);
+  }
 
   async function loadData() {
     setLoading(true);
@@ -270,11 +284,28 @@ export default function AdminSchedulePage() {
           <h2 className="text-xl font-bold text-gray-900 font-display">التوقيت الأسبوعي — السداسي الأول</h2>
           <p className="text-gray-500 text-sm">{toArabicNum(schedule.length)} حصة مجدولة</p>
         </div>
-        <button onClick={loadData} className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
-          <RefreshCw className="w-4 h-4" /> تحديث
-        </button>
+        <div className="flex gap-2">
+          <button onClick={loadData} className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
+            <RefreshCw className="w-4 h-4" /> تحديث
+          </button>
+          <button onClick={runAlgo} disabled={running}
+            className="flex items-center gap-2 bg-[#c9a227] hover:bg-[#b8911f] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
+            <Zap className="w-4 h-4" />
+            {running ? 'جارٍ التوليد...' : 'توليد تلقائي'}
+          </button>
+        </div>
       </div>
 
+      {algoResult && (
+        <div className={`rounded-xl p-4 text-sm border ${algoResult.skipped === 0 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+          <p className="font-bold">✓ تم توليد التوقيت — {algoResult.added} حصة أُضيفت{algoResult.skipped > 0 ? ` · ${algoResult.skipped} لم تُجدَّل` : ''}</p>
+          {algoResult.conflicts.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs">
+              {algoResult.conflicts.map((c, i) => <li key={i}>⚠ {c}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
       {message && (
         <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -521,4 +552,184 @@ export default function AdminSchedulePage() {
       )}
     </div>
   );
+}
+
+// ============================================================
+// خوارزمية الجدولة التلقائية
+// ============================================================
+
+const LEVELS_NEED_AMPHITHEATER = ['أولى ليسانس', 'ثانية ليسانس', 'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص', 'ماستر 1 قانون جنائي', 'ماستر 2 قانون جنائي', 'ماستر 1 قانون أعمال', 'ماستر 2 قانون أعمال'];
+
+export async function runSchedulingAlgorithm(
+  assignments: Assignment[],
+  rooms: Room[],
+  timeSlots: TimeSlot[],
+  existingSchedule: ScheduleEntry[],
+  levelSemesters: LevelSemester[],
+  academicYear: string
+): Promise<{ added: number; skipped: number; conflicts: string[] }> {
+
+  // البيانات المتاحة
+  const amphitheaters = rooms.filter(r => r.type === 'مدرج');
+  const lectureRooms = rooms.filter(r => r.type === 'قاعة محاضرات');
+  const regularRooms = rooms.filter(r => r.type === 'قاعة');
+  const days = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
+  // الإسنادات غير المجدولة
+  const unscheduled = assignments.filter(a => {
+    const required = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
+    const done = existingSchedule.filter(s => s.assignment_id === a.id).length;
+    return done < required;
+  });
+
+  // تتبع: أيام كل أستاذ، القاعات المحجوزة، المجموعات المحجوزة
+  const profDays: Record<string, Set<string>> = {};
+  const occupied: Record<string, { roomIds: Set<string>; profIds: Set<string>; groups: Set<string> }> = {};
+
+  // تهيئة من الجدول الموجود
+  existingSchedule.forEach(s => {
+    const key = s.time_slot_id;
+    if (!occupied[key]) occupied[key] = { roomIds: new Set(), profIds: new Set(), groups: new Set() };
+    occupied[key].roomIds.add(s.room_id);
+    if (s.assignment_id) {
+      const a = assignments.find(x => x.id === s.assignment_id);
+      if (a) {
+        occupied[key].profIds.add(a.professor_id);
+        if (a.teaching_type === 'محاضرة') {
+          occupied[key].groups.add(`${a.level_id}_${a.section_number}_lec`);
+        } else {
+          occupied[key].groups.add(`${a.level_id}_${a.section_number}_${a.group_number}`);
+        }
+        if (!profDays[a.professor_id]) profDays[a.professor_id] = new Set();
+        const slot = timeSlots.find(ts => ts.id === key);
+        if (slot) profDays[a.professor_id].add(slot.day);
+      }
+    }
+  });
+
+  const toInsert: any[] = [];
+  const conflicts: string[] = [];
+  let skipped = 0;
+
+  function getSlotKey(day: string, slotNum: number) {
+    return timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum)?.id;
+  }
+
+  function isSlotFree(slotId: string, profId: string, roomId: string, groupKey: string): boolean {
+    const occ = occupied[slotId];
+    if (!occ) return true;
+    if (occ.roomIds.has(roomId)) return false;
+    if (occ.profIds.has(profId)) return false;
+    if (occ.groups.has(groupKey)) return false;
+    return true;
+  }
+
+  function markOccupied(slotId: string, profId: string, roomId: string, groupKey: string) {
+    if (!occupied[slotId]) occupied[slotId] = { roomIds: new Set(), profIds: new Set(), groups: new Set() };
+    occupied[slotId].roomIds.add(roomId);
+    occupied[slotId].profIds.add(profId);
+    occupied[slotId].groups.add(groupKey);
+  }
+
+  function selectRoom(a: Assignment, levelName: string): Room | null {
+    if (a.teaching_type === 'أعمال موجهة') {
+      return regularRooms.sort((x, y) => x.capacity - y.capacity).find(r => r.capacity >= 20) || regularRooms[0] || null;
+    }
+    if (LEVELS_NEED_AMPHITHEATER.includes(levelName)) {
+      return amphitheaters.sort((x, y) => x.capacity - y.capacity)[0] || lectureRooms[0] || null;
+    }
+    return lectureRooms.sort((x, y) => x.capacity - y.capacity)[0] || regularRooms[0] || null;
+  }
+
+  function trySchedule(a: Assignment, levelName: string, targetDays: string[]): boolean {
+    const required = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
+    const already = toInsert.filter(t => t.assignment_id === a.id).length +
+      existingSchedule.filter(s => s.assignment_id === a.id).length;
+    const need = required - already;
+    if (need <= 0) return true;
+
+    const room = selectRoom(a, levelName);
+    if (!room) return false;
+
+    const groupKey = a.teaching_type === 'محاضرة'
+      ? `${a.level_id}_${a.section_number}_lec`
+      : `${a.level_id}_${a.section_number}_${a.group_number}`;
+
+    let placed = 0;
+    const usedDays: string[] = [];
+
+    for (const day of targetDays) {
+      if (placed >= need) break;
+      // توزيع ذكي في الفترات — تجنب التراكم
+      const slotNums = [2, 3, 4, 1, 5]; // ابدأ من منتصف اليوم
+      for (const slotNum of slotNums) {
+        const slotId = getSlotKey(day, slotNum);
+        if (!slotId) continue;
+        if (isSlotFree(slotId, a.professor_id, room.id, groupKey)) {
+          toInsert.push({
+            assignment_id: a.id,
+            room_id: room.id,
+            time_slot_id: slotId,
+            academic_year: academicYear,
+            semester: 1,
+            status: 'مسودة',
+          });
+          markOccupied(slotId, a.professor_id, room.id, groupKey);
+          if (!profDays[a.professor_id]) profDays[a.professor_id] = new Set();
+          profDays[a.professor_id].add(day);
+          usedDays.push(day);
+          placed++;
+          break;
+        }
+      }
+    }
+    return placed >= need;
+  }
+
+  // تجميع الإسنادات حسب الأستاذ
+  const byProf: Record<string, Assignment[]> = {};
+  unscheduled.forEach(a => {
+    if (!byProf[a.professor_id]) byProf[a.professor_id] = [];
+    byProf[a.professor_id].push(a);
+  });
+
+  for (const [profId, profAssignments] of Object.entries(byProf)) {
+    const existingDays = profDays[profId] ? [...profDays[profId]] : [];
+    let assignedDays = [...new Set(existingDays)];
+
+    // اختر يومين للأستاذ إن لم يكن لديه
+    if (assignedDays.length < 2) {
+      const availDays = days.filter(d => !assignedDays.includes(d));
+      // اختر يومين متباعدين
+      const shuffled = availDays.sort(() => Math.random() - 0.5);
+      while (assignedDays.length < 2 && shuffled.length > 0) {
+        assignedDays.push(shuffled.shift()!);
+      }
+    }
+
+    for (const a of profAssignments) {
+      const levelName = a.level_name;
+      // جرب اليومين المحددين
+      const success = trySchedule(a, levelName, assignedDays);
+      if (!success) {
+        // جرب يوماً ثالثاً
+        const extraDays = days.filter(d => !assignedDays.includes(d));
+        const success2 = trySchedule(a, levelName, extraDays);
+        if (!success2) {
+          conflicts.push(`${a.professor_name} — ${a.module_name} (${a.teaching_type})`);
+          skipped++;
+        }
+      }
+    }
+  }
+
+  // أدخل في DB
+  if (toInsert.length > 0) {
+    const batchSize = 50;
+    for (let i = 0; i < toInsert.length; i += batchSize) {
+      await supabase.from('schedules').insert(toInsert.slice(i, i + batchSize));
+    }
+  }
+
+  return { added: toInsert.length, skipped, conflicts };
 }
