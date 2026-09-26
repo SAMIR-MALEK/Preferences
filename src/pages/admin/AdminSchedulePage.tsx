@@ -56,6 +56,7 @@ export default function AdminSchedulePage() {
   const [selectedGroup, setSelectedGroup] = useState(0);
 
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [viewCell, setViewCell] = useState<{day:string;slotId:string;slotLabel:string} | null>(null);
   const [modalTab, setModalTab] = useState<'assigned' | 'custom'>('assigned');
   const [modalTypeFilter, setModalTypeFilter] = useState<'all' | 'lec' | 'td'>('all');
   const [modalAssignment, setModalAssignment] = useState('');
@@ -417,10 +418,7 @@ export default function AdminSchedulePage() {
                         <td key={slotNum}
                           onClick={() => {
                             if (!slotId) return;
-                            setModal({day, slotId, slotLabel: getSlotLabel(slotNum)});
-                            setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
-                            setModalSearch(''); setModalTypeFilter('all');
-                            setCustomModule(''); setCustomProfessor('');
+                            setViewCell({day, slotId, slotLabel: getSlotLabel(slotNum)});
                           }}
                           className="border border-gray-100 p-1 align-top cursor-pointer hover:bg-blue-50/30 transition-colors"
                           style={{minWidth:165, minHeight:90}}>
@@ -450,9 +448,18 @@ export default function AdminSchedulePage() {
                             {entries.length > 3 && (
                               <div className="text-center text-[10px] text-gray-400 bg-gray-100 rounded py-0.5">+{toArabicNum(entries.length-3)} أخرى</div>
                             )}
-                            {entries.length === 0 && (
-                              <div className="flex items-center justify-center h-[80px] text-gray-200 text-2xl hover:text-[#1a3a6b]/20 transition-colors">+</div>
-                            )}
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                if (!slotId) return;
+                                setModal({day, slotId, slotLabel: getSlotLabel(slotNum)});
+                                setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
+                                setModalSearch(''); setModalTypeFilter('all');
+                                setCustomModule(''); setCustomProfessor('');
+                              }}
+                              className="w-full mt-1 flex items-center justify-center h-7 border-2 border-dashed border-gray-200 rounded-lg text-gray-300 hover:border-[#1a3a6b] hover:text-[#1a3a6b] transition-all text-lg">
+                              +
+                            </button>
                           </div>
                         </td>
                       );
@@ -464,6 +471,62 @@ export default function AdminSchedulePage() {
           </div>
         </div>
       )}
+
+      {/* View Cell Modal */}
+      {viewCell && (() => {
+        const cellEntries = getCellEntries(viewCell.day, SLOT_NUMBERS.find(n => getSlotId(viewCell.day, n) === viewCell.slotId) || 1);
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewCell(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-3 max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()} dir="rtl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg font-display">حصص هذا الوقت</h3>
+                  <p className="text-gray-400 text-sm">{viewCell.day} — {viewCell.slotLabel}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => {
+                    setModal({day: viewCell.day, slotId: viewCell.slotId, slotLabel: viewCell.slotLabel});
+                    setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
+                    setModalSearch(''); setModalTypeFilter('all');
+                    setCustomModule(''); setCustomProfessor('');
+                    setViewCell(null);
+                  }} className="flex items-center gap-1 bg-[#1a3a6b] text-white px-3 py-1.5 rounded-xl text-xs font-bold">
+                    <Plus className="w-3 h-3" /> إضافة
+                  </button>
+                  <button onClick={() => setViewCell(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                </div>
+              </div>
+              {cellEntries.length === 0 ? (
+                <p className="text-center text-gray-400 py-4">لا توجد حصص — اضغط إضافة</p>
+              ) : (
+                <div className="space-y-2">
+                  {cellEntries.map(entry => {
+                    const a = assignments.find(x => x.id === entry.assignment_id);
+                    const room = rooms.find(r => r.id === entry.room_id);
+                    const isCustom = !entry.assignment_id;
+                    return (
+                      <div key={entry.id} className={`rounded-xl p-3 text-white relative ${isCustom?'bg-amber-500':a?.teaching_type==='محاضرة'?'bg-[#1a3a6b]':'bg-teal-600'}`}>
+                        <button onClick={() => removeEntry(entry.id)}
+                          className="absolute top-2 left-2 bg-red-500 rounded-full w-5 h-5 flex items-center justify-center opacity-70 hover:opacity-100">
+                          <X className="w-3 h-3"/>
+                        </button>
+                        <p className="font-bold text-sm ml-6">{isCustom ? entry.custom_module : a?.module_name}</p>
+                        <p className="text-white/75 text-xs">{isCustom ? entry.custom_professor : a?.professor_name}</p>
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {!isCustom && <span className="bg-white/20 px-1.5 rounded text-[10px]">{a?.teaching_type==='محاضرة'?`م${a.section_number}`:`ف${a?.group_number}`}</span>}
+                          {room && <span className="bg-white/20 px-1.5 rounded text-[10px]">{room.name}</span>}
+                          {isCustom && <span className="bg-white/20 px-1.5 rounded text-[10px]">مقترح</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal */}
       {modal && (
