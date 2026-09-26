@@ -47,7 +47,7 @@ export default function AdminEmailPage() {
     setLoadingProfs(true);
     const { data: asgn } = await supabase
       .from('assignments')
-      .select('professor_id, teaching_type, weekly_hours, section_number, group_number, module:modules(name_ar, weekly_sessions), level:levels(name_ar), professor:professors(id, last_name, first_name, email, rank, specialty)')
+      .select('professor_id, teaching_type, weekly_hours, section_number, group_number, module:modules(name_ar), level:levels(name_ar), professor:professors(id, last_name, first_name, email, rank, specialty)')
       .eq('academic_year', '2026-2027').eq('semester', 1).in('status', ['نهائي', 'مؤقت']);
 
     if (!asgn) { setLoadingProfs(false); return; }
@@ -69,7 +69,7 @@ export default function AdminEmailPage() {
       const levelName = a.level?.name_ar || '—';
       if (a.teaching_type === 'محاضرة') {
         const existing = p.lectures.find(l => l.module_name === modName && l.level_name === levelName);
-        if (!existing) p.lectures.push({ module_name: modName, level_name: levelName, sessions: a.module?.weekly_sessions || 1 });
+        if (!existing) p.lectures.push({ module_name: modName, level_name: levelName, sessions: a.weekly_hours >= 4 ? 2 : 1 });
       } else {
         const existing = p.tds.find(t => t.module_name === modName && t.level_name === levelName);
         if (existing) existing.group_count++;
