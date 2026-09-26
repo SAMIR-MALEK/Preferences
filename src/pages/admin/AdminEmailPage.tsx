@@ -47,7 +47,7 @@ export default function AdminEmailPage() {
     setLoadingProfs(true);
     const { data: asgn } = await supabase
       .from('assignments')
-      .select('professor_id, teaching_type, weekly_hours, section_number, group_number, module:modules(name_ar), level:levels(name_ar), professor:professors(id, last_name, first_name, email, rank, specialty)')
+      .select('professor_id, teaching_type, weekly_hours, section_number, group_number, module:modules(name_ar), level:levels(name_ar), professor:professors(id, last_name, first_name, email, rank)')
       .eq('academic_year', '2026-2027').eq('semester', 1).in('status', ['نهائي', 'مؤقت']);
 
     if (!asgn) { setLoadingProfs(false); return; }
@@ -59,7 +59,7 @@ export default function AdminEmailPage() {
       if (!profMap[prof.id]) {
         profMap[prof.id] = {
           id: prof.id, last_name: prof.last_name, first_name: prof.first_name,
-          email: prof.email || '', rank: prof.rank || '', specialty: prof.specialty || '',
+          email: prof.email || '', rank: prof.rank || '', specialty: '',  // غير موجود في DB
           total_hours: 0, lectures: [], tds: [], selected: true, status: 'pending',
         };
       }
