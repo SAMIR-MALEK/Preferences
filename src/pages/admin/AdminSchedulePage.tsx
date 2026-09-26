@@ -575,13 +575,43 @@ export default function AdminSchedulePage() {
       )}
     </div>
   );
-}
 
 // ============================================================
-// خوارزمية الجدولة التلقائية
+// خوارزمية الجدولة التلقائية — منطق التوقيت الحقيقي
 // ============================================================
 
-const LEVELS_NEED_AMPHITHEATER = ['أولى ليسانس', 'ثانية ليسانس', 'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص', 'ماستر 1 قانون جنائي', 'ماستر 2 قانون جنائي', 'ماستر 1 قانون أعمال', 'ماستر 2 قانون أعمال'];
+const LEVELS_NEED_AMPHITHEATER = [
+  'أولى ليسانس', 'ثانية ليسانس',
+  'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص',
+  'ماستر 1 قانون جنائي', 'ماستر 2 قانون جنائي',
+  'ماستر 1 قانون أعمال', 'ماستر 2 قانون أعمال'
+];
+
+// يوم الأعمال الموجهة لكل مستوى
+const TD_DAYS: Record<string, string> = {
+  'أولى ليسانس': 'الأربعاء',
+  'ثانية ليسانس': 'الثلاثاء',
+  'ثالثة ليسانس قانون خاص': 'الاثنين',
+  'ثالثة ليسانس قانون عام': 'الاثنين',
+  'ماستر 1 قانون جنائي': 'الأحد',
+  'ماستر 2 قانون جنائي': 'الأحد',
+  'ماستر 1 قانون أعمال': 'الأحد',
+  'ماستر 2 قانون أعمال': 'الأحد',
+  'ماستر 1 قانون عقاري': 'الأحد',
+  'ماستر 2 قانون التهيئة والتعمير': 'الأحد',
+  'ماستر 1 قانون الصحة': 'الأحد',
+  'ماستر 2 قانون الصحة': 'الأحد',
+  'ماستر 1 قانون الإعلام الآلي والإنترنت': 'الأحد',
+  'ماستر 2 قانون الإعلام الآلي والإنترنت': 'الأحد',
+};
+
+// أيام المحاضرات لكل مستوى (من التوقيت الحقيقي)
+const LEC_DAYS: Record<string, string[]> = {
+  'أولى ليسانس': ['الأحد', 'الاثنين', 'الثلاثاء', 'الخميس'],
+  'ثانية ليسانس': ['الأحد', 'الاثنين', 'الأربعاء', 'الخميس'],
+  'ثالثة ليسانس قانون خاص': ['الأحد', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+  'ثالثة ليسانس قانون عام': ['الأحد', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+};
 
 export async function runSchedulingAlgorithm(
   assignments: Assignment[],
@@ -592,114 +622,120 @@ export async function runSchedulingAlgorithm(
   academicYear: string
 ): Promise<{ added: number; skipped: number; conflicts: string[] }> {
 
-  // البيانات المتاحة
   const amphitheaters = rooms.filter(r => r.type === 'مدرج');
   const lectureRooms = rooms.filter(r => r.type === 'قاعة محاضرات');
   const regularRooms = rooms.filter(r => r.type === 'قاعة');
   const days = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 
-  // الإسنادات غير المجدولة
+  // تتبع الحجوزات: slotId → {rooms, profs, groups}
+  type Occ = { roomIds: Set<string>; profIds: Set<string>; groups: Set<string> };
+  const occupied: Record<string, Occ> = {};
+
+  function ensureOcc(slotId: string) {
+    if (!occupied[slotId]) occupied[slotId] = { roomIds: new Set(), profIds: new Set(), groups: new Set() };
+  }
+
+  // تهيئة من الجدول الموجود
+  existingSchedule.forEach(s => {
+    ensureOcc(s.time_slot_id);
+    occupied[s.time_slot_id].roomIds.add(s.room_id);
+    if (s.assignment_id) {
+      const a = assignments.find(x => x.id === s.assignment_id);
+      if (a) {
+        occupied[s.time_slot_id].profIds.add(a.professor_id);
+        const gk = a.teaching_type === 'محاضرة'
+          ? `${a.level_id}_${a.section_number}_lec`
+          : `${a.level_id}_${a.section_number}_${a.group_number}`;
+        occupied[s.time_slot_id].groups.add(gk);
+      }
+    }
+  });
+
+  // الإسنادات غير المكتملة
   const unscheduled = assignments.filter(a => {
     const required = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
     const done = existingSchedule.filter(s => s.assignment_id === a.id).length;
     return done < required;
   });
 
-  // تتبع: أيام كل أستاذ، القاعات المحجوزة، المجموعات المحجوزة
-  const profDays: Record<string, Set<string>> = {};
-  const occupied: Record<string, { roomIds: Set<string>; profIds: Set<string>; groups: Set<string> }> = {};
-
-  // تهيئة من الجدول الموجود
-  existingSchedule.forEach(s => {
-    const key = s.time_slot_id;
-    if (!occupied[key]) occupied[key] = { roomIds: new Set(), profIds: new Set(), groups: new Set() };
-    occupied[key].roomIds.add(s.room_id);
-    if (s.assignment_id) {
-      const a = assignments.find(x => x.id === s.assignment_id);
-      if (a) {
-        occupied[key].profIds.add(a.professor_id);
-        if (a.teaching_type === 'محاضرة') {
-          occupied[key].groups.add(`${a.level_id}_${a.section_number}_lec`);
-        } else {
-          occupied[key].groups.add(`${a.level_id}_${a.section_number}_${a.group_number}`);
-        }
-        if (!profDays[a.professor_id]) profDays[a.professor_id] = new Set();
-        const slot = timeSlots.find(ts => ts.id === key);
-        if (slot) profDays[a.professor_id].add(slot.day);
-      }
-    }
-  });
-
   const toInsert: any[] = [];
   const conflicts: string[] = [];
-  let skipped = 0;
 
-  function getSlotKey(day: string, slotNum: number) {
-    return timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum)?.id;
+  function getSlotId(day: string, slotNum: number): string | null {
+    return timeSlots.find(ts => ts.day === day && ts.slot_number === slotNum)?.id || null;
   }
 
-  function isSlotFree(slotId: string, profId: string, roomId: string, groupKey: string): boolean {
+  function isFree(slotId: string, profId: string, roomId: string, groupKey: string): boolean {
     const occ = occupied[slotId];
     if (!occ) return true;
     if (occ.roomIds.has(roomId)) return false;
     if (occ.profIds.has(profId)) return false;
     if (occ.groups.has(groupKey)) return false;
+    // تحقق أيضاً: محاضرة لنفس المجموعة تمنع TD في نفس الوقت
+    const [levelId, secNum] = groupKey.split('_');
+    if (occ.groups.has(`${levelId}_${secNum}_lec`)) return false;
     return true;
   }
 
-  function markOccupied(slotId: string, profId: string, roomId: string, groupKey: string) {
-    if (!occupied[slotId]) occupied[slotId] = { roomIds: new Set(), profIds: new Set(), groups: new Set() };
+  function markOcc(slotId: string, profId: string, roomId: string, groupKey: string) {
+    ensureOcc(slotId);
     occupied[slotId].roomIds.add(roomId);
     occupied[slotId].profIds.add(profId);
     occupied[slotId].groups.add(groupKey);
   }
 
-  let ampIdx = 0;
-  let lrIdx = 0;
-  let rrIdx = 0;
-
-  function selectAvailableRoom(candidates: Room[], slotId: string): Room | null {
-    // ابحث عن قاعة غير محجوزة في هذا الوقت
+  function getFreeRoom(candidates: Room[], slotId: string): Room | null {
     return candidates.find(r => !occupied[slotId]?.roomIds.has(r.id)) || null;
   }
 
-  function selectRoom(a: Assignment, levelName: string, slotId: string): Room | null {
+  function selectRoom(a: Assignment, slotId: string): Room | null {
     if (a.teaching_type === 'أعمال موجهة') {
-      // تناوب بين القاعات العادية
-      const sorted = regularRooms.slice().sort((x, y) => x.capacity - y.capacity);
-      return selectAvailableRoom(sorted, slotId) || null;
+      return getFreeRoom(regularRooms, slotId) || getFreeRoom(lectureRooms, slotId) || null;
     }
-    if (LEVELS_NEED_AMPHITHEATER.includes(levelName)) {
-      // تناوب بين المدرجات الأربعة
-      return selectAvailableRoom(amphitheaters, slotId) || selectAvailableRoom(lectureRooms, slotId) || null;
+    if (LEVELS_NEED_AMPHITHEATER.includes(a.level_name)) {
+      return getFreeRoom(amphitheaters, slotId) || getFreeRoom(lectureRooms, slotId) || null;
     }
-    return selectAvailableRoom(lectureRooms, slotId) || selectAvailableRoom(regularRooms, slotId) || null;
+    return getFreeRoom(lectureRooms, slotId) || getFreeRoom(regularRooms, slotId) || null;
   }
 
-  function trySchedule(a: Assignment, levelName: string, targetDays: string[]): boolean {
-    const required = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
-    const already = toInsert.filter(t => t.assignment_id === a.id).length +
-      existingSchedule.filter(s => s.assignment_id === a.id).length;
-    const need = required - already;
-    if (need <= 0) return true;
+  // أيام الأستاذ المستخدمة
+  const profDays: Record<string, Set<string>> = {};
+  existingSchedule.forEach(s => {
+    if (!s.assignment_id) return;
+    const a = assignments.find(x => x.id === s.assignment_id);
+    if (!a) return;
+    const slot = timeSlots.find(ts => ts.id === s.time_slot_id);
+    if (!slot) return;
+    if (!profDays[a.professor_id]) profDays[a.professor_id] = new Set();
+    profDays[a.professor_id].add(slot.day);
+  });
 
+  // ترتيب الفترات — توزيع ذكي يبدأ من منتصف اليوم
+  const SLOT_ORDER = [2, 3, 4, 1, 5];
+
+  function tryPlace(a: Assignment, targetDays: string[]): boolean {
     const groupKey = a.teaching_type === 'محاضرة'
       ? `${a.level_id}_${a.section_number}_lec`
       : `${a.level_id}_${a.section_number}_${a.group_number}`;
 
+    const required = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
+    const alreadyDone = existingSchedule.filter(s => s.assignment_id === a.id).length
+      + toInsert.filter(t => t.assignment_id === a.id).length;
+    const need = required - alreadyDone;
+    if (need <= 0) return true;
+
     let placed = 0;
-    const usedDays: string[] = [];
+    const usedDays = new Set<string>();
 
     for (const day of targetDays) {
       if (placed >= need) break;
-      // توزيع ذكي في الفترات — تجنب التراكم
-      const slotNums = [2, 3, 4, 1, 5]; // ابدأ من منتصف اليوم
-      for (const slotNum of slotNums) {
-        const slotId = getSlotKey(day, slotNum);
+      if (need > 1 && usedDays.has(day)) continue; // محاضرة ×2 في يومين مختلفين
+      for (const slotNum of SLOT_ORDER) {
+        const slotId = getSlotId(day, slotNum);
         if (!slotId) continue;
-        const room = selectRoom(a, levelName, slotId);
+        const room = selectRoom(a, slotId);
         if (!room) continue;
-        if (isSlotFree(slotId, a.professor_id, room.id, groupKey)) {
+        if (isFree(slotId, a.professor_id, room.id, groupKey)) {
           toInsert.push({
             assignment_id: a.id,
             room_id: room.id,
@@ -708,10 +744,10 @@ export async function runSchedulingAlgorithm(
             semester: 1,
             status: 'مسودة',
           });
-          markOccupied(slotId, a.professor_id, room.id, groupKey);
+          markOcc(slotId, a.professor_id, room.id, groupKey);
           if (!profDays[a.professor_id]) profDays[a.professor_id] = new Set();
           profDays[a.professor_id].add(day);
-          usedDays.push(day);
+          usedDays.add(day);
           placed++;
           break;
         }
@@ -720,7 +756,7 @@ export async function runSchedulingAlgorithm(
     return placed >= need;
   }
 
-  // تجميع الإسنادات حسب الأستاذ
+  // تجميع حسب الأستاذ
   const byProf: Record<string, Assignment[]> = {};
   unscheduled.forEach(a => {
     if (!byProf[a.professor_id]) byProf[a.professor_id] = [];
@@ -728,42 +764,55 @@ export async function runSchedulingAlgorithm(
   });
 
   for (const [profId, profAssignments] of Object.entries(byProf)) {
-    const existingDays = profDays[profId] ? [...profDays[profId]] : [];
-    let assignedDays = [...new Set(existingDays)];
+    // افصل بين TD والمحاضرات
+    const lectures = profAssignments.filter(a => a.teaching_type === 'محاضرة');
+    const tds = profAssignments.filter(a => a.teaching_type === 'أعمال موجهة');
 
-    // اختر يومين للأستاذ إن لم يكن لديه
-    if (assignedDays.length < 2) {
-      const availDays = days.filter(d => !assignedDays.includes(d));
-      // اختر يومين متباعدين
-      const shuffled = availDays.sort(() => Math.random() - 0.5);
-      while (assignedDays.length < 2 && shuffled.length > 0) {
-        assignedDays.push(shuffled.shift()!);
+    // اختر يومين للمحاضرات
+    const existingLecDays = profDays[profId] ? [...profDays[profId]] : [];
+    let lecDays = [...new Set(existingLecDays)];
+    if (lecDays.length < 2) {
+      // اختر من أيام المستوى المناسبة
+      const levelName = lectures[0]?.level_name || tds[0]?.level_name || '';
+      const preferred = LEC_DAYS[levelName] || days;
+      const avail = preferred.filter(d => !lecDays.includes(d) && !Object.values(TD_DAYS).includes(d));
+      // اختر يومين متباعدَين
+      const shuffled = avail.sort(() => Math.random() - 0.5);
+      while (lecDays.length < 2 && shuffled.length > 0) {
+        lecDays.push(shuffled.shift()!);
       }
     }
 
-    for (const a of profAssignments) {
-      const levelName = a.level_name;
-      // جرب اليومين المحددين
-      const success = trySchedule(a, levelName, assignedDays);
+    // جدولة المحاضرات في اليومين
+    for (const a of lectures) {
+      const success = tryPlace(a, lecDays);
       if (!success) {
         // جرب يوماً ثالثاً
-        const extraDays = days.filter(d => !assignedDays.includes(d));
-        const success2 = trySchedule(a, levelName, extraDays);
-        if (!success2) {
-          conflicts.push(`${a.professor_name} — ${a.module_name} (${a.teaching_type})`);
-          skipped++;
-        }
+        const extra = days.filter(d => !lecDays.includes(d) && d !== TD_DAYS[a.level_name]);
+        const success2 = tryPlace(a, extra);
+        if (!success2) conflicts.push(`${a.professor_name} — ${a.module_name} (محاضرة)`);
+      }
+    }
+
+    // جدولة TD في اليوم المخصص
+    for (const a of tds) {
+      const tdDay = TD_DAYS[a.level_name];
+      const tdDays = tdDay ? [tdDay] : days.filter(d => !lecDays.includes(d));
+      const success = tryPlace(a, tdDays);
+      if (!success) {
+        // جرب أي يوم آخر
+        const extra = days.filter(d => d !== tdDay && !lecDays.includes(d));
+        const success2 = tryPlace(a, extra);
+        if (!success2) conflicts.push(`${a.professor_name} — ${a.module_name} (أعمال موجهة)`);
       }
     }
   }
 
-  // أدخل في DB
-  if (toInsert.length > 0) {
-    const batchSize = 50;
-    for (let i = 0; i < toInsert.length; i += batchSize) {
-      await supabase.from('schedules').insert(toInsert.slice(i, i + batchSize));
-    }
+  // إدخال في DB على دفعات
+  const BATCH = 50;
+  for (let i = 0; i < toInsert.length; i += BATCH) {
+    await supabase.from('schedules').insert(toInsert.slice(i, i + BATCH));
   }
 
-  return { added: toInsert.length, skipped, conflicts };
+  return { added: toInsert.length, skipped: conflicts.length, conflicts };
 }
