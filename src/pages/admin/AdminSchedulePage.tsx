@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import { X, Save, CheckCircle, AlertCircle, RefreshCw, Zap } from 'lucide-react';
+import { X, Save, CheckCircle, AlertCircle, RefreshCw, Zap, Plus } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
