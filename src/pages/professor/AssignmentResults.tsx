@@ -709,7 +709,5 @@ export default function AssignmentResults({ prof }: Props) {
         )}
       </div>
     </div>
-  </div>
-  </>
   );
 }
