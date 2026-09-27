@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useRef } from 'react';
 import { toArabicNum } from '../../lib/utils';
 import type { Professor } from '../../types';
 import { CheckCircle, AlertCircle, Clock, Plus, Send, X } from 'lucide-react';
@@ -327,7 +328,7 @@ export default function AssignmentResults({ prof }: Props) {
   if (assigned.length === 0 && unassigned.length === 0) return (
     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
       <Clock className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-      <p className="font-bold text-amber-800">النتائج الأولية لم تُنشر بعد</p>
+      <p className="font-bold text-amber-800">نتائج الإسناد النهائية لم تُنشر بعد</p>
       <p className="text-amber-600 text-sm mt-1">ستُعلَم فور نشر الإدارة لنتائج إسناد مقاييس السداسي الأول</p>
     </div>
   );
@@ -336,7 +337,7 @@ export default function AssignmentResults({ prof }: Props) {
     <div className="space-y-5" dir="rtl">
       <div>
         <h3 className="font-display font-bold text-gray-900 text-lg">النتائج بعد دراسة الطعون — إسناد مقاييس السداسي الأول</h3>
-        <p className="text-gray-500 text-sm mt-0.5">النتائج النهائية لإسناد مقاييس السداسي الأول</p>
+        <p className="text-gray-500 text-sm mt-0.5">الإسناد النهائي لمقاييس السداسي الأول</p>
       </div>
 
       {/* الحجم الساعي */}
@@ -708,5 +709,7 @@ export default function AssignmentResults({ prof }: Props) {
         )}
       </div>
     </div>
+  </div>
+  </>
   );
 }

@@ -83,7 +83,7 @@ export default function ProfessorDashboard() {
     { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock, disabled: !profileComplete },
     { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete },
     { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
-    ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد الأولي', icon: Award, disabled: !profileComplete }] : []),
+    ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, highlighted: true }] : []),
   ];
 
   return (
@@ -114,9 +114,12 @@ export default function ProfessorDashboard() {
                     disabled={t.disabled}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                     style={{
-                      background: isActive ? '#c9a227' : 'transparent',
-                      color: isActive ? 'white' : t.disabled ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.65)',
+                      background: isActive ? (t.id === 'results' ? '#c9a227' : '#c9a227') : (t.id === 'results' ? 'rgba(201,162,39,0.25)' : 'transparent'),
+                      color: isActive ? 'white' : t.disabled ? 'rgba(255,255,255,.25)' : (t.id === 'results' ? '#fde68a' : 'rgba(255,255,255,.65)'),
                       cursor: t.disabled ? 'not-allowed' : 'pointer',
+                      fontWeight: t.id === 'results' ? 'bold' : 'normal',
+                      fontSize: t.id === 'results' ? '13px' : '11px',
+                      border: t.id === 'results' && !isActive ? '1px solid rgba(201,162,39,0.5)' : 'none',
                     }}>
                     <Icon className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">{t.label}</span>
@@ -165,7 +168,7 @@ export default function ProfessorDashboard() {
               <Award className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-lg">صدرت نتائج الإسناد الأولية للسداسي الأول</p>
+              <p className="font-bold text-lg">صدرت نتائج الإسناد النهائية للسداسي الأول</p>
               <p className="text-white/70 text-sm mt-0.5">اضغط هنا للاطلاع على المقاييس المُسنَدة إليك</p>
             </div>
             <div className="text-white/50 text-2xl">←</div>
