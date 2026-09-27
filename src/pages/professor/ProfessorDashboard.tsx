@@ -40,7 +40,7 @@ export default function ProfessorDashboard() {
   useEffect(() => { setProfData(prof); }, [prof]);
 
   const profileComplete = isProfileComplete(profData);
-  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'home' : 'profile');
+  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'home' : 'profile'); // سيُحدَّث بعد جلب resultsPublished
 
   // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function ProfessorDashboard() {
       .select('*')
       .eq('academic_year', '2026-2027')
       .single()
-      .then(({ data }) => { if(data) { setSettings(data); setResultsPublished(data.results_published === true); setRegistrationOpen(data.registration_s1_open === true); } });
+      .then(({ data }) => { if(data) { setSettings(data); const pub = data.results_published === true; setResultsPublished(pub); setRegistrationOpen(data.registration_s1_open === true); if (pub && profileComplete) setTab('results'); } });
 
     // فحص وجود نتائج إسناد أولية
     if (!prof?.id) return;
@@ -80,8 +80,8 @@ export default function ProfessorDashboard() {
   const tabs = [
     { id: 'home' as ProfTab, label: 'الرئيسية', icon: Home, disabled: !profileComplete },
     { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User },
-    { id: 's1' as ProfTab, label: 'السداسي الأول', icon: Clock, disabled: !profileComplete },
-    { id: 's2' as ProfTab, label: 'السداسي الثاني', icon: Clock, disabled: !profileComplete },
+    { id: 's1' as ProfTab, label: 'رغبات س1', icon: Clock, disabled: !profileComplete, small: true },
+    { id: 's2' as ProfTab, label: 'رغبات س2', icon: Clock, disabled: !profileComplete, small: true },
     { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
     ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, highlighted: true }] : []),
   ];
@@ -118,7 +118,8 @@ export default function ProfessorDashboard() {
                       color: isActive ? 'white' : t.disabled ? 'rgba(255,255,255,.25)' : (t.id === 'results' ? '#fde68a' : 'rgba(255,255,255,.65)'),
                       cursor: t.disabled ? 'not-allowed' : 'pointer',
                       fontWeight: t.id === 'results' ? 'bold' : 'normal',
-                      fontSize: t.id === 'results' ? '13px' : '11px',
+                      fontSize: t.id === 'results' ? '13px' : ((t as any).small ? '10px' : '11px'),
+                      opacity: (t as any).small ? 0.75 : 1,
                       border: t.id === 'results' && !isActive ? '1px solid rgba(201,162,39,0.5)' : 'none',
                     }}>
                     <Icon className="w-3.5 h-3.5" />
