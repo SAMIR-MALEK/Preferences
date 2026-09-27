@@ -3,7 +3,7 @@ import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum, toArabicFixed } from '../../lib/utils';
-import { Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users } from 'lucide-react';
+import { Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight } from 'lucide-react';
 import WishesFormPage from './WishesFormPage';
 import ProfessorProfilePage from './ProfessorProfilePage';
 import type { Wish } from '../../types';
