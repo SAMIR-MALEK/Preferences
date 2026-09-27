@@ -206,7 +206,7 @@ export default function ProfessorDashboard() {
           />
         )}
         {tab === 'card' && <WishCard prof={profData} />}
-        {tab === 'results' && profData && resultsPublished && <AssignmentResults prof={profData} />}
+        {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
       </div>
     </div>
   );
@@ -491,6 +491,180 @@ function WishCard({ prof }: any) {
         <div className="p-4">
           <SemSection sem={1} list={s1Wishes} color="#1a3a6b" />
           <SemSection sem={2} list={s2Wishes} color="#c9a227" />
+        </div>
+
+        {/* Signatures */}
+        <div className="px-4 pb-5">
+          <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <div className="grid grid-cols-2 gap-8 mt-5">
+              {['توقيع الأستاذ', 'إمضاء نائب العميد المكلف بالبيداغوجيا'].map(s => (
+                <div key={s} className="border-t-2 border-dashed border-gray-300 pt-2 text-center">
+                  <p className="text-xs text-gray-400">{s}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssignmentCard({ prof }: any) {
+  const [assigned, setAssigned] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.from('assignments')
+      .select('teaching_type, weekly_hours, section_number, group_number, module:modules(name_ar), level:levels(name_ar)')
+      .eq('professor_id', prof?.id)
+      .eq('academic_year', '2026-2027')
+      .eq('semester', 1)
+      .in('status', ['نهائي', 'مؤقت'])
+      .then(({ data }) => { if (data) setAssigned(data); setLoading(false); });
+  }, []);
+
+  async function downloadPDF() {
+    if (!cardRef.current) return;
+    setGenerating(true);
+    const canvas = await html2canvas(cardRef.current, { scale: 2, backgroundColor: '#fff', logging: false });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const w = pdf.internal.pageSize.getWidth() - 20;
+    const h = (canvas.height * w) / canvas.width;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, w, Math.min(h, 270));
+    pdf.save(`إسناد_${prof?.last_name}_2026-2027.pdf`);
+    setGenerating(false);
+  }
+
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
+
+  // تجميع الإسنادات
+  const lectures: any[] = [];
+  const tds: any[] = [];
+  assigned.forEach(a => {
+    const modName = (a as any).module?.name_ar || '—';
+    const levelName = (a as any).level?.name_ar || '—';
+    if (a.teaching_type === 'محاضرة') {
+      const ex = lectures.find(l => l.module_name === modName && l.level_name === levelName);
+      if (ex) ex.weekly_hours += a.weekly_hours;
+      else lectures.push({ module_name: modName, level_name: levelName, weekly_hours: a.weekly_hours });
+    } else {
+      const ex = tds.find(t => t.module_name === modName && t.level_name === levelName);
+      if (ex) { ex.group_count++; ex.weekly_hours += a.weekly_hours; }
+      else tds.push({ module_name: modName, level_name: levelName, group_count: 1, weekly_hours: a.weekly_hours });
+    }
+  });
+  const totalHours = assigned.reduce((s, a) => s + a.weekly_hours, 0);
+
+  return (
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-display font-bold text-gray-900 text-lg">بطاقة الإسناد النهائي</h2>
+          <span className="inline-flex items-center gap-1.5 text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 mt-1">
+            <CheckCircle className="w-3 h-3" /> الإسناد النهائي للسداسي الأول 2026/2027
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={downloadPDF} disabled={generating}
+            className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            style={{ background: 'linear-gradient(135deg,#c9a227,#a07820)' }}>
+            <Download className="w-4 h-4" />
+            {generating ? 'جارٍ...' : 'PDF'}
+          </button>
+          <button onClick={() => window.print()}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-sm transition-colors hover:bg-gray-200">
+            <Printer className="w-4 h-4" />
+            طباعة
+          </button>
+        </div>
+      </div>
+
+      <div ref={cardRef} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+        {/* Header */}
+        <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] p-5 text-white">
+          <div className="flex justify-between items-start gap-3">
+            <div>
+              <p className="text-[#c9a227] text-[10px]">الجمهورية الجزائرية الديمقراطية الشعبية — وزارة التعليم العالي</p>
+              <p className="font-bold text-sm mt-1">جامعة محمد البشير الإبراهيمي — برج بوعريريج</p>
+              <p className="text-[#c9a227] font-bold text-sm">كلية الحقوق والعلوم السياسية</p>
+              <p className="text-gray-400 text-xs mt-0.5">نيابة العمادة المكلفة بالبيداغوجيا</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-[#c9a227]/20 border border-[#c9a227]/30 flex items-center justify-center flex-shrink-0">
+              <Award className="w-6 h-6 text-[#c9a227]" />
+            </div>
+          </div>
+          <div className="text-center mt-4 pt-4 border-t border-white/15">
+            <h2 className="font-display font-bold text-base">بطاقة الإسناد البيداغوجي النهائي</h2>
+            <p className="text-[#c9a227] text-xs font-semibold mt-1">الموسم الجامعي 2026 / 2027 — السداسي الأول</p>
+          </div>
+        </div>
+
+        {/* Prof info */}
+        <div className="p-4 border-b border-gray-100 bg-gray-50">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['اللقب والاسم', `${prof?.last_name} ${prof?.first_name}`],
+              ['الرتبة', prof?.rank],
+              ['الخبرة', `${prof?.professional_experience} سنة`],
+              ['آخر شهادة', prof?.highest_degree],
+              ['التخصص', prof?.degree_speciality || '—'],
+              ['تاريخ الإصدار', new Date().toLocaleDateString('ar-DZ')],
+            ].map(([k, v]) => (
+              <div key={k as string}>
+                <p className="text-[10px] text-gray-400 mb-0.5">{k}</p>
+                <p className="text-xs font-semibold text-gray-800">{v as string}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Assignments */}
+        <div className="p-4 space-y-4">
+          {lectures.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <BookOpen className="w-3.5 h-3.5 text-[#1a3a6b]" />
+                </div>
+                <span className="font-display font-bold text-sm text-gray-800">المحاضرات</span>
+              </div>
+              {lectures.map((l, i) => (
+                <div key={i} className="flex gap-3 items-center p-3 rounded-xl mb-2 border border-blue-100 bg-blue-50/30">
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-800 text-sm">{l.module_name}</p>
+                    <p className="text-xs text-gray-500">{l.level_name}</p>
+                  </div>
+                  <span className="text-xs font-bold text-[#1a3a6b]">{l.weekly_hours.toFixed(2)}س/أسبوع</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {tds.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                <div className="w-6 h-6 rounded-lg bg-teal-50 flex items-center justify-center">
+                  <Users className="w-3.5 h-3.5 text-teal-600" />
+                </div>
+                <span className="font-display font-bold text-sm text-gray-800">الأعمال الموجهة</span>
+              </div>
+              {tds.map((t, i) => (
+                <div key={i} className="flex gap-3 items-center p-3 rounded-xl mb-2 border border-teal-100 bg-teal-50/30">
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-800 text-sm">{t.module_name}</p>
+                    <p className="text-xs text-gray-500">{t.level_name} — {t.group_count === 1 ? 'فوج واحد' : t.group_count === 2 ? 'فوجان' : t.group_count + ' أفواج'}</p>
+                  </div>
+                  <span className="text-xs font-bold text-teal-700">{t.weekly_hours.toFixed(2)}س/أسبوع</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="bg-[#1a3a6b] text-white rounded-xl p-3 text-center">
+            <p className="text-xs text-blue-200">الحجم الساعي الأسبوعي الإجمالي</p>
+            <p className="font-display font-bold text-lg">{totalHours.toFixed(2)} ساعة</p>
+          </div>
         </div>
 
         {/* Signatures */}
