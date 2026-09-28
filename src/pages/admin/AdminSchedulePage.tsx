@@ -68,24 +68,36 @@ export default function AdminSchedulePage() {
 
   useEffect(() => {
     if (modalTab !== 'custom' || !selectedLevel) return;
+    // جلب كل مقاييس المستوى
     supabase.from('modules')
-      .select('id, name_ar, level_id, level:levels(name_ar)')
+      .select('id, name_ar, level_id, has_lectures, has_td')
       .eq('is_active', true)
       .eq('semester', 1)
       .eq('level_id', selectedLevel)
-      .then(({ data: mods }) => {
+      .then(async ({ data: mods }) => {
         if (!mods) return;
-        supabase.from('assignments')
-          .select('module_id, section_number')
+        // جلب الإسنادات الموجودة للمستوى والمجموعة
+        const { data: asgn } = await supabase.from('assignments')
+          .select('module_id, teaching_type, section_number, group_number')
           .eq('academic_year', ACADEMIC_YEAR)
           .eq('semester', 1)
-          .eq('section_number', selectedSection)
-          .then(({ data: asgn }) => {
-            const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
-            setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
-          });
+          .eq('level_id', selectedLevel);
+        // فلترة: المقاييس التي لها slot شاغر
+        const filtered = mods.filter(m => {
+          const lecAssigned = (asgn || []).some(a =>
+            a.module_id === m.id && a.teaching_type === 'محاضرة' && a.section_number === selectedSection
+          );
+          const tdAssigned = selectedGroup > 0
+            ? (asgn || []).some(a =>
+                a.module_id === m.id && a.teaching_type === 'أعمال موجهة' &&
+                a.section_number === selectedSection && a.group_number === selectedGroup
+              )
+            : false;
+          return (m.has_lectures && !lecAssigned) || (m.has_td && !tdAssigned);
+        });
+        setUnassignedModules(filtered);
       });
-  }, [modalTab, selectedLevel, selectedSection]);
+  }, [modalTab, selectedLevel, selectedSection, selectedGroup]);
   const [customProfessor, setCustomProfessor] = useState('');
 
   useEffect(() => { loadData(); }, []);
