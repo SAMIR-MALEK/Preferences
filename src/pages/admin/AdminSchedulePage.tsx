@@ -63,6 +63,8 @@ export default function AdminSchedulePage() {
   const [modalRoom, setModalRoom] = useState('');
   const [modalSearch, setModalSearch] = useState('');
   const [customModule, setCustomModule] = useState('');
+  const [customModuleId, setCustomModuleId] = useState('');
+  const [unassignedModules, setUnassignedModules] = useState<any[]>([]);
   const [customProfessor, setCustomProfessor] = useState('');
 
   useEffect(() => { loadData(); }, []);
@@ -436,7 +438,7 @@ export default function AdminSchedulePage() {
                                     <X className="w-2.5 h-2.5"/>
                                   </button>
                                   <p className="font-bold text-[11px] leading-tight ml-4 truncate">{isCustom?entry.custom_module:a?.module_name}</p>
-                                  <p className="text-white/75 text-[10px] truncate">{isCustom?(entry.custom_professor||'● بدون أستاذ'):a?.professor_name}</p>
+                                  <p className="text-white/75 text-[10px] truncate">{isCustom?(entry.custom_professor||'-'):a?.professor_name}</p>
                                   <div className="flex gap-1 mt-0.5 flex-wrap">
                                     {!isCustom && <span className="bg-white/20 px-1 rounded text-[9px]">{isLec?`م${a?.section_number}`:`ف${a?.group_number}`}</span>}
                                     {room && <span className="bg-white/20 px-1 rounded text-[9px]">{room.name}</span>}
@@ -455,7 +457,23 @@ export default function AdminSchedulePage() {
                                 setModal({day, slotId, slotLabel: getSlotLabel(slotNum)});
                                 setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
                                 setModalSearch(''); setModalTypeFilter('all');
-                                setCustomModule(''); setCustomProfessor('');
+                                setCustomModule(''); setCustomModuleId(''); setCustomProfessor('');
+    // جلب المقاييس غير المُسنَدة
+    supabase.from('modules')
+      .select('id, name_ar, level:levels(name_ar)')
+      .eq('is_active', true)
+      .eq('semester', 1)
+      .then(({ data: mods }) => {
+        if (!mods) return;
+        supabase.from('assignments')
+          .select('module_id')
+          .eq('academic_year', ACADEMIC_YEAR)
+          .eq('semester', 1)
+          .then(({ data: asgn }) => {
+            const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
+            setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
+          });
+      });
                               }}
                               className="w-full mt-1 flex items-center justify-center h-7 border-2 border-dashed border-gray-200 rounded-lg text-gray-300 hover:border-[#1a3a6b] hover:text-[#1a3a6b] transition-all text-lg">
                               +
@@ -489,7 +507,23 @@ export default function AdminSchedulePage() {
                     setModal({day: viewCell.day, slotId: viewCell.slotId, slotLabel: viewCell.slotLabel});
                     setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
                     setModalSearch(''); setModalTypeFilter('all');
-                    setCustomModule(''); setCustomProfessor('');
+                    setCustomModule(''); setCustomModuleId(''); setCustomProfessor('');
+    // جلب المقاييس غير المُسنَدة
+    supabase.from('modules')
+      .select('id, name_ar, level:levels(name_ar)')
+      .eq('is_active', true)
+      .eq('semester', 1)
+      .then(({ data: mods }) => {
+        if (!mods) return;
+        supabase.from('assignments')
+          .select('module_id')
+          .eq('academic_year', ACADEMIC_YEAR)
+          .eq('semester', 1)
+          .then(({ data: asgn }) => {
+            const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
+            setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
+          });
+      });
                     setViewCell(null);
                   }} className="flex items-center gap-1 bg-[#1a3a6b] text-white px-3 py-1.5 rounded-xl text-xs font-bold">
                     <Plus className="w-3 h-3" /> إضافة
