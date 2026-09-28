@@ -76,12 +76,13 @@ export default function AdminSchedulePage() {
       .eq('level_id', selectedLevel)
       .then(async ({ data: mods }) => {
         if (!mods) return;
-        // جلب الإسنادات الموجودة للمستوى والمجموعة
+        // جلب الإسنادات الموجودة للمستوى
+        const moduleIds = mods.map(m => m.id);
         const { data: asgn } = await supabase.from('assignments')
           .select('module_id, teaching_type, section_number, group_number')
           .eq('academic_year', ACADEMIC_YEAR)
           .eq('semester', 1)
-          .eq('level_id', selectedLevel);
+          .in('module_id', moduleIds);
         // فلترة: المقاييس التي لها slot شاغر
         const filtered: any[] = [];
         mods.forEach(m => {
