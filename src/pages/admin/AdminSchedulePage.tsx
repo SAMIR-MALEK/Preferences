@@ -14,7 +14,7 @@ interface Level { id: string; name_ar: string; }
 interface LevelSemester { level_id: string; num_sections: number; num_groups: number; }
 interface Assignment {
   id: string;
-  professor_id: string | null;
+  professor_id: string;
   professor_name: string;
   module_name: string;
   level_id: string;
@@ -164,7 +164,7 @@ export default function AdminSchedulePage() {
     if (ls) setLevelSemesters(ls);
     if (asgn) setAssignments(asgn.map((a: any) => ({
       id: a.id,
-      professor_id: a.professor?.id || null,
+      professor_id: a.professor?.id || '',
       professor_name: a.professor ? a.professor.last_name + ' ' + a.professor.first_name : '—',
       module_name: a.module?.name_ar || '—',
       level_id: (a.level as any)?.id || '',
@@ -220,7 +220,7 @@ export default function AdminSchedulePage() {
       if (e.assignment_id) {
         const a = assignments.find(x => x.id === e.assignment_id);
         if (a) {
-          profIds.add(a.professor_id);
+          if (a.professor_id) profIds.add(a.professor_id);
           if (a.teaching_type === 'محاضرة') {
             groups.add(`${a.level_id}_${a.section_number}_lec`);
             groups.add(`${a.level_id}_${a.section_number}_td_all`);
@@ -251,7 +251,7 @@ export default function AdminSchedulePage() {
     const { profIds, groups } = getScheduledInSlot(slotId);
 
     // تعارض الأستاذ (تجاهل null)
-    if (a.professor_id && profIds.has(a.professor_id)) return false;
+    if (a.professor_id && a.professor_id !== '' && profIds.has(a.professor_id)) return false;
 
     // تعارض المجموعة/الفوج
     if (a.teaching_type === 'محاضرة') {
@@ -821,7 +821,7 @@ export async function runSchedulingAlgorithm(
     if (s.assignment_id) {
       const a = assignments.find(x => x.id === s.assignment_id);
       if (a) {
-        occupied[s.time_slot_id].profIds.add(a.professor_id);
+        if (a.professor_id) occupied[s.time_slot_id].profIds.add(a.professor_id);
         const gk = a.teaching_type === 'محاضرة'
           ? `${a.level_id}_${a.section_number}_lec`
           : `${a.level_id}_${a.section_number}_${a.group_number}`;
@@ -923,8 +923,8 @@ export async function runSchedulingAlgorithm(
             semester: 1,
             status: 'مسودة',
           });
-          markOcc(slotId, a.professor_id, room.id, groupKey);
-          if (!profDays[a.professor_id]) profDays[a.professor_id] = new Set();
+          markOcc(slotId, a.professor_id || '', room.id, groupKey);
+          if (a.professor_id && !profDays[a.professor_id]) profDays[a.professor_id] = new Set();
           profDays[a.professor_id].add(day);
           usedDays.add(day);
           placed++;
