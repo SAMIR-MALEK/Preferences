@@ -151,7 +151,7 @@ export default function AdminSchedulePage() {
       supabase.from('levels').select('id, name_ar').order('display_order'),
       supabase.from('level_semesters').select('level_id, num_sections, num_groups').eq('semester', 1),
       supabase.from('assignments')
-        .select('id, section_number, group_number, teaching_type, weekly_hours, level_id, professor:professors(id, last_name, first_name), module:modules(name_ar, weekly_sessions, level_id), level:levels(id, name_ar)')
+        .select('id, section_number, group_number, teaching_type, weekly_hours, level_id, professor:professors(id, last_name, first_name), module:modules(name_ar, weekly_sessions), level:levels(id, name_ar)')
         .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).in('status', ['نهائي', 'مؤقت']),
       supabase.from('schedules')
         .select('id, assignment_id, room_id, time_slot_id, status, custom_module, custom_professor')
@@ -169,7 +169,7 @@ export default function AdminSchedulePage() {
       professor_id: a.professor?.id || '',
       professor_name: a.professor ? a.professor.last_name + ' ' + a.professor.first_name : '—',
       module_name: a.module?.name_ar || '—',
-      level_id: a.level_id || (a as any).module?.level_id || (a.level as any)?.id || '',
+      level_id: a.level_id || (a.level as any)?.id || '',
       level_name: (a.level as any)?.name_ar || '—',
       teaching_type: a.teaching_type,
       section_number: a.section_number,
