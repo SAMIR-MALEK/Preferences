@@ -278,6 +278,8 @@ export default function AdminSchedulePage() {
         if (a.level_id !== selectedLevel || a.section_number !== selectedSection) return false;
         if (modalTypeFilter === 'lec' && a.teaching_type !== 'محاضرة') return false;
         if (modalTypeFilter === 'td' && a.teaching_type !== 'أعمال موجهة') return false;
+        // إسناد بدون أستاذ — أظهره دائماً إن لم يكن مجدولاً بعد
+        if (!a.professor_id) return scheduledCount(a.id) === 0;
         if (!isAvailableInSlot(a, slotId)) return false;
         if (modalSearch && !a.module_name.includes(modalSearch) && !a.professor_name.includes(modalSearch)) return false;
         return true;
