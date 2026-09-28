@@ -65,6 +65,7 @@ export default function AdminSchedulePage() {
   const [customModule, setCustomModule] = useState('');
   const [customModuleId, setCustomModuleId] = useState('');
   const [unassignedModules, setUnassignedModules] = useState<any[]>([]);
+  const [selectedEmptySlot, setSelectedEmptySlot] = useState<any>(null);
 
   useEffect(() => {
     if (modalTab !== 'custom' || !selectedLevel) return;
@@ -302,14 +303,37 @@ export default function AdminSchedulePage() {
       academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة',
       ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
     };
-    if (modalTab === 'assigned') insertData.assignment_id = modalAssignment;
-    else { insertData.assignment_id = null; insertData.custom_module = customModule; insertData.custom_professor = customProfessor; }
+    if (modalTab === 'assigned') {
+      insertData.assignment_id = modalAssignment;
+    } else {
+      // إنشاء إسناد جديد بدون أستاذ إن وُجد selectedEmptySlot
+      if (selectedEmptySlot) {
+        const { data: newAsgn } = await supabase.from('assignments').insert({
+          module_id: selectedEmptySlot.module_id,
+          professor_id: null,
+          teaching_type: selectedEmptySlot._type,
+          section_number: selectedEmptySlot._section,
+          group_number: selectedEmptySlot._group,
+          weekly_hours: selectedEmptySlot._type === 'محاضرة' ? 4.5 : 1.5,
+          academic_year: ACADEMIC_YEAR,
+          semester: 1,
+          status: 'مؤقت',
+          wish_order_satisfied: 0,
+        }).select().single();
+        if (newAsgn) insertData.assignment_id = newAsgn.id;
+        else { insertData.assignment_id = null; insertData.custom_module = customModule; insertData.custom_professor = '-'; }
+      } else {
+        insertData.assignment_id = null;
+        insertData.custom_module = customModule;
+        insertData.custom_professor = customProfessor || '-';
+      }
+    }
 
     const { data, error } = await supabase.from('schedules').insert(insertData).select().single();
     if (error) { setMessage({ type: 'error', text: error.message }); }
     else {
       setMessage({ type: 'success', text: 'تمت إضافة الحصة' });
-      setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId('');
+      setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId(''); setSelectedEmptySlot(null);
       await loadData();
     }
     setSaving(false);
