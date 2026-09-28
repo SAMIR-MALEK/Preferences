@@ -68,49 +68,21 @@ export default function AdminSchedulePage() {
 
   useEffect(() => {
     if (modalTab !== 'custom' || !selectedLevel) return;
-    // جلب كل مقاييس المستوى
     supabase.from('modules')
-      .select('id, name_ar, level_id, has_lectures, has_td')
+      .select('id, name_ar, has_lectures, has_td')
       .eq('is_active', true)
       .eq('semester', 1)
       .eq('level_id', selectedLevel)
-      .then(async ({ data: mods }) => {
+      .then(({ data: mods }) => {
         if (!mods) return;
-        // جلب الإسنادات الموجودة للمستوى
-        const moduleIds = mods.map(m => m.id);
-        const { data: asgn } = await supabase.from('assignments')
-          .select('module_id, teaching_type, section_number, group_number')
-          .eq('academic_year', ACADEMIC_YEAR)
-          .eq('semester', 1)
-          .in('module_id', moduleIds);
-        // فلترة: المقاييس التي لها slot شاغر
-        const filtered: any[] = [];
+        const items: any[] = [];
         mods.forEach(m => {
-          // محاضرة: المجموعة (section) ليس لها أستاذ
-          if (m.has_lectures) {
-            const lecAssigned = (asgn || []).some(a =>
-              a.module_id === m.id && a.teaching_type === 'محاضرة' && a.section_number === selectedSection
-            );
-            if (!lecAssigned) filtered.push({ ...m, _type: 'محاضرة' });
-          }
-          // TD: الفوج المحدد ليس لها أستاذ
-          if (m.has_td && selectedGroup > 0) {
-            const tdAssigned = (asgn || []).some(a =>
-              a.module_id === m.id && a.teaching_type === 'أعمال موجهة' &&
-              a.section_number === selectedSection && a.group_number === selectedGroup
-            );
-            if (!tdAssigned) filtered.push({ ...m, _type: 'أعمال موجهة' });
-          } else if (m.has_td && selectedGroup === 0) {
-            // عرض كل الأفواج غير المُسندة
-            const assignedGroups = new Set((asgn || [])
-              .filter(a => a.module_id === m.id && a.teaching_type === 'أعمال موجهة' && a.section_number === selectedSection)
-              .map(a => a.group_number));
-            if (assignedGroups.size < 5) filtered.push({ ...m, _type: 'أعمال موجهة' });
-          }
+          if (m.has_lectures) items.push({ ...m, _type: 'محاضرة' });
+          if (m.has_td) items.push({ ...m, _type: 'أعمال موجهة' });
         });
-        setUnassignedModules(filtered);
+        setUnassignedModules(items);
       });
-  }, [modalTab, selectedLevel, selectedSection, selectedGroup]);
+  }, [modalTab, selectedLevel]);
   const [customProfessor, setCustomProfessor] = useState('');
 
   useEffect(() => { loadData(); }, []);
