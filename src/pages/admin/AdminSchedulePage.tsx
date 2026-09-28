@@ -67,23 +67,25 @@ export default function AdminSchedulePage() {
   const [unassignedModules, setUnassignedModules] = useState<any[]>([]);
 
   useEffect(() => {
-    if (modalTab !== 'custom') return;
+    if (modalTab !== 'custom' || !selectedLevel) return;
     supabase.from('modules')
-      .select('id, name_ar, level:levels(name_ar)')
+      .select('id, name_ar, level_id, level:levels(name_ar)')
       .eq('is_active', true)
       .eq('semester', 1)
+      .eq('level_id', selectedLevel)
       .then(({ data: mods }) => {
         if (!mods) return;
         supabase.from('assignments')
-          .select('module_id')
+          .select('module_id, section_number')
           .eq('academic_year', ACADEMIC_YEAR)
           .eq('semester', 1)
+          .eq('section_number', selectedSection)
           .then(({ data: asgn }) => {
             const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
             setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
           });
       });
-  }, [modalTab]);
+  }, [modalTab, selectedLevel, selectedSection]);
   const [customProfessor, setCustomProfessor] = useState('');
 
   useEffect(() => { loadData(); }, []);
