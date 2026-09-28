@@ -267,7 +267,7 @@ export default function AdminSchedulePage() {
     if (!modal) return;
     if (modalTab === 'assigned' && !modalAssignment) { setMessage({ type: 'error', text: 'اختر الإسناد' }); return; }
     if (!modalRoom) { setMessage({ type: 'error', text: 'اختر القاعة' }); return; }
-    if (modalTab === 'custom' && (!customModule || !customProfessor)) { setMessage({ type: 'error', text: 'أكمل الحقول' }); return; }
+    if (modalTab === 'custom' && !customModule) { setMessage({ type: 'error', text: 'اختر المقياس على الأقل' }); return; }
 
     setSaving(true);
     const insertData: any = {
@@ -436,7 +436,7 @@ export default function AdminSchedulePage() {
                                     <X className="w-2.5 h-2.5"/>
                                   </button>
                                   <p className="font-bold text-[11px] leading-tight ml-4 truncate">{isCustom?entry.custom_module:a?.module_name}</p>
-                                  <p className="text-white/75 text-[10px] truncate">{isCustom?entry.custom_professor:a?.professor_name}</p>
+                                  <p className="text-white/75 text-[10px] truncate">{isCustom?(entry.custom_professor||'● بدون أستاذ'):a?.professor_name}</p>
                                   <div className="flex gap-1 mt-0.5 flex-wrap">
                                     {!isCustom && <span className="bg-white/20 px-1 rounded text-[9px]">{isLec?`م${a?.section_number}`:`ف${a?.group_number}`}</span>}
                                     {room && <span className="bg-white/20 px-1 rounded text-[9px]">{room.name}</span>}
