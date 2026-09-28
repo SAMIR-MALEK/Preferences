@@ -169,7 +169,7 @@ export default function AdminSchedulePage() {
       professor_id: a.professor?.id || '',
       professor_name: a.professor ? a.professor.last_name + ' ' + a.professor.first_name : '—',
       module_name: a.module?.name_ar || '—',
-      level_id: a.level_id || (a.module as any)?.level_id || (a.level as any)?.id || '',
+      level_id: a.level_id || (a as any).module?.level_id || (a.level as any)?.id || '',
       level_name: (a.level as any)?.name_ar || '—',
       teaching_type: a.teaching_type,
       section_number: a.section_number,
