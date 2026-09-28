@@ -650,10 +650,7 @@ export default function AdminSchedulePage() {
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${modalTab==='assigned'?'bg-white text-[#1a3a6b] shadow-sm':'text-gray-500'}`}>
                 من الإسناد
               </button>
-              <button onClick={()=>setModalTab('custom')}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${modalTab==='custom'?'bg-white text-amber-600 shadow-sm':'text-gray-500'}`}>
-                اقتراح يدوي
-              </button>
+
             </div>
 
             {modalTab === 'assigned' && (
@@ -700,27 +697,7 @@ export default function AdminSchedulePage() {
               </>
             )}
 
-            {modalTab === 'custom' && (
-              <div className="space-y-3">
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-                  اقتراح يدوي — سيُسجَّل باسم: <strong>{user?.admin?.full_name}</strong>
-                </div>
-                <select value={customModuleId} onChange={e => {
-                    const id = e.target.value;
-                    setCustomModuleId(id);
-                    const m = unassignedModules.find((x: any) => x.id === id);
-                    setCustomModule(m ? m.name_ar : '');
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 bg-white">
-                  <option value="">— اختر المقياس —</option>
-                  {unassignedModules.map((m: any) => (
-                    <option key={m.id} value={m.id}>{m._label}</option>
-                  ))}
-                </select>
-                <input placeholder="اسم الأستاذ..." value={customProfessor} onChange={e=>setCustomProfessor(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400"/>
-              </div>
-            )}
+            
 
             {/* القاعات المتاحة فقط */}
             <div>
@@ -744,9 +721,9 @@ export default function AdminSchedulePage() {
             </div>
 
             <button onClick={addEntry} disabled={saving}
-              className={`w-full flex items-center justify-center gap-2 text-white py-3 rounded-xl font-bold transition-colors disabled:opacity-40 ${modalTab==='custom'?'bg-amber-500 hover:bg-amber-600':'bg-[#1a3a6b] hover:bg-[#0d2040]'}`}>
+              className={`w-full flex items-center justify-center gap-2 text-white py-3 rounded-xl font-bold transition-colors disabled:opacity-40 ${'bg-[#1a3a6b] hover:bg-[#0d2040]'}`}>
               <Save className="w-4 h-4"/>
-              {saving?'جارٍ الحفظ...':modalTab==='custom'?'إضافة اقتراح':'إضافة الحصة'}
+              {saving?'جارٍ الحفظ...':'إضافة الحصة'}
             </button>
           </div>
         </div>
