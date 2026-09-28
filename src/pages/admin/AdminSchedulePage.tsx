@@ -14,7 +14,7 @@ interface Level { id: string; name_ar: string; }
 interface LevelSemester { level_id: string; num_sections: number; num_groups: number; }
 interface Assignment {
   id: string;
-  professor_id: string;
+  professor_id: string | null;
   professor_name: string;
   module_name: string;
   level_id: string;
@@ -164,7 +164,7 @@ export default function AdminSchedulePage() {
     if (ls) setLevelSemesters(ls);
     if (asgn) setAssignments(asgn.map((a: any) => ({
       id: a.id,
-      professor_id: a.professor?.id || '',
+      professor_id: a.professor?.id || null,
       professor_name: a.professor ? a.professor.last_name + ' ' + a.professor.first_name : '—',
       module_name: a.module?.name_ar || '—',
       level_id: (a.level as any)?.id || '',
@@ -250,8 +250,8 @@ export default function AdminSchedulePage() {
     if (isFullyScheduled(a)) return false;
     const { profIds, groups } = getScheduledInSlot(slotId);
 
-    // تعارض الأستاذ
-    if (profIds.has(a.professor_id)) return false;
+    // تعارض الأستاذ (تجاهل null)
+    if (a.professor_id && profIds.has(a.professor_id)) return false;
 
     // تعارض المجموعة/الفوج
     if (a.teaching_type === 'محاضرة') {
@@ -688,7 +688,8 @@ export default function AdminSchedulePage() {
                               </span>
                             </div>
                             <div className={`text-xs mt-0.5 ${sel?'text-white/70':'text-gray-400'}`}>
-                              {a.professor_name} — {isLec?`م${a.section_number}`:`ف${a.group_number}`}
+                              {a.professor_id ? a.professor_name : <span className="text-orange-400 font-bold">— بدون أستاذ —</span>}
+                              {' '}{isLec?`م${a.section_number}`:`ف${a.group_number}`}
                             </div>
                           </button>
                         );
