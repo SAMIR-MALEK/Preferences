@@ -162,8 +162,6 @@ export default function AdminSchedulePage() {
     if (rm) setRooms(rm);
     if (lv) setLevels(lv);
     if (ls) setLevelSemesters(ls);
-    const noProf = asgn?.filter((a: any) => !a.professor) || [];
-    console.log('No professor assignments:', noProf.length, 'sample level_id:', noProf[0]?.level_id, 'module level_id:', noProf[0]?.module?.level_id);
     if (asgn) setAssignments(asgn.map((a: any) => ({
       id: a.id,
       professor_id: a.professor?.id || '',
