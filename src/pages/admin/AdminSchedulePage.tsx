@@ -69,28 +69,49 @@ export default function AdminSchedulePage() {
 
   useEffect(() => {
     if (modalTab !== 'custom' || !selectedLevel) return;
-    // جلب كل slots الإسناد الفارغة للمستوى
-    supabase.from('slots')
-      .select('id, module_id, teaching_type, section_number, group_number, module:modules(name_ar), professor_id')
-      .eq('level_id', selectedLevel)
-      .eq('academic_year', ACADEMIC_YEAR)
-      .eq('semester', 1)
-      .is('professor_id', null)
-      .then(({ data: emptySlots }) => {
-        if (!emptySlots) return;
-        const items = emptySlots.map((s: any) => ({
-          id: s.id,
-          name_ar: s.module?.name_ar || '—',
-          _type: s.teaching_type,
-          _section: s.section_number,
-          _group: s.group_number,
-          _label: s.teaching_type === 'محاضرة'
-            ? `${s.module?.name_ar} — محاضرة (م${s.section_number})`
-            : `${s.module?.name_ar} — أعمال موجهة (م${s.section_number}-ف${s.group_number})`,
-        }));
-        setUnassignedModules(items);
+    const ls = levelSemesters.find(l => l.level_id === selectedLevel);
+    if (!ls) return;
+
+    Promise.all([
+      supabase.from('modules').select('id, name_ar, has_lectures, has_td').eq('is_active', true).eq('semester', 1).eq('level_id', selectedLevel),
+      supabase.from('assignments').select('module_id, teaching_type, section_number, group_number').eq('academic_year', ACADEMIC_YEAR).eq('semester', 1),
+    ]).then(([{ data: mods }, { data: asgn }]) => {
+      if (!mods) return;
+      const items: any[] = [];
+      mods.forEach((m: any) => {
+        if (m.has_lectures) {
+          for (let sec = 1; sec <= ls.num_sections; sec++) {
+            const assigned = (asgn || []).some((a: any) =>
+              a.module_id === m.id && a.teaching_type === 'محاضرة' && a.section_number === sec
+            );
+            if (!assigned) items.push({
+              id: `${m.id}_lec_${sec}`, module_id: m.id, name_ar: m.name_ar,
+              _type: 'محاضرة', _section: sec, _group: null,
+              _label: `${m.name_ar} — محاضرة (م${sec})`,
+            });
+          }
+        }
+        if (m.has_td) {
+          for (let sec = 1; sec <= ls.num_sections; sec++) {
+            const base = (sec - 1) * ls.num_groups;
+            for (let g = 1; g <= ls.num_groups; g++) {
+              const grp = base + g;
+              const assigned = (asgn || []).some((a: any) =>
+                a.module_id === m.id && a.teaching_type === 'أعمال موجهة' &&
+                a.section_number === sec && a.group_number === grp
+              );
+              if (!assigned) items.push({
+                id: `${m.id}_td_${sec}_${grp}`, module_id: m.id, name_ar: m.name_ar,
+                _type: 'أعمال موجهة', _section: sec, _group: grp,
+                _label: `${m.name_ar} — أعمال موجهة (م${sec}-ف${grp})`,
+              });
+            }
+          }
+        }
       });
-  }, [modalTab, selectedLevel]);
+      setUnassignedModules(items);
+    });
+  }, [modalTab, selectedLevel, levelSemesters]);
   const [customProfessor, setCustomProfessor] = useState('');
 
   useEffect(() => { loadData(); }, []);
