@@ -68,18 +68,25 @@ export default function AdminSchedulePage() {
 
   useEffect(() => {
     if (modalTab !== 'custom' || !selectedLevel) return;
-    supabase.from('modules')
-      .select('id, name_ar, has_lectures, has_td')
-      .eq('is_active', true)
-      .eq('semester', 1)
+    // جلب كل slots الإسناد الفارغة للمستوى
+    supabase.from('slots')
+      .select('id, module_id, teaching_type, section_number, group_number, module:modules(name_ar), professor_id')
       .eq('level_id', selectedLevel)
-      .then(({ data: mods }) => {
-        if (!mods) return;
-        const items: any[] = [];
-        mods.forEach(m => {
-          if (m.has_lectures) items.push({ ...m, _type: 'محاضرة' });
-          if (m.has_td) items.push({ ...m, _type: 'أعمال موجهة' });
-        });
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('semester', 1)
+      .is('professor_id', null)
+      .then(({ data: emptySlots }) => {
+        if (!emptySlots) return;
+        const items = emptySlots.map((s: any) => ({
+          id: s.id,
+          name_ar: s.module?.name_ar || '—',
+          _type: s.teaching_type,
+          _section: s.section_number,
+          _group: s.group_number,
+          _label: s.teaching_type === 'محاضرة'
+            ? `${s.module?.name_ar} — محاضرة (م${s.section_number})`
+            : `${s.module?.name_ar} — أعمال موجهة (م${s.section_number}-ف${s.group_number})`,
+        }));
         setUnassignedModules(items);
       });
   }, [modalTab, selectedLevel]);
@@ -661,7 +668,7 @@ export default function AdminSchedulePage() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 bg-white">
                   <option value="">— اختر المقياس —</option>
                   {unassignedModules.map((m: any) => (
-                    <option key={m.id + m._type} value={m.id + '|' + m._type}>{m.name_ar} — {m._type}</option>
+                    <option key={m.id} value={m.id}>{m._label}</option>
                   ))}
                 </select>
                 <input placeholder="اسم الأستاذ..." value={customProfessor} onChange={e=>setCustomProfessor(e.target.value)}
