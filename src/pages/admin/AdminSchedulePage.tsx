@@ -65,6 +65,25 @@ export default function AdminSchedulePage() {
   const [customModule, setCustomModule] = useState('');
   const [customModuleId, setCustomModuleId] = useState('');
   const [unassignedModules, setUnassignedModules] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (modalTab !== 'custom') return;
+    supabase.from('modules')
+      .select('id, name_ar, level:levels(name_ar)')
+      .eq('is_active', true)
+      .eq('semester', 1)
+      .then(({ data: mods }) => {
+        if (!mods) return;
+        supabase.from('assignments')
+          .select('module_id')
+          .eq('academic_year', ACADEMIC_YEAR)
+          .eq('semester', 1)
+          .then(({ data: asgn }) => {
+            const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
+            setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
+          });
+      });
+  }, [modalTab]);
   const [customProfessor, setCustomProfessor] = useState('');
 
   useEffect(() => { loadData(); }, []);
@@ -284,7 +303,7 @@ export default function AdminSchedulePage() {
     if (error) { setMessage({ type: 'error', text: error.message }); }
     else {
       setMessage({ type: 'success', text: 'تمت إضافة الحصة' });
-      setModal(null); setModalAssignment(''); setModalRoom('');
+      setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId('');
       await loadData();
     }
     setSaving(false);
@@ -634,8 +653,18 @@ export default function AdminSchedulePage() {
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
                   اقتراح يدوي — سيُسجَّل باسم: <strong>{user?.admin?.full_name}</strong>
                 </div>
-                <input placeholder="اسم المقياس..." value={customModule} onChange={e=>setCustomModule(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400"/>
+                <select value={customModuleId} onChange={e => {
+                    const id = e.target.value;
+                    setCustomModuleId(id);
+                    const m = unassignedModules.find((x: any) => x.id === id);
+                    setCustomModule(m ? m.name_ar : '');
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 bg-white">
+                  <option value="">— اختر المقياس —</option>
+                  {unassignedModules.map((m: any) => (
+                    <option key={m.id} value={m.id}>{m.name_ar} ({m.level?.name_ar})</option>
+                  ))}
+                </select>
                 <input placeholder="اسم الأستاذ..." value={customProfessor} onChange={e=>setCustomProfessor(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400"/>
               </div>
