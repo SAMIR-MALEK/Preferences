@@ -6,20 +6,25 @@ const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 
 
 function validate(form: any): string[] {
   const errors: string[] = [];
+  const arabicOnly = /^[\u0600-\u06FF\s]+$/;
+  const latinOnly = /^[a-zA-Z\s\-']+$/;
   if (!form.nin || form.nin.length !== 18 || !/^\d{18}$/.test(form.nin))
-    errors.push('رقم التعريف الوطني يجب أن يكون 18 رقماً');
-  if (!form.last_name) errors.push('اللقب (عربي) إلزامي');
-  if (!form.first_name) errors.push('الاسم (عربي) إلزامي');
-  if (!form.last_name_fr) errors.push('اللقب (français) إلزامي');
-  if (!form.first_name_fr) errors.push('الاسم (français) إلزامي');
-  if (!form.birth_date) errors.push('تاريخ الميلاد إلزامي');
-  if (!form.phone || !/^(05|06|07)\d{8}$/.test(form.phone))
-    errors.push('رقم الهاتف يجب أن يكون 10 أرقام ويبدأ بـ 05 أو 06 أو 07');
-  if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-    errors.push('البريد الإلكتروني غير صالح');
-  if (!form.degree) errors.push('آخر شهادة إلزامية');
-  if (!form.degree_file) errors.push('رفع نسخة الشهادة إلزامي');
-  if (!form.specialty) errors.push('التخصص إلزامي');
+    errors.push('رقم التعريف الوطني — الإدخال خاطئ');
+  if (!form.last_name || !arabicOnly.test(form.last_name)) errors.push('اللقب (عربي) — الإدخال خاطئ');
+  if (!form.first_name || !arabicOnly.test(form.first_name)) errors.push('الاسم (عربي) — الإدخال خاطئ');
+  if (!form.last_name_fr || !latinOnly.test(form.last_name_fr)) errors.push('Nom (français) — الإدخال خاطئ');
+  if (!form.first_name_fr || !latinOnly.test(form.first_name_fr)) errors.push('Prénom (français) — الإدخال خاطئ');
+  if (!form.birth_date) {
+    errors.push('تاريخ الميلاد إلزامي');
+  } else {
+    const age = (new Date().getFullYear()) - new Date(form.birth_date).getFullYear();
+    if (age < 22) errors.push('تاريخ الميلاد — الإدخال خاطئ');
+  }
+  if (!form.phone || !/^(05|06|07)\d{8}$/.test(form.phone)) errors.push('رقم الهاتف — الإدخال خاطئ');
+  if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.push('البريد الإلكتروني — الإدخال خاطئ');
+  if (!form.degree) errors.push('آخر شهادة — الإدخال خاطئ');
+  if (!form.degree_file) errors.push('نسخة الشهادة — الإدخال خاطئ');
+  if (!form.specialty) errors.push('التخصص — الإدخال خاطئ');
   return errors;
 }
 
@@ -45,24 +50,24 @@ export default function ApplyPage() {
     degree_file: null as File | null,
     years_taught: '',
     taught_last_3: '',
-    available_days: [] as string[],
-    available_period: '',
+    preferred_days: [] as string[],
+    preferred_period: '',
     motivation: '',
   });
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   function toggleDay(day: string) {
-    set('available_days',
-      form.available_days.includes(day)
-        ? form.available_days.filter(d => d !== day)
-        : [...form.available_days, day]
+    set('preferred_days',
+      form.preferred_days.includes(day)
+        ? form.preferred_days.filter(d => d !== day)
+        : [...form.preferred_days, day]
     );
   }
 
   async function loadModules() {
     const { data: asgn } = await supabase.from('assignments')
-      .select('id, module_id, teaching_type, section_number, group_number, module:modules(name_ar, level:levels(name_ar))')
+      .select('id, module_id, teaching_type, section_number, group_number, level_id, module:modules(name_ar, level:levels(name_ar))')
       .eq('academic_year', '2026-2027').eq('semester', 1).is('professor_id', null);
     if (asgn) setModules(asgn);
   }
@@ -105,8 +110,8 @@ export default function ApplyPage() {
         degree_file_url: degreeUrl,
         years_taught: form.years_taught ? parseInt(form.years_taught) : null,
         taught_last_3: form.taught_last_3 === 'نعم',
-        available_days: form.available_days,
-        available_period: form.available_period,
+        preferred_days: form.preferred_days,
+        preferred_period: form.preferred_period,
         motivation: form.motivation,
         preferred_assignments: Array.from(selectedModules),
         ref_number: ref, status: 'قيد الدراسة', academic_year: '2026-2027',
@@ -268,14 +273,14 @@ export default function ApplyPage() {
 
                 {/* Availability */}
                 <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                  <p className="text-xs font-bold text-gray-600">التوفر الأسبوعي</p>
+                  <p className="text-xs font-bold text-gray-600">التفضيلات الأسبوعية</p>
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">الأيام المتاحة</p>
+                    <p className="text-xs text-gray-500 mb-2">الأيام المفضلة للتدريس</p>
                     <div className="flex flex-wrap gap-2">
                       {DAYS.map(d => (
                         <button key={d} type="button" onClick={() => toggleDay(d)}
                           className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
-                            form.available_days.includes(d)
+                            form.preferred_days.includes(d)
                               ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
                               : 'bg-white text-gray-500 border-gray-200'}`}>
                           {d}
@@ -287,9 +292,9 @@ export default function ApplyPage() {
                     <p className="text-xs text-gray-500 mb-2">الفترة</p>
                     <div className="flex gap-2">
                       {['صباح', 'مساء', 'صباح ومساء'].map(p => (
-                        <button key={p} type="button" onClick={() => set('available_period', p)}
+                        <button key={p} type="button" onClick={() => set('preferred_period', p)}
                           className={`flex-1 py-1.5 rounded-xl text-xs font-medium transition-all border ${
-                            form.available_period === p
+                            form.preferred_period === p
                               ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
                               : 'bg-white text-gray-500 border-gray-200'}`}>
                           {p}
