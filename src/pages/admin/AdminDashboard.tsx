@@ -6,7 +6,7 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield
+  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, Users
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -19,13 +19,14 @@ import AdminSpecialtiesPage   from './AdminSpecialtiesPage';
 import AdminEmailPage         from './AdminEmailPage';
 import AdminRoomsPage         from './AdminRoomsPage';
 import AdminAuditPage         from './AdminAuditPage';
+import AdminVacataireTab      from './AdminVacataireTab';
 import AdminSchedulePage      from './AdminSchedulePage';
 import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'settings' | 'email';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -90,6 +91,7 @@ export default function AdminDashboard() {
     { id: 'rooms',      label: 'القاعات',             icon: MapPin     },
     { id: 'schedule',   label: 'التوقيت',             icon: CalendarDays },
     { id: 'audit',      label: 'سجل التدقيق',         icon: Shield     },
+    { id: 'vacataire',  label: 'الأساتذة المؤقتون',     icon: Users      },
     { id: 'settings',     label: 'الإعدادات',          icon: Settings   },
   ];
 
@@ -216,6 +218,7 @@ export default function AdminDashboard() {
         {tab === 'rooms'      && <AdminRoomsPage />}
         {tab === 'schedule'   && <AdminSchedulePage />}
         {!isDeptHead && tab === 'audit'      && <AdminAuditPage />}
+        {tab === 'vacataire' && <AdminVacataireTab />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
