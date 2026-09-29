@@ -6,7 +6,7 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, Users
+  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
