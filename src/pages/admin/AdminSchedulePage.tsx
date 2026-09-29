@@ -686,7 +686,8 @@ export default function AdminSchedulePage() {
                                 {done}/{total}
                               </span>
                             </div>
-                            <div className={`text-xs mt-0.5 ${sel?'text-white/70':'text-gray-400'}`}>
+                            <div className="text-[10px] text-orange-400">{a.weekly_sessions > 1 ? `×${a.weekly_sessions} — ${scheduledCount(a.id)}/${a.weekly_sessions}` : `${scheduledCount(a.id)}/1`}</div>
+                        <div className={`text-xs mt-0.5 ${sel?'text-white/70':'text-gray-400'}`}>
                               {a.professor_id ? a.professor_name : <span className="text-orange-400 font-bold">— بدون أستاذ —</span>}
                               {' '}{isLec?`م${a.section_number}`:`ف${a.group_number}`}
                             </div>
