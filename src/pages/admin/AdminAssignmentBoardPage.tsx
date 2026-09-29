@@ -386,20 +386,19 @@ interface AssignmentRequest {
       s.section === secNum && String(s.group) === grp
     );
 
-    if (profId === null) {
-      // حذف مباشر من DB
+    if (profId === null && existing) {
+      // حذف الإسناد الموجود
       if (existing?.assignment_db_id) {
         await supabase.from('schedules').delete().eq('assignment_id', existing.assignment_db_id);
-      await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
-      await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
-        prof_name: existing.professor_name,
-        module_name: existing.module_name,
-        teaching_type: type,
-        section: secNum,
-        group: grpVal,
-      });
+        await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
+        await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
+          prof_name: existing.professor_name,
+          module_name: existing.module_name,
+          teaching_type: type,
+          section: secNum,
+          group: grpVal,
+        });
       } else {
-        // حذف بالبحث عن التطابق
         const { data: found } = await supabase.from('assignments')
           .select('id')
           .eq('module_id', modId)
@@ -412,32 +411,14 @@ interface AssignmentRequest {
         if (found && found.length > 0) {
           await supabase.from('schedules').delete().eq('assignment_id', found[0].id);
           await supabase.from('assignments').delete().eq('id', found[0].id);
-          await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
-            prof_name: existing?.professor_name || '—',
-            module_name: existing?.module_name || '—',
-            teaching_type: type,
-            section: secNum,
-            group: grpVal,
-          });
         }
       }
       setSlots(prev => prev.filter(s => !(
         s.module_id === modId && s.teaching_type === type &&
         s.section === secNum && String(s.group) === grp
       )));
-    } else if (existing) {
-      // تحديث الأستاذ في DB
-      if (existing?.assignment_db_id) {
-        await supabase.from('assignments').update({ professor_id: profId }).eq('id', existing.assignment_db_id);
-      }
-      setSlots(prev => prev.map(s =>
-        s.module_id === modId && s.teaching_type === type &&
-        s.section === secNum && String(s.group) === grp
-          ? { ...s, professor_id: profId, professor_name: prof?.name || '' }
-          : s
-      ));
     } else if (profId === null && !existing && mod) {
-      // إضافة إسناد بدون أستاذ
+      // إضافة إسناد بدون أستاذ جديد
       const hours = slotHours(type, mod.weekly_sessions || 1);
       const { data: newRow } = await supabase.from('assignments').insert({
         professor_id: null,
@@ -462,6 +443,17 @@ interface AssignmentRequest {
           level_name: '', weekly_hours: hours,
         }]);
       }
+    } else if (existing) {
+      // تحديث الأستاذ في DB
+      if (existing?.assignment_db_id) {
+        await supabase.from('assignments').update({ professor_id: profId }).eq('id', existing.assignment_db_id);
+      }
+      setSlots(prev => prev.map(s =>
+        s.module_id === modId && s.teaching_type === type &&
+        s.section === secNum && String(s.group) === grp
+          ? { ...s, professor_id: profId, professor_name: prof?.name || '' }
+          : s
+      ));
     } else if (profId && mod) {
       // إضافة جديد في DB
       const hours = slotHours(type, mod.weekly_sessions || 1);
