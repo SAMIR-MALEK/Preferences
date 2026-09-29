@@ -113,7 +113,7 @@ export default function ApplyPage() {
         preferred_days: form.preferred_days,
         preferred_period: form.preferred_period,
         motivation: form.motivation,
-        preferred_assignments: Array.from(selectedModules),
+        preferred_modules_keys: Array.from(selectedModules),
         ref_number: ref, status: 'قيد الدراسة', academic_year: '2026-2027',
       });
       if (error) throw error;
@@ -137,12 +137,13 @@ export default function ApplyPage() {
     s === 'مرفوض' ? 'bg-red-50 border-red-200 text-red-700' :
     'bg-amber-50 border-amber-200 text-amber-700';
 
-  // تجميع المقاييس حسب المستوى
+  // تجميع المقاييس حسب المستوى — بدون تكرار وبدون تفاصيل أفواج
   const grouped = modules.reduce((acc: any, a: any) => {
     const level = a.module?.level?.name_ar || '—';
-    if (!acc[level]) acc[level] = { lec: [], td: [] };
-    if (a.teaching_type === 'محاضرة') acc[level].lec.push(a);
-    else acc[level].td.push(a);
+    const modName = a.module?.name_ar || '—';
+    if (!acc[level]) acc[level] = { lec: new Set<string>(), td: new Set<string>() };
+    if (a.teaching_type === 'محاضرة') acc[level].lec.add(modName);
+    else acc[level].td.add(modName);
     return acc;
   }, {});
 
@@ -332,26 +333,30 @@ export default function ApplyPage() {
                   {Object.entries(grouped).map(([level, { lec, td }]: any) => (
                     <div key={level}>
                       <p className="font-bold text-[#1a3a6b] text-sm mb-2 sticky top-0 bg-white py-1">{level}</p>
-                      {lec.length > 0 && (
+                      {lec.size > 0 && (
                         <div className="mb-2">
                           <p className="text-xs text-blue-500 font-medium mb-1 mr-2">محاضرات</p>
-                          {lec.map((a: any) => (
-                            <label key={a.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-blue-50/50 cursor-pointer">
-                              <input type="checkbox" checked={selectedModules.has(a.id)}
-                                onChange={() => toggleModule(a.id)} className="w-4 h-4 accent-[#1a3a6b]" />
-                              <span className="text-sm text-gray-800">{a.module?.name_ar} — م{a.section_number}</span>
+                          {[...lec].map((modName: string) => (
+                            <label key={modName} className="flex items-center gap-3 p-2 rounded-lg hover:bg-blue-50/50 cursor-pointer">
+                              <input type="checkbox"
+                                checked={selectedModules.has(`lec_${level}_${modName}`)}
+                                onChange={() => toggleModule(`lec_${level}_${modName}`)}
+                                className="w-4 h-4 accent-[#1a3a6b]" />
+                              <span className="text-sm text-gray-800">{modName}</span>
                             </label>
                           ))}
                         </div>
                       )}
-                      {td.length > 0 && (
+                      {td.size > 0 && (
                         <div>
                           <p className="text-xs text-teal-500 font-medium mb-1 mr-2">أعمال موجهة</p>
-                          {td.map((a: any) => (
-                            <label key={a.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-teal-50/50 cursor-pointer">
-                              <input type="checkbox" checked={selectedModules.has(a.id)}
-                                onChange={() => toggleModule(a.id)} className="w-4 h-4 accent-teal-600" />
-                              <span className="text-sm text-gray-800">{a.module?.name_ar} — م{a.section_number} ف{a.group_number}</span>
+                          {[...td].map((modName: string) => (
+                            <label key={modName} className="flex items-center gap-3 p-2 rounded-lg hover:bg-teal-50/50 cursor-pointer">
+                              <input type="checkbox"
+                                checked={selectedModules.has(`td_${level}_${modName}`)}
+                                onChange={() => toggleModule(`td_${level}_${modName}`)}
+                                className="w-4 h-4 accent-teal-600" />
+                              <span className="text-sm text-gray-800">{modName}</span>
                             </label>
                           ))}
                         </div>
