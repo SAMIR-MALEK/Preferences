@@ -1190,6 +1190,13 @@ interface AssignmentRequest {
                                               <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
                                             </button>
                                           ))}
+                                          <div className="border-t border-gray-100 mt-1 pt-1">
+                                            <button onClick={() => { assignProf(cell.key, null); setProfSearch(''); setPickingSlot(null); }}
+                                              className="w-full text-right px-3 py-1.5 text-xs hover:bg-gray-50 rounded-lg text-gray-400 flex items-center gap-2">
+                                              <span>—</span>
+                                              <span>بدون أستاذ</span>
+                                            </button>
+                                          </div>
                                         </div>
                                       </div>
                                     )}
