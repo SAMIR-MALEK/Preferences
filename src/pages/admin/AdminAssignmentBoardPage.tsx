@@ -436,6 +436,30 @@ interface AssignmentRequest {
           ? { ...s, professor_id: profId, professor_name: prof?.name || '' }
           : s
       ));
+    } else if (profId === null && !existing && mod) {
+      // إضافة إسناد بدون أستاذ
+      const hours = slotHours(type, mod.weekly_sessions || 1);
+      const { data: newRow } = await supabase.from('assignments').insert({
+        professor_id: null,
+        module_id: modId,
+        teaching_type: type,
+        section_number: secNum,
+        group_number: grpVal,
+        weekly_hours: hours,
+        academic_year: ACADEMIC_YEAR,
+        semester: 1,
+        status: 'مؤقت',
+        wish_order_satisfied: 0,
+      }).select().single();
+      if (newRow) {
+        await supabase.from('assignments').update({ level_id: mod.level_id }).eq('id', newRow.id);
+        setSlots(prev => [...prev, {
+          module_id: modId, module_name: mod.name_ar,
+          teaching_type: type, section: secNum, group: grpVal,
+          professor_id: '', professor_name: '—',
+          assignment_db_id: newRow.id,
+        }]);
+      }
     } else if (profId && mod) {
       // إضافة جديد في DB
       const hours = slotHours(type, mod.weekly_sessions || 1);
