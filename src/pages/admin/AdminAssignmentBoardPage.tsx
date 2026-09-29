@@ -386,8 +386,8 @@ interface AssignmentRequest {
       s.section === secNum && String(s.group) === grp
     );
 
-    if (profId === null && existing) {
-      // حذف الإسناد الموجود
+    if (profId === null && existing && existing.professor_id) {
+      // حذف الإسناد الموجود (فقط إن كان له أستاذ)
       if (existing?.assignment_db_id) {
         await supabase.from('schedules').delete().eq('assignment_id', existing.assignment_db_id);
         await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
