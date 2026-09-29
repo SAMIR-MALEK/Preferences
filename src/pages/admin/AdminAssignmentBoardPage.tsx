@@ -458,6 +458,7 @@ interface AssignmentRequest {
           teaching_type: type, section: secNum, group: grpVal,
           professor_id: '', professor_name: '—',
           assignment_db_id: newRow.id,
+          level_name: '', weekly_hours: hours,
         }]);
       }
     } else if (profId && mod) {
