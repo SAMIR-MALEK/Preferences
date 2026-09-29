@@ -284,7 +284,22 @@ export default function AdminSchedulePage() {
         if (modalSearch && !a.module_name.includes(modalSearch) && !a.professor_name.includes(modalSearch)) return false;
         return true;
       })
-      .sort((a, b) => scheduledCount(a.id) - scheduledCount(b.id));
+      .sort((a, b) => {
+        // ① محاضرات أولاً
+        if (a.teaching_type !== b.teaching_type) {
+          return a.teaching_type === 'محاضرة' ? -1 : 1;
+        }
+        // ② المجدولة جزئياً قبل غير المجدولة
+        const aDone = scheduledCount(a.id);
+        const bDone = scheduledCount(b.id);
+        const aTotal = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
+        const bTotal = b.teaching_type === 'محاضرة' ? b.weekly_sessions : 1;
+        const aRemain = aTotal - aDone;
+        const bRemain = bTotal - bDone;
+        if (aRemain !== bRemain) return aRemain - bRemain;
+        // ③ أبجدي باسم المقياس
+        return a.module_name.localeCompare(b.module_name, 'ar');
+      });
   }
 
   function getAvailableRooms(slotId: string): Room[] {
