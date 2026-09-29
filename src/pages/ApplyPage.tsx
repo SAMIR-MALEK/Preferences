@@ -100,8 +100,11 @@ export default function ApplyPage() {
         degreeUrl = urlData.publicUrl;
       }
       const year = new Date().getFullYear();
-      const rand = Math.floor(1000 + Math.random() * 9000);
-      const ref = `${year}-${rand}`;
+      const { count } = await supabase.from('vacataire_applications')
+        .select('*', { count: 'exact', head: true })
+        .eq('academic_year', '2026-2027');
+      const seq = String((count || 0) + 1).padStart(3, '0');
+      const ref = `${seq}-${year}`;
       const { error } = await supabase.from('vacataire_applications').insert({
         nin: form.nin, last_name: form.last_name, first_name: form.first_name,
         last_name_fr: form.last_name_fr, first_name_fr: form.first_name_fr,
@@ -137,6 +140,12 @@ export default function ApplyPage() {
     s === 'مرفوض' ? 'bg-red-50 border-red-200 text-red-700' :
     'bg-amber-50 border-amber-200 text-amber-700';
 
+  const LEVEL_ORDER = ['أولى ليسانس','ثانية ليسانس','ثالثة ليسانس قانون عام','ثالثة ليسانس قانون خاص','ماستر 1','ماستر 2'];
+  function levelSort(a: string, b: string) {
+    const ai = LEVEL_ORDER.findIndex(l => a.includes(l.split(' ')[0]) || a === l);
+    const bi = LEVEL_ORDER.findIndex(l => b.includes(l.split(' ')[0]) || b === l);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  }
   // تجميع المقاييس حسب المستوى — بدون تكرار وبدون تفاصيل أفواج
   const grouped = modules.reduce((acc: any, a: any) => {
     const level = a.module?.level?.name_ar || '—';
@@ -330,7 +339,7 @@ export default function ApplyPage() {
                 <p className="text-xs text-gray-400">حدد المقاييس التي تستطيع تدريسها من القائمة أدناه (الشاغرة فقط)</p>
 
                 <div className="max-h-96 overflow-y-auto space-y-4 border border-gray-100 rounded-xl p-3">
-                  {Object.entries(grouped).map(([level, { lec, td }]: any) => (
+                  {Object.entries(grouped).sort(([a],[b]) => levelSort(a,b)).map(([level, { lec, td }]: any) => (
                     <div key={level}>
                       <p className="font-bold text-[#1a3a6b] text-sm mb-2 sticky top-0 bg-white py-1">{level}</p>
                       {lec.size > 0 && (
