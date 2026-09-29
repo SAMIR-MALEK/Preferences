@@ -455,7 +455,8 @@ interface AssignmentRequest {
         await supabase.from('assignments').update({ level_id: mod.level_id }).eq('id', newRow.id);
         setSlots(prev => [...prev, {
           module_id: modId, module_name: mod.name_ar,
-          teaching_type: type, section: secNum, group: grpVal,
+          teaching_type: type as 'محاضرة' | 'أعمال موجهة',
+          section: secNum, group: grpVal,
           professor_id: '', professor_name: '—',
           assignment_db_id: newRow.id,
           level_name: '', weekly_hours: hours,
