@@ -352,7 +352,9 @@ export default function AdminSchedulePage() {
       }
     }
 
+    console.log('insertData:', JSON.stringify(insertData));
     const { data, error } = await supabase.from('schedules').insert(insertData).select().single();
+    console.log('error:', error);
     if (error) { setMessage({ type: 'error', text: error.message }); }
     else {
       setMessage({ type: 'success', text: 'تمت إضافة الحصة' });
