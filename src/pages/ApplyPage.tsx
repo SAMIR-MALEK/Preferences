@@ -41,6 +41,8 @@ export default function ApplyPage() {
   const [trackRef, setTrackRef] = useState('');
   const [trackResult, setTrackResult] = useState<any>(null);
   const [trackError, setTrackError] = useState('');
+  const [uploadingDegree, setUploadingDegree] = useState(false);
+  const degreeRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -135,6 +137,25 @@ export default function ApplyPage() {
       setResult({ ref });
     } catch (e: any) { alert('حدث خطأ: ' + e.message); }
     setSubmitting(false);
+  }
+
+  async function uploadDegreeFile(file: File) {
+    if (!trackResult) return;
+    setUploadingDegree(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `vacataire/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('diplomas').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('diplomas').getPublicUrl(path);
+      await supabase.from('vacataire_applications')
+        .update({ degree_file_url: urlData.publicUrl })
+        .eq('ref_number', trackResult.ref_number)
+        .eq('nin', trackNin);
+      setTrackResult({ ...trackResult, degree_file_url: urlData.publicUrl });
+      alert('✓ تم رفع الشهادة بنجاح');
+    } catch (e: any) { alert('حدث خطأ: ' + e.message); }
+    setUploadingDegree(false);
   }
 
   async function handleTrack() {
@@ -453,6 +474,26 @@ export default function ApplyPage() {
                       {trackResult.status}
                     </span>
                     {trackResult.admin_note && <p className="text-sm mt-3 opacity-80">{trackResult.admin_note}</p>}
+                    {!trackResult.degree_file_url && (
+                      <div className="mt-3 bg-white rounded-2xl border-2 border-dashed border-amber-400 p-4 text-gray-800">
+                        <div className="flex items-start gap-2 mb-3">
+                          <span className="text-xl">⚠️</span>
+                          <div>
+                            <p className="font-bold text-sm text-amber-700">الشهادة (الدبلوم) غير مرفوعة</p>
+                            <p className="text-xs text-gray-500 mt-0.5">يرجى رفع نسخة من شهادتكم لاستكمال ملفكم</p>
+                          </div>
+                        </div>
+                        <input ref={degreeRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                          onChange={e => { if (e.target.files?.[0]) uploadDegreeFile(e.target.files[0]); }} />
+                        <button onClick={() => degreeRef.current?.click()} disabled={uploadingDegree}
+                          className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                          {uploadingDegree ? '⏳ جارٍ الرفع...' : '📎 رفع الشهادة'}
+                        </button>
+                      </div>
+                    )}
+                    {trackResult.degree_file_url && (
+                      <p className="text-xs mt-2 opacity-70">✓ الشهادة مرفوعة</p>
+                    )}
                     <p className="text-xs opacity-60 mt-2">تاريخ التقديم: {new Date(trackResult.created_at).toLocaleDateString('ar-DZ')}</p>
                   </div>
                 )}
