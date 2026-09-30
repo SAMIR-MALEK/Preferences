@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-const DEGREES = ['دكتوراه', 'شهادة تسجيل دكتوراه', 'ماجيستير'];
+const DEGREES = ['دكتوراه', 'شهادة تسجيل دكتوراه', 'ماجيستير', 'شهادة أخرى'];
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 
 function validate(form: any): string[] {
