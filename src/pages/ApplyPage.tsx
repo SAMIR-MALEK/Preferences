@@ -32,6 +32,7 @@ export default function ApplyPage() {
   const [tab, setTab] = useState<'apply' | 'track'>('apply');
   const [step, setStep] = useState<1 | 2>(1);
   const [submitting, setSubmitting] = useState(false);
+  const [duplicate, setDuplicate] = useState<{ref: string; nin: string} | null>(null);
   const [result, setResult] = useState<{ ref: string } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [modules, setModules] = useState<any[]>([]);
@@ -40,8 +41,6 @@ export default function ApplyPage() {
   const [trackRef, setTrackRef] = useState('');
   const [trackResult, setTrackResult] = useState<any>(null);
   const [trackError, setTrackError] = useState('');
-  const [uploadingDegree, setUploadingDegree] = useState(false);
-  const degreeRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -92,6 +91,17 @@ export default function ApplyPage() {
 
   async function handleSubmit() {
     setSubmitting(true);
+    // تحقق من التكرار
+    const { data: existing } = await supabase.from('vacataire_applications')
+      .select('ref_number, nin')
+      .or(`nin.eq.${form.nin},email.eq.${form.email},phone.eq.${form.phone}`)
+      .eq('academic_year', '2026-2027')
+      .maybeSingle();
+    if (existing) {
+      setDuplicate({ ref: existing.ref_number, nin: existing.nin });
+      setSubmitting(false);
+      return;
+    }
     try {
       let degreeUrl = '';
       if (form.degree_file) {
@@ -127,33 +137,11 @@ export default function ApplyPage() {
     setSubmitting(false);
   }
 
-  async function uploadDegreeFile(file: File) {
-    if (!trackResult) return;
-    setUploadingDegree(true);
-    try {
-      const ext = file.name.split('.').pop();
-      const path = `vacataire/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('diplomas').upload(path, file);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from('diplomas').getPublicUrl(path);
-      const { error: updateError } = await supabase.from('vacataire_applications')
-        .update({ degree_file_url: urlData.publicUrl })
-        .eq('ref_number', trackResult.ref_number)
-        .eq('nin', trackNin);
-      if (updateError) throw updateError;
-      setTrackResult({ ...trackResult, degree_file_url: urlData.publicUrl });
-      alert('✓ تم رفع الشهادة بنجاح');
-    } catch (e: any) {
-      alert('حدث خطأ: ' + e.message);
-    }
-    setUploadingDegree(false);
-  }
-
   async function handleTrack() {
     setTrackError(''); setTrackResult(null);
     if (!trackNin || !trackRef) { setTrackError('يرجى إدخال NIN ورقم الملف'); return; }
     const { data } = await supabase.from('vacataire_applications')
-      .select('ref_number, status, last_name, first_name, created_at, admin_note, degree_file_url')
+      .select('ref_number, status, last_name, first_name, created_at, admin_note')
       .eq('nin', trackNin).eq('ref_number', trackRef).single();
     if (!data) { setTrackError('لم يُعثر على الطلب — تحقق من المعلومات'); return; }
     setTrackResult(data);
@@ -210,6 +198,17 @@ export default function ApplyPage() {
               <div className="space-y-4">
                 <h2 className="font-bold text-gray-800 text-base">المعلومات الشخصية</h2>
 
+                {duplicate && (
+                  <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 space-y-2">
+                    <p className="font-bold text-amber-800 text-sm">⚠ لديك طلب مسجّل مسبقاً</p>
+                    <p className="text-amber-700 text-xs">رقم ملفك: <strong className="text-lg">{duplicate.ref}</strong></p>
+                    <p className="text-amber-600 text-xs">يمكنك متابعة طلبك من تبويب المتابعة</p>
+                    <button onClick={() => { setTab('track'); setTrackNin(duplicate!.nin); setTrackRef(duplicate!.ref); setDuplicate(null); }}
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-xl text-sm font-bold transition-colors">
+                      متابعة طلبي ←
+                    </button>
+                  </div>
+                )}
                 {errors.length > 0 && (
                   <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
                     {errors.map((e, i) => <p key={i} className="text-red-600 text-xs">• {e}</p>)}
@@ -454,26 +453,6 @@ export default function ApplyPage() {
                       {trackResult.status}
                     </span>
                     {trackResult.admin_note && <p className="text-sm mt-3 opacity-80">{trackResult.admin_note}</p>}
-                    {!trackResult.degree_file_url && (
-                      <div className="mt-4 bg-white rounded-2xl border-2 border-dashed border-amber-300 p-4 text-gray-800">
-                        <div className="flex items-start gap-3 mb-3">
-                          <span className="text-2xl">⚠️</span>
-                          <div>
-                            <p className="font-bold text-sm text-amber-700">الشهادة (الدبلوم) غير مرفوعة</p>
-                            <p className="text-xs text-gray-500 mt-0.5">يرجى رفع نسخة من شهادتكم (PDF أو صورة) لاستكمال ملفكم</p>
-                          </div>
-                        </div>
-                        <input ref={degreeRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                          onChange={e => { if (e.target.files?.[0]) uploadDegreeFile(e.target.files[0]); }} />
-                        <button onClick={() => degreeRef.current?.click()} disabled={uploadingDegree}
-                          className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
-                          {uploadingDegree ? '⏳ جارٍ الرفع...' : '📎 رفع الشهادة'}
-                        </button>
-                      </div>
-                    )}
-                    {trackResult.degree_file_url && (
-                      <p className="text-xs mt-2 opacity-70">✓ الشهادة مرفوعة</p>
-                    )}
                     <p className="text-xs opacity-60 mt-2">تاريخ التقديم: {new Date(trackResult.created_at).toLocaleDateString('ar-DZ')}</p>
                   </div>
                 )}
