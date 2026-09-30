@@ -189,6 +189,23 @@ export default function AdminVacataireTab() {
                 ))}
               </div>
 
+              {selected.preferred_modules_keys?.length > 0 && (
+                <div className="bg-indigo-50 rounded-xl p-3">
+                  <p className="text-xs text-indigo-500 font-medium mb-2">المقاييس التي يرغب في تدريسها</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selected.preferred_modules_keys.map((k: string) => {
+                      const parts = k.replace('lec_', '').replace('td_', '').split('_');
+                      const type = k.startsWith('lec_') ? 'محاضرة' : 'أعمال موجهة';
+                      const name = parts.slice(1).join('_');
+                      return (
+                        <span key={k} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${type === 'محاضرة' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'}`}>
+                          {name} — {type}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {selected.motivation && (
                 <div className="bg-blue-50 rounded-xl p-3">
                   <p className="text-xs text-blue-500 font-medium mb-1">رسالة التقديم</p>
