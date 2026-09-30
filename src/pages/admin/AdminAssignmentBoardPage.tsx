@@ -379,28 +379,20 @@ interface AssignmentRequest {
     const prof = profs.find(p => p.id === profId);
     const secNum = Number(sec);
     const grpVal = grp === 'null' ? null : Number(grp);
-
     const existing = slots.find(s =>
       s.module_id === modId && s.teaching_type === type &&
       s.section === secNum && String(s.group) === grp
     );
-
-    if (!existing?.assignment_db_id) return; // لا إنشاء جديد — فقط UPDATE
-
-    // UPDATE professor_id فقط — لا DELETE، لا INSERT
+    if (!existing?.assignment_db_id) return;
     await supabase.from('assignments')
       .update({ professor_id: profId || null })
       .eq('id', existing.assignment_db_id);
-
     await logAction(user?.admin?.id, user?.admin?.full_name,
       profId ? 'assign' : 'unassign', 'assignment', {
         prof_name: profId ? (prof?.name || '—') : '—',
         module_name: existing.module_name,
-        teaching_type: type,
-        section: secNum,
-        group: grpVal,
+        teaching_type: type, section: secNum, group: grpVal,
       });
-
     setSlots(prev => prev.map(s =>
       s.module_id === modId && s.teaching_type === type &&
       s.section === secNum && String(s.group) === grp
@@ -1020,18 +1012,37 @@ interface AssignmentRequest {
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
                                       <div
-                                        draggable
-                                        onDragStart={e => { setDragging(cell.key); const img = new Image(); img.src='data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs='; e.dataTransfer.setDragImage(img,0,0); }}
-                                        onDragEnd={() => setDragging(null)}
                                         onDragOver={e => e.preventDefault()}
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
-                                        style={{cursor: dragging === cell.key ? "grabbing" : "grab"}} className={`flex items-center gap-1.5 bg-green-50 border text-green-800 px-3 py-2 rounded-xl text-xs transition-all select-none ${dragging === cell.key ? "opacity-50 border-dashed border-green-400" : "border-green-200"}`}>
+                                        onPointerDown={e => {
+                                          isDragging.current = false;
+                                          clickTimer.current = setTimeout(() => {
+                                            isDragging.current = true;
+                                            if (cell.assigned.professor_name !== '—') {
+                                              setDragging(cell.key);
+                                              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                                            }
+                                          }, 200);
+                                        }}
+                                        onPointerMove={e => {
+                                          if (isDragging.current && cell.assigned.professor_name !== '—') {
+                                            // السحب نشط
+                                          }
+                                        }}
+                                        onPointerUp={e => {
+                                          if (clickTimer.current) clearTimeout(clickTimer.current);
+                                          if (!isDragging.current) {
+                                            setPickingSlot(pickingSlot === cell.key ? null : cell.key);
+                                            if (pickingSlot !== cell.key) setProfSearch('');
+                                          }
+                                          isDragging.current = false;
+                                          setDragging(null);
+                                        }}
+                                        style={{cursor: dragging===cell.key?"grabbing":"pointer"}}
+                                        className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name==='—'?'bg-gray-100 border-dashed border-gray-300 text-gray-500 hover:border-[#1a3a6b]':(dragging===cell.key?'opacity-50 border-dashed border-green-400 bg-green-50 text-green-800':'bg-green-50 border-green-200 text-green-800')}`}>
                                         <span className="text-gray-400">م{cell.sec}</span>
-                                        <span className="font-medium">{cell.assigned.professor_name}</span>
-                                        <span className="text-green-600">{cell.assigned.weekly_hours}س</span>
-                                        <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
-                                          <X className="w-3 h-3" />
-                                        </button>
+                                        <span className="font-medium">{cell.assigned.professor_name==='—'?'—':cell.assigned.professor_name}</span>
+                                        {cell.assigned.professor_name!=='—' && <span className="text-green-600">{cell.assigned.weekly_hours}س</span>}
                                       </div>
                                     ) : (
                                       <button
@@ -1083,17 +1094,28 @@ interface AssignmentRequest {
                                   <div key={cell.key} className="relative">
                                     {cell.assigned ? (
                                       <div
-                                        draggable
-                                        onDragStart={e => { setDragging(cell.key); const img = new Image(); img.src='data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs='; e.dataTransfer.setDragImage(img,0,0); }}
-                                        onDragEnd={() => setDragging(null)}
                                         onDragOver={e => e.preventDefault()}
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
-                                        style={{cursor: dragging === cell.key ? "grabbing" : "grab"}} className={`flex items-center gap-1.5 bg-amber-50 border text-amber-900 px-3 py-2 rounded-xl text-xs transition-all select-none ${dragging === cell.key ? "opacity-50 border-dashed border-amber-400" : "border-amber-200"}`}>
+                                        onPointerDown={e => {
+                                          isDragging.current = false;
+                                          clickTimer.current = setTimeout(() => {
+                                            isDragging.current = true;
+                                            if (cell.assigned.professor_name !== '—') setDragging(cell.key);
+                                          }, 200);
+                                        }}
+                                        onPointerUp={() => {
+                                          if (clickTimer.current) clearTimeout(clickTimer.current);
+                                          if (!isDragging.current) {
+                                            setPickingSlot(pickingSlot === cell.key ? null : cell.key);
+                                            if (pickingSlot !== cell.key) setProfSearch('');
+                                          }
+                                          isDragging.current = false;
+                                          setDragging(null);
+                                        }}
+                                        style={{cursor: dragging===cell.key?"grabbing":"pointer"}}
+                                        className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name==='—'?'bg-gray-100 border-dashed border-gray-300 text-gray-500 hover:border-[#c9a227]':(dragging===cell.key?'opacity-50 border-dashed border-amber-400 bg-amber-50 text-amber-900':'bg-amber-50 border-amber-200 text-amber-900')}`}>
                                         <span className="text-gray-400">ف{cell.group}</span>
-                                        <span className="font-medium">{cell.assigned.professor_name}</span>
-                                        <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
-                                          <X className="w-3 h-3" />
-                                        </button>
+                                        <span className="font-medium">{cell.assigned.professor_name==='—'?'—':cell.assigned.professor_name}</span>
                                       </div>
                                     ) : (
                                       <button
