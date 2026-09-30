@@ -1020,14 +1020,14 @@ interface AssignmentRequest {
                                           isDragging.current = false;
                                           clickTimer.current = setTimeout(() => {
                                             isDragging.current = true;
-                                            if (cell.assigned.professor_name !== '—') {
+                                            if (cell.assigned?.professor_name !== '—') {
                                               setDragging(cell.key);
                                               (e.target as HTMLElement).setPointerCapture(e.pointerId);
                                             }
                                           }, 200);
                                         }}
                                         onPointerMove={e => {
-                                          if (isDragging.current && cell.assigned.professor_name !== '—') {
+                                          if (isDragging.current && cell.assigned?.professor_name !== '—') {
                                             // السحب نشط
                                           }
                                         }}
@@ -1102,7 +1102,7 @@ interface AssignmentRequest {
                                           isDragging.current = false;
                                           clickTimer.current = setTimeout(() => {
                                             isDragging.current = true;
-                                            if (cell.assigned.professor_name !== '—') setDragging(cell.key);
+                                            if (cell.assigned?.professor_name !== '—') setDragging(cell.key);
                                           }, 200);
                                         }}
                                         onPointerUp={() => {
