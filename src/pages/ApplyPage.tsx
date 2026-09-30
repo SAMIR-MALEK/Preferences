@@ -43,6 +43,7 @@ export default function ApplyPage() {
   const [trackError, setTrackError] = useState('');
   const [uploadingDegree, setUploadingDegree] = useState(false);
   const degreeRef = useRef<HTMLInputElement>(null);
+  const trackDegreeRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -483,9 +484,9 @@ export default function ApplyPage() {
                             <p className="text-xs text-gray-500 mt-0.5">يرجى رفع نسخة من شهادتكم لاستكمال ملفكم</p>
                           </div>
                         </div>
-                        <input ref={degreeRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                        <input ref={trackDegreeRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
                           onChange={e => { if (e.target.files?.[0]) uploadDegreeFile(e.target.files[0]); }} />
-                        <button onClick={() => degreeRef.current?.click()} disabled={uploadingDegree}
+                        <button onClick={() => trackDegreeRef.current?.click()} disabled={uploadingDegree}
                           className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
                           {uploadingDegree ? '⏳ جارٍ الرفع...' : '📎 رفع الشهادة'}
                         </button>
