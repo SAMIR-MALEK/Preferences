@@ -376,7 +376,6 @@ interface AssignmentRequest {
 
   async function assignProf(slotKey: string, profId: string | null) {
     const [modId, type, sec, grp] = slotKey.split('__');
-    const mod = modules.find(m => m.id === modId);
     const prof = profs.find(p => p.id === profId);
     const secNum = Number(sec);
     const grpVal = grp === 'null' ? null : Number(grp);
@@ -386,115 +385,28 @@ interface AssignmentRequest {
       s.section === secNum && String(s.group) === grp
     );
 
-    if (profId === null && existing && existing.professor_id) {
-      // حذف الإسناد الموجود (فقط إن كان له أستاذ)
-      if (existing?.assignment_db_id) {
-        await supabase.from('schedules').delete().eq('assignment_id', existing.assignment_db_id);
-        await supabase.from('assignments').delete().eq('id', existing.assignment_db_id);
-        await logAction(user?.admin?.id, user?.admin?.full_name, 'unassign', 'assignment', {
-          prof_name: existing.professor_name,
-          module_name: existing.module_name,
-          teaching_type: type,
-          section: secNum,
-          group: grpVal,
-        });
-      } else {
-        const { data: found } = await supabase.from('assignments')
-          .select('id')
-          .eq('module_id', modId)
-          .eq('teaching_type', type)
-          .eq('section_number', secNum)
-          .eq('academic_year', ACADEMIC_YEAR)
-          .eq('semester', 1)
-          .in('status', ['نهائي', 'مؤقت'])
-          .limit(1);
-        if (found && found.length > 0) {
-          await supabase.from('schedules').delete().eq('assignment_id', found[0].id);
-          await supabase.from('assignments').delete().eq('id', found[0].id);
-        }
-      }
-      setSlots(prev => prev.filter(s => !(
-        s.module_id === modId && s.teaching_type === type &&
-        s.section === secNum && String(s.group) === grp
-      )));
-    } else if (profId === null && !existing && mod) {
-      // إضافة إسناد بدون أستاذ جديد
-      const hours = slotHours(type, mod.weekly_sessions || 1);
-      const { data: newRow } = await supabase.from('assignments').insert({
-        professor_id: null,
-        module_id: modId,
-        teaching_type: type,
-        section_number: secNum,
-        group_number: grpVal,
-        weekly_hours: hours,
-        academic_year: ACADEMIC_YEAR,
-        semester: 1,
-        status: 'مؤقت',
-        wish_order_satisfied: 0,
-      }).select().single();
-      if (newRow) {
-        await supabase.from('assignments').update({ level_id: mod.level_id }).eq('id', newRow.id);
-        setSlots(prev => [...prev, {
-          module_id: modId, module_name: mod.name_ar,
-          teaching_type: type as 'محاضرة' | 'أعمال موجهة',
-          section: secNum, group: grpVal,
-          professor_id: '', professor_name: '—',
-          assignment_db_id: newRow.id,
-          level_name: '', weekly_hours: hours,
-        }]);
-      }
-    } else if (existing) {
-      // تحديث الأستاذ في DB
-      if (existing?.assignment_db_id) {
-        await supabase.from('assignments').update({ professor_id: profId }).eq('id', existing.assignment_db_id);
-      }
-      setSlots(prev => prev.map(s =>
-        s.module_id === modId && s.teaching_type === type &&
-        s.section === secNum && String(s.group) === grp
-          ? { ...s, professor_id: profId, professor_name: prof?.name || '' }
-          : s
-      ));
-    } else if (profId && mod) {
-      // إضافة جديد في DB
-      const hours = slotHours(type, mod.weekly_sessions || 1);
-      await logAction(user?.admin?.id, user?.admin?.full_name, 'assign', 'assignment', {
-      prof_name: prof?.name,
-      module_name: mod?.name_ar,
-      teaching_type: type,
-      section: secNum,
-      group: grpVal,
-    });
-    const { data: newRow } = await supabase.from('assignments').insert({
-        professor_id: profId,
-        module_id: modId,
-        level_id: mod.level_id,
-        academic_year: ACADEMIC_YEAR,
-        semester: 1,
-        teaching_type: type,
-        section_number: secNum,
-        group_number: grpVal,
-        weekly_hours: hours,
-        wish_order_satisfied: 0,
-        status: 'مؤقت',
-        conflict_resolved: false,
-        score: null,
-      }).select().single();
+    if (!existing?.assignment_db_id) return; // لا إنشاء جديد — فقط UPDATE
 
-      setSlots(prev => [...prev, {
-        module_id: modId,
-        module_name: mod.name_ar || '',
-        level_name: mod.level_name || '',
-        professor_id: profId,
-        professor_name: prof?.name || '',
-        teaching_type: type as 'محاضرة' | 'أعمال موجهة',
+    // UPDATE professor_id فقط — لا DELETE، لا INSERT
+    await supabase.from('assignments')
+      .update({ professor_id: profId || null })
+      .eq('id', existing.assignment_db_id);
+
+    await logAction(user?.admin?.id, user?.admin?.full_name,
+      profId ? 'assign' : 'unassign', 'assignment', {
+        prof_name: profId ? (prof?.name || '—') : '—',
+        module_name: existing.module_name,
+        teaching_type: type,
         section: secNum,
         group: grpVal,
-        weekly_hours: hours,
-        assignment_db_id: newRow?.id,
-      }]);
-    }
-    setPickingSlot(null);
-    setProfSearch('');
+      });
+
+    setSlots(prev => prev.map(s =>
+      s.module_id === modId && s.teaching_type === type &&
+      s.section === secNum && String(s.group) === grp
+        ? { ...s, professor_id: profId || '', professor_name: profId ? (prof?.name || '—') : '—' }
+        : s
+    ));
   }
 
   // ── حفظ نهائي ──
@@ -1150,7 +1062,7 @@ interface AssignmentRequest {
                                             <button onClick={() => { assignProf(cell.key, null); setProfSearch(''); setPickingSlot(null); }}
                                               className="w-full text-right px-3 py-1.5 text-xs hover:bg-gray-50 rounded-lg text-gray-400 flex items-center gap-2">
                                               <span>—</span>
-                                              <span>بدون أستاذ</span>
+                                              <span>— إزالة الأستاذ</span>
                                             </button>
                                           </div>
                                         </div>
@@ -1176,16 +1088,12 @@ interface AssignmentRequest {
                                         onDragEnd={() => setDragging(null)}
                                         onDragOver={e => e.preventDefault()}
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
-                                        style={{cursor: cell.assigned.professor_name === '—' ? 'pointer' : (dragging === cell.key ? "grabbing" : "grab")}}
-                                        onClick={cell.assigned.professor_name === '—' ? () => { setPickingSlot(pickingSlot === cell.key ? null : cell.key); if (pickingSlot !== cell.key) setProfSearch(''); } : undefined}
-                                        className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name === '—' ? 'bg-gray-100 border-dashed border-gray-300 text-gray-400 hover:border-[#c9a227] hover:text-[#c9a227]' : (dragging === cell.key ? 'opacity-50 border-dashed border-amber-400 bg-amber-50 text-amber-900' : 'bg-amber-50 border-amber-200 text-amber-900')}`}>
+                                        style={{cursor: dragging === cell.key ? "grabbing" : "grab"}} className={`flex items-center gap-1.5 bg-amber-50 border text-amber-900 px-3 py-2 rounded-xl text-xs transition-all select-none ${dragging === cell.key ? "opacity-50 border-dashed border-amber-400" : "border-amber-200"}`}>
                                         <span className="text-gray-400">ف{cell.group}</span>
-                                        <span className="font-medium">{cell.assigned.professor_name === '—' ? '-' : cell.assigned.professor_name}</span>
-                                        {cell.assigned.professor_name !== '—' && (
-                                          <button onClick={e => { e.stopPropagation(); assignProf(cell.key, null); }} className="text-gray-300 hover:text-red-500 mr-1">
-                                            <X className="w-3 h-3" />
-                                          </button>
-                                        )}
+                                        <span className="font-medium">{cell.assigned.professor_name}</span>
+                                        <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
+                                          <X className="w-3 h-3" />
+                                        </button>
                                       </div>
                                     ) : (
                                       <button
@@ -1216,7 +1124,7 @@ interface AssignmentRequest {
                                             <button onClick={() => { assignProf(cell.key, null); setProfSearch(''); setPickingSlot(null); }}
                                               className="w-full text-right px-3 py-1.5 text-xs hover:bg-gray-50 rounded-lg text-gray-400 flex items-center gap-2">
                                               <span>—</span>
-                                              <span>بدون أستاذ</span>
+                                              <span>— إزالة الأستاذ</span>
                                             </button>
                                           </div>
                                         </div>
