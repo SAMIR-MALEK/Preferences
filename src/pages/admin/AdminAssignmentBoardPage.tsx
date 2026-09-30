@@ -91,6 +91,8 @@ export default function AdminAssignmentBoardPage() {
   const [selectedProfIds, setSelectedProfIds] = useState<Set<string>>(new Set());
   const [announceSearch, setAnnounceSearch] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDragging = useRef(false);
   const ACADEMIC_YEAR = '2026-2027';
 
 interface Appeal {
