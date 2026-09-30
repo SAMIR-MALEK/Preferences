@@ -455,13 +455,19 @@ export default function ApplyPage() {
                     </span>
                     {trackResult.admin_note && <p className="text-sm mt-3 opacity-80">{trackResult.admin_note}</p>}
                     {!trackResult.degree_file_url && (
-                      <div className="mt-3 pt-3 border-t border-current/20">
-                        <p className="text-xs font-bold mb-2">⚠ الشهادة غير مرفوعة — يرجى رفعها</p>
+                      <div className="mt-4 bg-white rounded-2xl border-2 border-dashed border-amber-300 p-4 text-gray-800">
+                        <div className="flex items-start gap-3 mb-3">
+                          <span className="text-2xl">⚠️</span>
+                          <div>
+                            <p className="font-bold text-sm text-amber-700">الشهادة (الدبلوم) غير مرفوعة</p>
+                            <p className="text-xs text-gray-500 mt-0.5">يرجى رفع نسخة من شهادتكم (PDF أو صورة) لاستكمال ملفكم</p>
+                          </div>
+                        </div>
                         <input ref={degreeRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
                           onChange={e => { if (e.target.files?.[0]) uploadDegreeFile(e.target.files[0]); }} />
                         <button onClick={() => degreeRef.current?.click()} disabled={uploadingDegree}
-                          className="bg-white/90 text-current px-4 py-2 rounded-xl text-xs font-bold hover:bg-white transition-colors disabled:opacity-50">
-                          {uploadingDegree ? 'جارٍ الرفع...' : '📎 رفع الشهادة'}
+                          className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                          {uploadingDegree ? '⏳ جارٍ الرفع...' : '📎 رفع الشهادة'}
                         </button>
                       </div>
                     )}
