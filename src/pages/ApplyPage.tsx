@@ -141,7 +141,7 @@ export default function ApplyPage() {
     setTrackError(''); setTrackResult(null);
     if (!trackNin || !trackRef) { setTrackError('يرجى إدخال NIN ورقم الملف'); return; }
     const { data } = await supabase.from('vacataire_applications')
-      .select('ref_number, status, last_name, first_name, created_at, admin_note')
+      .select('ref_number, status, last_name, first_name, created_at, admin_note, degree_file_url, nin')
       .eq('nin', trackNin).eq('ref_number', trackRef).single();
     if (!data) { setTrackError('لم يُعثر على الطلب — تحقق من المعلومات'); return; }
     setTrackResult(data);
