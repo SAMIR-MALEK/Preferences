@@ -1176,12 +1176,16 @@ interface AssignmentRequest {
                                         onDragEnd={() => setDragging(null)}
                                         onDragOver={e => e.preventDefault()}
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
-                                        style={{cursor: dragging === cell.key ? "grabbing" : "grab"}} className={`flex items-center gap-1.5 bg-amber-50 border text-amber-900 px-3 py-2 rounded-xl text-xs transition-all select-none ${dragging === cell.key ? "opacity-50 border-dashed border-amber-400" : "border-amber-200"}`}>
+                                        style={{cursor: cell.assigned.professor_name === '—' ? 'pointer' : (dragging === cell.key ? "grabbing" : "grab")}}
+                                        onClick={cell.assigned.professor_name === '—' ? () => { setPickingSlot(pickingSlot === cell.key ? null : cell.key); if (pickingSlot !== cell.key) setProfSearch(''); } : undefined}
+                                        className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name === '—' ? 'bg-gray-100 border-dashed border-gray-300 text-gray-400 hover:border-[#c9a227] hover:text-[#c9a227]' : (dragging === cell.key ? 'opacity-50 border-dashed border-amber-400 bg-amber-50 text-amber-900' : 'bg-amber-50 border-amber-200 text-amber-900')}`}>
                                         <span className="text-gray-400">ف{cell.group}</span>
-                                        <span className="font-medium">{cell.assigned.professor_name}</span>
-                                        <button onClick={() => assignProf(cell.key, null)} className="text-gray-300 hover:text-red-500 mr-1">
-                                          <X className="w-3 h-3" />
-                                        </button>
+                                        <span className="font-medium">{cell.assigned.professor_name === '—' ? '-' : cell.assigned.professor_name}</span>
+                                        {cell.assigned.professor_name !== '—' && (
+                                          <button onClick={e => { e.stopPropagation(); assignProf(cell.key, null); }} className="text-gray-300 hover:text-red-500 mr-1">
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        )}
                                       </div>
                                     ) : (
                                       <button
