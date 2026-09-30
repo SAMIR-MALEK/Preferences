@@ -149,10 +149,10 @@ export default function ApplyPage() {
       const { error: uploadError } = await supabase.storage.from('diplomas').upload(path, file);
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('diplomas').getPublicUrl(path);
-      await supabase.from('vacataire_applications')
+      const { error: updateError } = await supabase.from('vacataire_applications')
         .update({ degree_file_url: urlData.publicUrl })
-        .eq('ref_number', trackResult.ref_number)
-        .eq('nin', trackNin);
+        .eq('ref_number', trackResult.ref_number);
+      if (updateError) throw updateError;
       setTrackResult({ ...trackResult, degree_file_url: urlData.publicUrl });
       alert('✓ تم رفع الشهادة بنجاح');
     } catch (e: any) { alert('حدث خطأ: ' + e.message); }
@@ -484,12 +484,13 @@ export default function ApplyPage() {
                             <p className="text-xs text-gray-500 mt-0.5">يرجى رفع نسخة من شهادتكم لاستكمال ملفكم</p>
                           </div>
                         </div>
-                        <input ref={trackDegreeRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                          onChange={e => { if (e.target.files?.[0]) uploadDegreeFile(e.target.files[0]); }} />
-                        <button onClick={() => trackDegreeRef.current?.click()} disabled={uploadingDegree}
-                          className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                        <label className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-colors ${uploadingDegree ? 'bg-amber-300 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 cursor-pointer'} text-white`}>
                           {uploadingDegree ? '⏳ جارٍ الرفع...' : '📎 رفع الشهادة'}
-                        </button>
+                          {!uploadingDegree && (
+                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                              onChange={e => { if (e.target.files?.[0]) uploadDegreeFile(e.target.files[0]); }} />
+                          )}
+                        </label>
                       </div>
                     )}
                     {trackResult.degree_file_url && (
