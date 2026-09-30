@@ -94,7 +94,7 @@ export default function ApplyPage() {
       let degreeUrl = '';
       if (form.degree_file) {
         const ext = form.degree_file.name.split('.').pop();
-        const path = `vacataire/${Date.now()}.${ext}`;
+        const path = `${Date.now()}.${ext}`;
         await supabase.storage.from('diplomas').upload(path, form.degree_file);
         const { data: urlData } = supabase.storage.from('diplomas').getPublicUrl(path);
         degreeUrl = urlData.publicUrl;
