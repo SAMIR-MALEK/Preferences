@@ -43,6 +43,7 @@ export default function AdminVacataireTab() {
   const [selected, setSelected] = useState<Application | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [createdAccount, setCreatedAccount] = useState<{username:string;password:string} | null>(null);
   const [filter, setFilter] = useState<'all' | 'قيد الدراسة' | 'مقبول' | 'مرفوض'>('all');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -55,6 +56,56 @@ export default function AdminVacataireTab() {
       .order('created_at', { ascending: false });
     if (data) setApps(data);
     setLoading(false);
+  }
+
+  async function acceptAndCreate() {
+    if (!selected) return;
+    setSaving(true);
+    const adminName = user?.admin?.full_name || '—';
+    try {
+      // إنشاء اسم مستخدم من اللقب
+      const baseUsername = selected.last_name.replace(/\s+/g, '').toLowerCase();
+      const username = baseUsername + Math.floor(100 + Math.random() * 900);
+      const password = String(Math.floor(10000 + Math.random() * 90000));
+
+      // استدعاء Edge Function
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-professor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          last_name: selected.last_name,
+          first_name: selected.first_name,
+          rank: selected.degree,
+          highest_degree: selected.degree,
+          degree_speciality: selected.specialty,
+          degree_title: '',
+          professional_experience: selected.years_taught || 0,
+          email: selected.email,
+          custom_username: username,
+          custom_password: password,
+        }),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+
+      // قبول الطلب
+      const { error: updateError } = await supabase.from('vacataire_applications').update({
+        status: 'مقبول', admin_note: note, decided_by: adminName,
+        login_username: result.username, login_password: result.password,
+      }).eq('ref_number', selected.ref_number);
+      if (updateError) throw updateError;
+
+      await logAction(user?.admin?.id, adminName, 'accept_vacataire', 'vacataire', {
+        ref: selected.ref_number, name: `${selected.last_name} ${selected.first_name}`,
+        username: result.username,
+      });
+
+      setCreatedAccount({ username: result.username, password: result.password });
+      setApps(prev => prev.map(a => a.id === selected.id ? { ...a, status: 'مقبول' } : a));
+      setSelected(prev => prev ? { ...prev, status: 'مقبول' } : null);
+    } catch (e: any) { alert('خطأ: ' + e.message); }
+    setSaving(false);
   }
 
   async function decide(status: 'مقبول' | 'مرفوض') {
@@ -232,10 +283,18 @@ export default function AdminVacataireTab() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 resize-none" />
               </div>
 
+              {createdAccount && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs space-y-1">
+                  <p className="font-bold text-green-700">✓ تم إنشاء الحساب</p>
+                  <p>اسم المستخدم: <strong className="font-mono">{createdAccount.username}</strong></p>
+                  <p>كلمة المرور: <strong className="font-mono">{createdAccount.password}</strong></p>
+                  <button onClick={() => setCreatedAccount(null)} className="text-green-400 hover:text-green-600">إخفاء</button>
+                </div>
+              )}
               <div className="flex gap-2">
-                <button onClick={() => decide('مقبول')} disabled={saving || selected.status==='مقبول'}
+                <button onClick={acceptAndCreate} disabled={saving || selected.status==='مقبول'}
                   className="flex-1 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl text-xs font-bold transition-colors disabled:opacity-50">
-                  <CheckCircle className="w-4 h-4"/> قبول
+                  <CheckCircle className="w-4 h-4"/> قبول وإنشاء حساب
                 </button>
                 <button onClick={() => decide('مرفوض')} disabled={saving || selected.status==='مرفوض'}
                   className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl text-xs font-bold transition-colors disabled:opacity-50">
