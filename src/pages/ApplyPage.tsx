@@ -115,10 +115,18 @@ export default function ApplyPage() {
         degreeUrl = urlData.publicUrl;
       }
       const year = new Date().getFullYear();
-      const { count } = await supabase.from('vacataire_applications')
-        .select('*', { count: 'exact', head: true })
-        .eq('academic_year', '2026-2027');
-      const seq = String((count || 0) + 1).padStart(3, '0');
+      // جلب أعلى رقم موجود
+      const { data: lastApp } = await supabase.from('vacataire_applications')
+        .select('ref_number')
+        .eq('academic_year', '2026-2027')
+        .order('ref_number', { ascending: false })
+        .limit(1);
+      let lastNum = 0;
+      if (lastApp && lastApp.length > 0) {
+        const lastRef = lastApp[0].ref_number;
+        lastNum = parseInt(lastRef.split('-')[0]) || 0;
+      }
+      const seq = String(lastNum + 1).padStart(3, '0');
       const ref = `${seq}-${year}`;
       const { error } = await supabase.from('vacataire_applications').insert({
         nin: form.nin, last_name: form.last_name, first_name: form.first_name,
