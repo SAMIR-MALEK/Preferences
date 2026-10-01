@@ -87,6 +87,7 @@ export default function AdminVacataireTab() {
         }),
       });
       const result = await res.json();
+      console.log('create result:', result);
       if (result.error) throw new Error(result.error);
 
       // قبول الطلب
