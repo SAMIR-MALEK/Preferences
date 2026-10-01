@@ -61,10 +61,11 @@ export default function AdminVacataireTab() {
     if (!selected) return;
     setSaving(true);
     const adminName = user?.admin?.full_name || '—';
-    await supabase.from('vacataire_applications').update({
+    const { error: updateError } = await supabase.from('vacataire_applications').update({
       status, admin_note: note,
       decided_by: adminName,
-    }).eq('id', selected.id);
+    }).eq('ref_number', selected.ref_number);
+    if (updateError) { alert('خطأ: ' + updateError.message); setSaving(false); return; }
     await logAction(user?.admin?.id, adminName, status === 'مقبول' ? 'accept_vacataire' : 'reject_vacataire', 'vacataire', {
       ref: selected.ref_number, name: `${selected.last_name} ${selected.first_name}`,
     });
