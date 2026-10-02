@@ -76,10 +76,12 @@ export default function AdminVacataireTab() {
       const password = String(Math.floor(100000 + Math.random() * 900000));
 
       // استدعاء Edge Function
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-professor`, {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('انتهت الجلسة — أعد تسجيل الدخول');
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ffebjbwrppfcjuwzyxwi.supabase.co';
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-professor`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({
           last_name: selected.last_name,
           first_name: selected.first_name,
