@@ -83,11 +83,13 @@ export default function AdminAssignmentBoardPage() {
     function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') { setPickingSlot(null); setProfSearch(''); } }
     function handleClick(e: MouseEvent) {
       const target = e.target as HTMLElement;
-      if (!target.closest('.prof-picker')) { setPickingSlot(null); setProfSearch(''); }
+      if (!target.closest('.prof-picker') && !target.closest('[data-slotbtn]')) {
+        setPickingSlot(null); setProfSearch('');
+      }
     }
     document.addEventListener('keydown', handleKey);
-    document.addEventListener('click', handleClick);
-    return () => { document.removeEventListener('keydown', handleKey); document.removeEventListener('click', handleClick); };
+    document.addEventListener('mousedown', handleClick);
+    return () => { document.removeEventListener('keydown', handleKey); document.removeEventListener('mousedown', handleClick); };
   }, []);
   const [profSearch, setProfSearch] = useState('');
   const [dragging, setDragging] = useState<string | null>(null); // slotKey المسحوب
@@ -1044,6 +1046,7 @@ interface AssignmentRequest {
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
                                         onClick={() => { setPickingSlot(pickingSlot === cell.key ? null : cell.key); if (pickingSlot !== cell.key) setProfSearch(''); }}
                                         style={{cursor:"pointer"}}
+                                        data-slotbtn="true"
                                         className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name==='—'?'bg-gray-100 border-dashed border-gray-300 text-gray-500 hover:border-[#1a3a6b]':(dragging===cell.key?'opacity-50 border-dashed border-green-400 bg-green-50 text-green-800':'bg-green-50 border-green-200 text-green-800')}`}>
                                         <span className="text-gray-400">م{cell.sec}</span>
                                         <span className="font-medium">{cell.assigned.professor_name==='—'?'—':cell.assigned.professor_name}</span>
@@ -1124,6 +1127,7 @@ interface AssignmentRequest {
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
                                         onClick={() => { setPickingSlot(pickingSlot === cell.key ? null : cell.key); if (pickingSlot !== cell.key) setProfSearch(''); }}
                                         style={{cursor:"pointer"}}
+                                        data-slotbtn="true"
                                         className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name==='—'?'bg-gray-100 border-dashed border-gray-300 text-gray-500 hover:border-[#c9a227]':(dragging===cell.key?'opacity-50 border-dashed border-amber-400 bg-amber-50 text-amber-900':'bg-amber-50 border-amber-200 text-amber-900')}`}>
                                         <span className="text-gray-400">ف{cell.group}</span>
                                         <span className="font-medium">{cell.assigned.professor_name==='—'?'—':cell.assigned.professor_name}</span>
