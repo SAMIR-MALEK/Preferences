@@ -1159,13 +1159,32 @@ interface AssignmentRequest {
                                             className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-[#c9a227]" dir="rtl" />
                                         </div>
                                         <div className="max-h-52 overflow-y-auto p-1">
-                                          {profs.filter(p => p.name.includes(profSearch)).map(p => (
-                                            <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
-                                              className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#c9a227]/05 rounded-lg flex items-center justify-between">
-                                              <span>{p.name}</span>
-                                              <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
-                                            </button>
-                                          ))}
+                                          {(() => {
+                                            const filtered = profs.filter(p => p.name.includes(profSearch));
+                                            const permanent = filtered.filter(p => !p.username?.startsWith('V'));
+                                            const vacataire = filtered.filter(p => p.username?.startsWith('V'));
+                                            return <>
+                                              {permanent.map(p => (
+                                                <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                                  className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#c9a227]/05 rounded-lg flex items-center justify-between">
+                                                  <span>{p.name}</span>
+                                                  <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
+                                                </button>
+                                              ))}
+                                              {vacataire.length > 0 && <>
+                                                <div className="border-t border-gray-200 my-1 pt-1">
+                                                  <p className="text-[10px] text-gray-400 px-2 mb-1">أساتذة مؤقتون</p>
+                                                </div>
+                                                {vacataire.map(p => (
+                                                  <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                                    className="w-full text-right px-3 py-1.5 text-xs hover:bg-amber-50 rounded-lg flex items-center justify-between">
+                                                    <span className="text-amber-700">{p.name}</span>
+                                                    <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
+                                                  </button>
+                                                ))}
+                                              </>}
+                                            </>;
+                                          })()}
                                           <div className="border-t border-gray-100 mt-1 pt-1">
                                             <button onClick={() => { assignProf(cell.key, null); setProfSearch(''); setPickingSlot(null); }}
                                               className="w-full text-right px-3 py-1.5 text-xs hover:bg-gray-50 rounded-lg text-gray-400 flex items-center gap-2">
