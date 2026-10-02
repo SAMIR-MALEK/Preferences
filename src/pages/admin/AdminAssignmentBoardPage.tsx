@@ -1042,31 +1042,8 @@ interface AssignmentRequest {
                                       <div
                                         onDragOver={e => e.preventDefault()}
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
-                                        onPointerDown={e => {
-                                          isDragging.current = false;
-                                          clickTimer.current = setTimeout(() => {
-                                            isDragging.current = true;
-                                            if (cell.assigned?.professor_name !== '—') {
-                                              setDragging(cell.key);
-                                              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-                                            }
-                                          }, 200);
-                                        }}
-                                        onPointerMove={e => {
-                                          if (isDragging.current && cell.assigned?.professor_name !== '—') {
-                                            // السحب نشط
-                                          }
-                                        }}
-                                        onPointerUp={e => {
-                                          if (clickTimer.current) clearTimeout(clickTimer.current);
-                                          if (!isDragging.current) {
-                                            setPickingSlot(pickingSlot === cell.key ? null : cell.key);
-                                            if (pickingSlot !== cell.key) setProfSearch('');
-                                          }
-                                          isDragging.current = false;
-                                          setDragging(null);
-                                        }}
-                                        style={{cursor: dragging===cell.key?"grabbing":"pointer"}}
+                                        onClick={() => { setPickingSlot(pickingSlot === cell.key ? null : cell.key); if (pickingSlot !== cell.key) setProfSearch(''); }}
+                                        style={{cursor:"pointer"}}
                                         className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name==='—'?'bg-gray-100 border-dashed border-gray-300 text-gray-500 hover:border-[#1a3a6b]':(dragging===cell.key?'opacity-50 border-dashed border-green-400 bg-green-50 text-green-800':'bg-green-50 border-green-200 text-green-800')}`}>
                                         <span className="text-gray-400">م{cell.sec}</span>
                                         <span className="font-medium">{cell.assigned.professor_name==='—'?'—':cell.assigned.professor_name}</span>
@@ -1145,23 +1122,8 @@ interface AssignmentRequest {
                                       <div
                                         onDragOver={e => e.preventDefault()}
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
-                                        onPointerDown={e => {
-                                          isDragging.current = false;
-                                          clickTimer.current = setTimeout(() => {
-                                            isDragging.current = true;
-                                            if (cell.assigned?.professor_name !== '—') setDragging(cell.key);
-                                          }, 200);
-                                        }}
-                                        onPointerUp={() => {
-                                          if (clickTimer.current) clearTimeout(clickTimer.current);
-                                          if (!isDragging.current) {
-                                            setPickingSlot(pickingSlot === cell.key ? null : cell.key);
-                                            if (pickingSlot !== cell.key) setProfSearch('');
-                                          }
-                                          isDragging.current = false;
-                                          setDragging(null);
-                                        }}
-                                        style={{cursor: dragging===cell.key?"grabbing":"pointer"}}
+                                        onClick={() => { setPickingSlot(pickingSlot === cell.key ? null : cell.key); if (pickingSlot !== cell.key) setProfSearch(''); }}
+                                        style={{cursor:"pointer"}}
                                         className={`flex items-center gap-1.5 border px-3 py-2 rounded-xl text-xs transition-all select-none ${cell.assigned.professor_name==='—'?'bg-gray-100 border-dashed border-gray-300 text-gray-500 hover:border-[#c9a227]':(dragging===cell.key?'opacity-50 border-dashed border-amber-400 bg-amber-50 text-amber-900':'bg-amber-50 border-amber-200 text-amber-900')}`}>
                                         <span className="text-gray-400">ف{cell.group}</span>
                                         <span className="font-medium">{cell.assigned.professor_name==='—'?'—':cell.assigned.professor_name}</span>
