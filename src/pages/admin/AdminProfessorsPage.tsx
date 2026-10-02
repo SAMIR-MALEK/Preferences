@@ -44,7 +44,7 @@ export default function AdminProfessorsPage() {
 
   async function loadProfessors() {
     setLoading(true);
-    const { data } = await supabase.from('professors').select('*').order('username');
+    const { data } = await supabase.from('professors').select('*').order('last_name');
     if (data) setProfessors(data);
     setLoading(false);
   }
@@ -219,12 +219,12 @@ export default function AdminProfessorsPage() {
     }
   }
 
-  const allFiltered = professors.filter(p =>
+  const _filtered = professors.filter(p =>
     `${p.last_name} ${p.first_name} ${p.username}`.toLowerCase().includes(search.toLowerCase())
   );
   const filtered = [
-    ...allFiltered.filter(p => !String(p.username).startsWith('V')).sort((a, b) => a.last_name.localeCompare(b.last_name, 'ar')),
-    ...allFiltered.filter(p => String(p.username).startsWith('V')).sort((a, b) => a.last_name.localeCompare(b.last_name, 'ar')),
+    ..._filtered.filter(p => !String(p.username || '').startsWith('V')).sort((a, b) => a.last_name.localeCompare(b.last_name, 'ar')),
+    ..._filtered.filter(p => String(p.username || '').startsWith('V')).sort((a, b) => a.last_name.localeCompare(b.last_name, 'ar')),
   ];
 
   return (
@@ -399,7 +399,10 @@ export default function AdminProfessorsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.map(prof => (
+                {filtered.map((prof, i) => {
+                  const isFirstVac = String(prof.username||'').startsWith('V') && (i===0 || !String(filtered[i-1].username||'').startsWith('V'));
+                  return (<>
+                  {isFirstVac && <tr key="sep-vac"><td colSpan={5} className="bg-amber-50 px-4 py-2 text-xs font-bold text-amber-700 border-t-2 border-amber-200">أساتذة مؤقتون</td></tr>}
                   <tr key={prof.id} className={`hover:bg-gray-50/50 transition-colors ${selected.has(prof.id) ? 'bg-[#1a3a6b]/5' : ''}`}>
                     {!isDeptHead && (
                       <td className="px-4 py-3">
@@ -466,7 +469,8 @@ export default function AdminProfessorsPage() {
                       </div>
                     </td>
                   </tr>
-                  </>);})}
+                  </>);
+                })}
               </tbody>
             </table>
             {filtered.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">لا توجد نتائج</div>}
