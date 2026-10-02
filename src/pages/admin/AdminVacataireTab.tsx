@@ -29,6 +29,8 @@ interface Application {
   academic_year: string;
   created_at: string;
   decided_by?: string;
+  login_username?: string;
+  login_password?: string;
 }
 
 const statusColor = (s: string) =>
