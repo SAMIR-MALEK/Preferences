@@ -1,5 +1,5 @@
 // v18-09-2026
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { logAction } from '../../lib/logAction';
 import { useAuth } from '../../hooks/useAuth';
