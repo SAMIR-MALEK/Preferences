@@ -86,8 +86,8 @@ export default function AdminAssignmentBoardPage() {
       if (!target.closest('.prof-picker')) { setPickingSlot(null); setProfSearch(''); }
     }
     document.addEventListener('keydown', handleKey);
-    document.addEventListener('mousedown', handleClick);
-    return () => { document.removeEventListener('keydown', handleKey); document.removeEventListener('mousedown', handleClick); };
+    document.addEventListener('click', handleClick);
+    return () => { document.removeEventListener('keydown', handleKey); document.removeEventListener('click', handleClick); };
   }, []);
   const [profSearch, setProfSearch] = useState('');
   const [dragging, setDragging] = useState<string | null>(null); // slotKey المسحوب
@@ -1060,7 +1060,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
+                                      <div className="prof-picker absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
@@ -1139,7 +1139,7 @@ interface AssignmentRequest {
                                       </button>
                                     )}
                                     {pickingSlot === cell.key && (
-                                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
+                                      <div className="prof-picker absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px]" style={{zIndex:9999, position:"absolute"}}>
                                         <div className="p-2 border-b border-gray-100">
                                           <input autoFocus type="text" placeholder="ابحث عن أستاذ..." value={profSearch}
                                             onChange={e => setProfSearch(e.target.value)}
