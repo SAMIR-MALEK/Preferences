@@ -44,7 +44,7 @@ export default function AdminProfessorsPage() {
 
   async function loadProfessors() {
     setLoading(true);
-    const { data } = await supabase.from('professors').select('*').order('last_name');
+    const { data } = await supabase.from('professors').select('*').order('username');
     if (data) setProfessors(data);
     setLoading(false);
   }
@@ -219,9 +219,13 @@ export default function AdminProfessorsPage() {
     }
   }
 
-  const filtered = professors.filter(p =>
+  const allFiltered = professors.filter(p =>
     `${p.last_name} ${p.first_name} ${p.username}`.toLowerCase().includes(search.toLowerCase())
   );
+  const filtered = [
+    ...allFiltered.filter(p => !String(p.username).startsWith('V')).sort((a, b) => a.last_name.localeCompare(b.last_name, 'ar')),
+    ...allFiltered.filter(p => String(p.username).startsWith('V')).sort((a, b) => a.last_name.localeCompare(b.last_name, 'ar')),
+  ];
 
   return (
     <div className="space-y-5 animate-fade-in" dir="rtl">
@@ -462,7 +466,7 @@ export default function AdminProfessorsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  </>);})}
               </tbody>
             </table>
             {filtered.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">لا توجد نتائج</div>}
