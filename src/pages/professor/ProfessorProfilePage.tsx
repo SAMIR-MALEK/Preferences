@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES, type ProfessorRank } from '../../types';
@@ -26,6 +26,27 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
   const { user } = useAuth();
   const prof = user?.professor;
   const isVacataire = prof?.username?.startsWith('V') || false;
+  const [vacData, setVacData] = useState<any>(null);
+
+  useEffect(() => {
+    if (!vacData) return;
+    setForm(f => ({
+      ...f,
+      highest_degree: vacData.degree || f.highest_degree,
+      email: vacData.email || f.email,
+      phone: vacData.phone || f.phone,
+      degree_speciality: vacData.specialty || f.degree_speciality,
+    }));
+  }, [vacData]);
+
+  useEffect(() => {
+    if (!isVacataire || !prof?.username) return;
+    supabase.from('vacataire_applications')
+      .select('degree, phone, email, degree_file_url, specialty')
+      .eq('login_username', prof.username)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setVacData(data); });
+  }, [isVacataire, prof?.username]);
 
   const [form, setForm] = useState({
     rank: isVacataire ? 'أستاذ مؤقت' : (prof?.rank || 'أستاذ مساعد - أ'),
@@ -34,6 +55,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
     degree_speciality: prof?.degree_speciality || '',
     degree_title: prof?.degree_title || '',
     email: prof?.email || '',
+    phone: prof?.phone || '',
     phone: prof?.phone || '',
   });
 
