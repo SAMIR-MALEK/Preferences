@@ -139,7 +139,15 @@ interface AssignmentRequest {
       name: p.last_name + ' ' + p.first_name,
       rank: p.rank,
       max_hours: p.max_weekly_hours || 9,
+      username: p.username,
     })) : [];
+    // الدائمون أولاً ثم المؤقتون
+    localProfs.sort((a, b) => {
+      const aV = String(a.username || '').startsWith('V');
+      const bV = String(b.username || '').startsWith('V');
+      if (aV !== bV) return aV ? 1 : -1;
+      return a.name.localeCompare(b.name, 'ar');
+    });
     setProfs(localProfs);
 
     const lsMap = new Map((lsData || []).map((ls: any) => [ls.level_id, ls]));
