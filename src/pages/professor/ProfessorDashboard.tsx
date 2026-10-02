@@ -76,8 +76,10 @@ export default function ProfessorDashboard() {
   const tabs = [
     { id: 'home' as ProfTab, label: 'الرئيسية', icon: Home, disabled: !profileComplete },
     { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User },
-    { id: 's1' as ProfTab, label: 'رغبات س1', icon: Clock, disabled: !profileComplete, small: true },
-    { id: 's2' as ProfTab, label: 'رغبات س2', icon: Clock, disabled: !profileComplete, small: true },
+    ...(!isVacataire ? [
+      { id: 's1' as ProfTab, label: 'رغبات س1', icon: Clock, disabled: !profileComplete, small: true },
+      { id: 's2' as ProfTab, label: 'رغبات س2', icon: Clock, disabled: !profileComplete, small: true },
+    ] : []),
     { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
     ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, highlighted: true }] : []),
   ];
@@ -186,7 +188,7 @@ export default function ProfessorDashboard() {
           <ProfessorProfilePage
             forceComplete={!profileComplete}
             onSaved={async () => { await reloadProf(); }}
-            onGoToWishes={() => setTab('s1')}
+            onGoToWishes={!isVacataire ? () => setTab('s1') : undefined}
           />
         )}
         {tab === 's1' && (

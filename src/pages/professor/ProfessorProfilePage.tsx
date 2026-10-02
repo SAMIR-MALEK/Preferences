@@ -70,7 +70,8 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
       await supabase.storage.from('diplomas').upload(path, file, { upsert: true });
       const { data } = supabase.storage.from('diplomas').getPublicUrl(path);
       setPhotoUrl(data.publicUrl);
-      await supabase.from('professors').update({ photo_url: data.publicUrl }).eq('user_id', prof?.user_id || '');
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) await supabase.from('professors').update({ photo_url: data.publicUrl }).eq('user_id', authUser.id);
     } catch (e: any) { alert('خطأ: ' + e.message); }
     setUploadingPhoto(false);
   }
