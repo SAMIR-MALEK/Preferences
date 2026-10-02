@@ -27,7 +27,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
   const prof = user?.professor;
   const isVacataire = prof?.username?.startsWith('V') || false;
   const [vacData, setVacData] = useState<any>(null);
-  const [photoUrl, setPhotoUrl] = useState<string>('');
+  const [photoUrl, setPhotoUrl] = useState<string>(prof?.photo_url || '');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
 
