@@ -66,7 +66,7 @@ export default function AdminVacataireTab() {
       // إنشاء اسم مستخدم من اللقب
       const baseUsername = selected.last_name.replace(/\s+/g, '').toLowerCase();
       const username = baseUsername + Math.floor(100 + Math.random() * 900);
-      const password = String(Math.floor(10000 + Math.random() * 90000));
+      const password = String(Math.floor(100000 + Math.random() * 900000));
 
       // استدعاء Edge Function
       const session = (await supabase.auth.getSession()).data.session;
