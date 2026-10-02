@@ -56,7 +56,6 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
     degree_title: prof?.degree_title || '',
     email: prof?.email || '',
     phone: prof?.phone || '',
-    phone: prof?.phone || '',
   });
 
   const [saving, setSaving] = useState(false);
