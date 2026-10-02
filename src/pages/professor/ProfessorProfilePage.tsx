@@ -247,7 +247,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
             <p className="text-gray-400 text-xs mb-0.5">اسم المستخدم</p>
             <p className="text-[#c9a227] font-mono text-sm">{prof?.username}</p>
           </div>
-          <div>
+          {!isVacataire && <div>
             <p className="text-gray-400 text-xs mb-0.5">حالة الرغبات</p>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               prof?.wishes_locked_s1 
@@ -256,7 +256,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
             }`}>
               {prof?.wishes_locked_s1 ? '🔒 مغلقة' : '✅ مفتوحة'}
             </span>
-          </div>
+          </div>}
         </div>
       </div>
 
