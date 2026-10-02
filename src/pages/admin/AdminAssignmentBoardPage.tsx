@@ -1170,7 +1170,7 @@ interface AssignmentRequest {
                                         onDrop={e => handleDrop(cell.key, e.ctrlKey)}
                                         onClick={() => { const newKey = pickingSlot === cell.key ? null : cell.key; setPickingSlot(newKey); if (newKey) setProfSearch(''); }}
                                         className={`flex items-center gap-1.5 bg-gray-50 border-2 border-dashed text-gray-400 px-3 py-2 rounded-xl text-xs transition-all ${dragging ? 'border-[#c9a227] text-[#c9a227] bg-amber-50' : 'border-gray-200 hover:border-[#c9a227] hover:text-[#c9a227]'}`}>
-                                        <span>م{cell.sec}-ف{cell.group}</span>
+                                        <span>ف{cell.group}</span>
                                         <Plus className="w-3 h-3" />
                                       </button>
                                     )}
