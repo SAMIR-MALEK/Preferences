@@ -27,8 +27,8 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
   const prof = user?.professor;
 
   const [form, setForm] = useState({
-    rank: prof?.rank || 'أستاذ مساعد - أ',
-    professional_experience: prof?.professional_experience || 0,
+    rank: isVacataire ? 'أستاذ مؤقت' : (prof?.rank || 'أستاذ مساعد - أ'),
+    professional_experience: isVacataire ? 0 : (prof?.professional_experience || 0),
     highest_degree: prof?.highest_degree || 'دكتوراه',
     degree_speciality: prof?.degree_speciality || '',
     degree_title: prof?.degree_title || '',
@@ -229,7 +229,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <Field label="الرتبة العلمية" icon={Award}>
+          {!isVacataire && <Field label="الرتبة العلمية" icon={Award}>
             <select
               value={form.rank}
               onChange={e => setForm({ ...form, rank: e.target.value as ProfessorRank })}
@@ -241,7 +241,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
             </select>
           </Field>
 
-          <Field label="الخبرة المهنية (بالسنوات)" icon={Award}>
+          } {!isVacataire && <Field label="الخبرة المهنية (بالسنوات)" icon={Award}>
             <input
               type="number"
               min="0"
@@ -253,7 +253,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
             />
           </Field>
 
-          <Field label="آخر شهادة علمية" icon={GraduationCap}>
+          } <Field label="آخر شهادة علمية" icon={GraduationCap}>
             <select
               value={form.highest_degree}
               onChange={e => setForm({ ...form, highest_degree: e.target.value })}
