@@ -26,6 +26,7 @@ function isProfileComplete(p: any): boolean {
 export default function ProfessorDashboard() {
   const { user, signOut } = useAuth();
   const prof = user?.professor;
+  const isVacataire = prof?.username?.startsWith('V') || false;
 
   // Reload prof data after changes
   const [profData, setProfData] = useState(prof);
