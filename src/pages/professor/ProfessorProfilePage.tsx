@@ -37,6 +37,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
       phone: vacData.phone || f.phone,
       degree_speciality: vacData.specialty || f.degree_speciality,
     }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vacData]);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
       .select('degree, phone, email, degree_file_url, specialty')
       .eq('login_username', prof.username)
       .maybeSingle()
-      .then(({ data }) => { if (data) setVacData(data); });
+      .then(({ data }) => { console.log('vacData:', data); if (data) setVacData(data); });
   }, [isVacataire, prof?.username]);
 
   const [form, setForm] = useState({
