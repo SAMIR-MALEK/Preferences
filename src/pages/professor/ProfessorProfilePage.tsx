@@ -371,7 +371,13 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
       </div>
 
       {/* زر واضح وبارز للانتقال إلى تسجيل الرغبات */}
-      {onGoToWishes && (
+      {isVacataire && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
+          <p className="text-blue-700 font-bold text-sm mb-1">✓ ملفكم قيد الدراسة</p>
+          <p className="text-blue-600 text-xs">سيتم إعلامكم بالإسناد النهائي عبر هذه المنصة — لا حاجة لتسجيل رغبات</p>
+        </div>
+      )}
+      {onGoToWishes && !isVacataire && (
         <button
           onClick={onGoToWishes}
           className="w-full flex items-center justify-center gap-3 bg-gradient-to-l from-[#1a3a6b] to-[#0d2040] hover:opacity-90 text-white font-bold py-4 rounded-2xl transition-all shadow-md text-base">
