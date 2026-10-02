@@ -401,10 +401,12 @@ interface AssignmentRequest {
     const prof = profs.find(p => p.id === profId);
     const secNum = Number(sec);
     const grpVal = grp === 'null' ? null : Number(grp);
-    const existing = slots.find(s =>
-      s.module_id === modId && s.teaching_type === type &&
-      s.section === secNum && String(s.group) === grp
-    );
+    const existing = slots.find(s => {
+      const sGrp = s.group === null ? 'null' : String(s.group);
+      return s.module_id === modId && s.teaching_type === type &&
+        s.section === secNum && sGrp === grp;
+    });
+    console.log('assignProf key:', slotKey, 'existing:', existing?.assignment_db_id, 'slots count:', slots.length);
     if (!existing?.assignment_db_id) return;
     await supabase.from('assignments')
       .update({ professor_id: profId || null })
