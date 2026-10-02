@@ -25,6 +25,7 @@ function Field({ label, icon: Icon, children }: any) {
 export default function ProfessorProfilePage({ forceComplete = false, onSaved, onGoToWishes }: Props) {
   const { user } = useAuth();
   const prof = user?.professor;
+  const isVacataire = prof?.username?.startsWith('V') || false;
 
   const [form, setForm] = useState({
     rank: isVacataire ? 'أستاذ مؤقت' : (prof?.rank || 'أستاذ مساعد - أ'),
