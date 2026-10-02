@@ -64,8 +64,15 @@ export default function AdminVacataireTab() {
     const adminName = user?.admin?.full_name || '—';
     try {
       // إنشاء اسم مستخدم من اللقب
-      const baseUsername = selected.last_name.replace(/\s+/g, '').toLowerCase();
-      const username = baseUsername + Math.floor(100 + Math.random() * 900);
+      // توليد username بـ V + رقم متسلسل
+      const { data: lastVac } = await supabase.from('professors')
+        .select('username').like('username', 'V%').order('username', { ascending: false }).limit(1);
+      let vNum = 1;
+      if (lastVac && lastVac.length > 0) {
+        const lastNum = parseInt((lastVac[0].username as string).replace('V', '')) || 0;
+        vNum = lastNum + 1;
+      }
+      const username = 'V' + String(vNum).padStart(3, '0');
       const password = String(Math.floor(100000 + Math.random() * 900000));
 
       // استدعاء Edge Function
