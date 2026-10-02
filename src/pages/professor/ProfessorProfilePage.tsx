@@ -25,7 +25,7 @@ function Field({ label, icon: Icon, children }: any) {
 export default function ProfessorProfilePage({ forceComplete = false, onSaved, onGoToWishes }: Props) {
   const { user } = useAuth();
   const prof = user?.professor;
-  const isVacataire = prof?.username?.startsWith('V') || false;
+  const isVacataire = ((prof as any)?.username as string || '').startsWith('V');
   const [vacData, setVacData] = useState<any>(null);
   const [photoUrl, setPhotoUrl] = useState<string>((prof as any)?.photo_url || '');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
