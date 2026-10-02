@@ -171,7 +171,7 @@ export default function ApplyPage() {
     setTrackError(''); setTrackResult(null);
     if (!trackNin || !trackRef) { setTrackError('يرجى إدخال NIN ورقم الملف'); return; }
     const { data } = await supabase.from('vacataire_applications')
-      .select('ref_number, status, last_name, first_name, created_at, admin_note, degree_file_url, nin')
+      .select('ref_number, status, last_name, first_name, created_at, admin_note, degree_file_url, nin, login_username, login_password')
       .eq('nin', trackNin).eq('ref_number', trackRef).single();
     if (!data) { setTrackError('لم يُعثر على الطلب — تحقق من المعلومات'); return; }
     setTrackResult(data);
@@ -503,6 +503,25 @@ export default function ApplyPage() {
                     )}
                     {trackResult.degree_file_url && (
                       <p className="text-xs mt-2 opacity-70">✓ الشهادة مرفوعة</p>
+                    )}
+                    {trackResult.status === 'مقبول' && trackResult.login_username && (
+                      <div className="mt-4 bg-white rounded-2xl border-2 border-green-400 p-4 text-gray-800 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">🎓</span>
+                          <p className="font-bold text-green-700 text-sm">تم قبول ملفكم — معلومات الدخول إلى المنصة</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-xs">
+                          <p className="text-gray-500">اسم المستخدم</p>
+                          <p className="font-bold text-lg font-mono text-[#1a3a6b]">{trackResult.login_username}</p>
+                          <p className="text-gray-500 mt-2">كلمة المرور المؤقتة</p>
+                          <p className="font-bold text-lg font-mono text-[#1a3a6b]">{trackResult.login_password}</p>
+                        </div>
+                        <a href="https://preferences-ei8e-one.vercel.app" target="_blank" rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white py-3 rounded-xl text-sm font-bold transition-colors">
+                          🔗 الدخول إلى منصة الرغبات البيداغوجية
+                        </a>
+                        <p className="text-xs text-gray-500 text-center">هذه هي المنصة الرسمية لكلية الحقوق والعلوم السياسية — ستجد فيها إسنادكم النهائي وكل المعلومات البيداغوجية</p>
+                      </div>
                     )}
                     <p className="text-xs opacity-60 mt-2">تاريخ التقديم: {new Date(trackResult.created_at).toLocaleDateString('ar-DZ')}</p>
                   </div>
