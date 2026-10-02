@@ -19,6 +19,7 @@ interface Prof {
   name: string;
   rank: string;
   max_hours: number;
+  username?: string;
 }
 
 interface ModuleInfo {
@@ -128,7 +129,7 @@ interface AssignmentRequest {
   async function loadBaseData() {
     setLoading(true);
     const [{ data: profData }, { data: modData }, { data: lsData }] = await Promise.all([
-      supabase.from('professors').select('id, last_name, first_name, rank, max_weekly_hours').order('last_name'),
+      supabase.from('professors').select('id, last_name, first_name, rank, max_weekly_hours, username').order('last_name'),
       supabase.from('modules').select('id, name_ar, level_id, has_lectures, has_td, weekly_sessions, level:levels(name_ar, code)').eq('semester', 1).eq('is_active', true).order('display_order'),
       supabase.from('level_semesters').select('level_id, num_sections, num_groups').eq('semester', 1),
     ]);
