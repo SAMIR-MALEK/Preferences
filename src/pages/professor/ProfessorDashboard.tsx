@@ -137,9 +137,16 @@ export default function ProfessorDashboard() {
 
             {/* User */}
             <div className="flex items-center gap-2">
+              {isVacataire && (profData as any)?.photo_url ? (
+                <a href={(profData as any).photo_url} download={`صورة_${profData?.last_name}`} target="_blank" rel="noopener noreferrer"
+                  title="تحميل الصورة الشخصية">
+                  <img src={(profData as any).photo_url} alt="صورة شخصية"
+                    className="w-8 h-8 rounded-full object-cover border-2 border-[#c9a227] hover:opacity-80 transition-opacity cursor-pointer" />
+                </a>
+              ) : null}
               <div className="hidden sm:block text-left">
                 <p className="text-white text-xs font-medium">{profData?.last_name} {profData?.first_name}</p>
-                <p className="text-[#c9a227] text-[10px]">{profData?.rank}</p>
+                <p className="text-[#c9a227] text-[10px]">{isVacataire ? 'أستاذ مؤقت' : profData?.rank}</p>
               </div>
               <button onClick={signOut} className="text-gray-400 hover:text-red-400 transition-colors p-1">
                 <LogOut className="w-4 h-4" />

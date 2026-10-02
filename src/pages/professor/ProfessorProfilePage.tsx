@@ -100,6 +100,7 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
     if (!form.email.trim()) missing.push('البريد الإلكتروني');
     if (!form.phone.trim()) missing.push('رقم الهاتف');
     if (!diplomaUrl) missing.push('نسخة من الشهادة');
+    if (isVacataire && !photoUrl) missing.push('الصورة الشخصية');
     return missing;
   }
 
