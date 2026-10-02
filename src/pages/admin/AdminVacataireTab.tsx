@@ -43,6 +43,7 @@ export default function AdminVacataireTab() {
   const [selected, setSelected] = useState<Application | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [profPhotoUrl, setProfPhotoUrl] = useState<string>('');
   const [createdAccount, setCreatedAccount] = useState<{username:string;password:string} | null>(null);
   const [filter, setFilter] = useState<'all' | 'قيد الدراسة' | 'مقبول' | 'مرفوض'>('all');
   const printRef = useRef<HTMLDivElement>(null);
@@ -201,7 +202,14 @@ export default function AdminVacataireTab() {
           <div className="max-h-[600px] overflow-y-auto divide-y divide-gray-50">
             {filtered.length === 0 && <p className="text-center py-8 text-gray-400">لا توجد طلبات</p>}
             {filtered.map(a => (
-              <div key={a.id} onClick={() => { setSelected(a); setNote(a.admin_note || ''); }}
+              <div key={a.id} onClick={async () => {
+                setSelected(a); setNote(a.admin_note || '');
+                setProfPhotoUrl('');
+                if (a.login_username) {
+                  const { data } = await supabase.from('professors').select('photo_url').eq('username', a.login_username).maybeSingle();
+                  if (data?.photo_url) setProfPhotoUrl(data.photo_url);
+                }
+              }}
                 className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${selected?.id === a.id ? 'bg-blue-50/50 border-r-2 border-[#1a3a6b]' : ''}`}>
                 <div className="flex items-start justify-between">
                   <div>
