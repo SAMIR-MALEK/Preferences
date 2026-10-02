@@ -1076,7 +1076,9 @@ interface AssignmentRequest {
                                             const vacataire = filtered.filter(p => p.username?.startsWith('V'));
                                             return <>
                                               {permanent.map(p => (
-                                                <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                                <button key={p.id} 
+                                                  onMouseDown={e => e.preventDefault()}
+                                                  onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); setPickingSlot(null); }}
                                                   className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#1a3a6b]/05 rounded-lg flex items-center justify-between">
                                                   <span>{p.name}</span>
                                                   <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
@@ -1088,7 +1090,9 @@ interface AssignmentRequest {
                                                     <p className="text-[10px] text-gray-400 px-2 mb-1">أساتذة مؤقتون</p>
                                                   </div>
                                                   {vacataire.map(p => (
-                                                    <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                                    <button key={p.id}
+                                                      onMouseDown={e => e.preventDefault()}
+                                                      onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); setPickingSlot(null); }}
                                                       className="w-full text-right px-3 py-1.5 text-xs hover:bg-amber-50 rounded-lg flex items-center justify-between">
                                                       <span className="text-amber-700">{p.name}</span>
                                                       <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
@@ -1156,7 +1160,9 @@ interface AssignmentRequest {
                                             const vacataire = filtered.filter(p => p.username?.startsWith('V'));
                                             return <>
                                               {permanent.map(p => (
-                                                <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                                <button key={p.id}
+                                                  onMouseDown={e => e.preventDefault()}
+                                                  onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); setPickingSlot(null); }}
                                                   className="w-full text-right px-3 py-1.5 text-xs hover:bg-[#c9a227]/05 rounded-lg flex items-center justify-between">
                                                   <span>{p.name}</span>
                                                   <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
@@ -1167,7 +1173,9 @@ interface AssignmentRequest {
                                                   <p className="text-[10px] text-gray-400 px-2 mb-1">أساتذة مؤقتون</p>
                                                 </div>
                                                 {vacataire.map(p => (
-                                                  <button key={p.id} onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); }}
+                                                  <button key={p.id}
+                                                    onMouseDown={e => e.preventDefault()}
+                                                    onClick={() => { assignProf(cell.key, p.id); setProfSearch(''); setPickingSlot(null); }}
                                                     className="w-full text-right px-3 py-1.5 text-xs hover:bg-amber-50 rounded-lg flex items-center justify-between">
                                                     <span className="text-amber-700">{p.name}</span>
                                                     <span className="text-gray-400">{profHours(slots, p.id).toFixed(2)}/{p.max_hours}س</span>
