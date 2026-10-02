@@ -27,6 +27,9 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
   const prof = user?.professor;
   const isVacataire = prof?.username?.startsWith('V') || false;
   const [vacData, setVacData] = useState<any>(null);
+  const [photoUrl, setPhotoUrl] = useState<string>('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!vacData) return;
@@ -58,6 +61,19 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
     email: prof?.email || '',
     phone: prof?.phone || '',
   });
+
+  async function uploadPhoto(file: File) {
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `photos/${prof?.username}_${Date.now()}.${ext}`;
+      await supabase.storage.from('diplomas').upload(path, file, { upsert: true });
+      const { data } = supabase.storage.from('diplomas').getPublicUrl(path);
+      setPhotoUrl(data.publicUrl);
+      await supabase.from('professors').update({ photo_url: data.publicUrl }).eq('user_id', prof?.user_id || '');
+    } catch (e: any) { alert('خطأ: ' + e.message); }
+    setUploadingPhoto(false);
+  }
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -393,6 +409,27 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
       </div>
 
       {/* زر واضح وبارز للانتقال إلى تسجيل الرغبات */}
+      {isVacataire && (
+        <div className="bg-gray-50 rounded-2xl p-4 space-y-3 border border-gray-100">
+          <p className="text-xs font-bold text-gray-600">الصورة الشخصية</p>
+          <div className="flex items-center gap-4">
+            {photoUrl ? (
+              <img src={photoUrl} alt="صورة شخصية" className="w-16 h-16 rounded-full object-cover border-2 border-[#1a3a6b]" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-2xl">👤</div>
+            )}
+            <div>
+              <input ref={photoRef} type="file" accept="image/*" className="hidden"
+                onChange={e => { if (e.target.files?.[0]) uploadPhoto(e.target.files[0]); }} />
+              <button onClick={() => photoRef.current?.click()} disabled={uploadingPhoto}
+                className="bg-[#1a3a6b] text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#0d2040] transition-colors disabled:opacity-50">
+                {uploadingPhoto ? 'جارٍ الرفع...' : '📷 رفع صورة شخصية'}
+              </button>
+              <p className="text-xs text-gray-400 mt-1">صورة واضحة للوجه — JPEG أو PNG</p>
+            </div>
+          </div>
+        </div>
+      )}
       {isVacataire && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
           <p className="text-blue-700 font-bold text-sm mb-1">✓ ملفكم قيد الدراسة</p>
