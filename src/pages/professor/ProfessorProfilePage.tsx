@@ -416,7 +416,9 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
             {photoUrl ? (
               <img src={photoUrl} alt="صورة شخصية" className="w-16 h-16 rounded-full object-cover border-2 border-[#1a3a6b]" />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-2xl">👤</div>
+              <div className="w-16 h-16 rounded-full bg-[#1a3a6b] flex items-center justify-center text-white text-xl font-bold select-none">
+                {prof?.last_name?.charAt(0) || '؟'}
+              </div>
             )}
             <div>
               <input ref={photoRef} type="file" accept="image/*" className="hidden"
