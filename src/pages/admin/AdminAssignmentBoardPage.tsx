@@ -78,6 +78,17 @@ export default function AdminAssignmentBoardPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null);
   const [pickingSlot, setPickingSlot] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') { setPickingSlot(null); setProfSearch(''); } }
+    function handleClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.prof-picker')) { setPickingSlot(null); setProfSearch(''); }
+    }
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('mousedown', handleClick);
+    return () => { document.removeEventListener('keydown', handleKey); document.removeEventListener('mousedown', handleClick); };
+  }, []);
   const [profSearch, setProfSearch] = useState('');
   const [dragging, setDragging] = useState<string | null>(null); // slotKey المسحوب
   const [sortKey, setSortKey] = useState<'name' | 'rank' | 'hours'>('name');
