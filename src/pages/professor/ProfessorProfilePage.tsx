@@ -267,6 +267,29 @@ export default function ProfessorProfilePage({ forceComplete = false, onSaved, o
           البيانات القابلة للتعديل
         </h3>
 
+        {isVacataire && (
+          <div className="bg-gray-50 rounded-2xl p-4 space-y-3 border border-gray-100">
+            <p className="text-xs font-bold text-gray-600">الصورة الشخصية</p>
+            <div className="flex items-center gap-4">
+              {photoUrl ? (
+                <img src={photoUrl} alt="صورة" className="w-16 h-16 rounded-full object-cover border-2 border-[#1a3a6b]" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-[#1a3a6b] flex items-center justify-center text-white text-xl font-bold">
+                  {prof?.last_name?.charAt(0) || '؟'}
+                </div>
+              )}
+              <div>
+                <input ref={photoRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => { if (e.target.files?.[0]) uploadPhoto(e.target.files[0]); }} />
+                <button onClick={() => photoRef.current?.click()} disabled={uploadingPhoto}
+                  className="bg-[#1a3a6b] text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#0d2040] transition-colors disabled:opacity-50">
+                  {uploadingPhoto ? 'جارٍ الرفع...' : '📷 رفع صورة شخصية'}
+                </button>
+                <p className="text-xs text-gray-400 mt-1">صورة واضحة للوجه — JPEG أو PNG</p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {!isVacataire && <Field label="الرتبة العلمية" icon={Award}>
             <select
