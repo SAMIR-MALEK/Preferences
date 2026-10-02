@@ -284,6 +284,18 @@ export default function AdminVacataireTab() {
                 </div>
               )}
 
+              {profPhotoUrl && (
+                <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-3">
+                  <img src={profPhotoUrl} alt="صورة شخصية" className="w-14 h-14 rounded-full object-cover border-2 border-[#1a3a6b]" />
+                  <div>
+                    <p className="text-xs font-bold text-gray-700">الصورة الشخصية</p>
+                    <a href={profPhotoUrl} download={`صورة_${selected.last_name}`} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[#1a3a6b] text-xs hover:underline mt-1">
+                      ⬇ تحميل الصورة
+                    </a>
+                  </div>
+                </div>
+              )}
               {selected.degree_file_url && (
                 <a href={selected.degree_file_url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-2 text-[#1a3a6b] text-xs hover:underline">
