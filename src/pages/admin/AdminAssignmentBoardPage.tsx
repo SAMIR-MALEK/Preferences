@@ -71,6 +71,7 @@ export default function AdminAssignmentBoardPage() {
   const [slots, setSlots] = useState<SlotAssignment[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [announcing, setAnnouncing] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -215,6 +216,58 @@ interface AssignmentRequest {
 
     setLoading(false);
     setLoaded(true);
+  }
+
+  // ── مزامنة الـ Slots الفارغة ──
+  async function syncEmptySlots() {
+    setSyncing(true);
+    try {
+      // جلب كل المعطيات
+      const [{ data: mods }, { data: ls }, { data: existing }] = await Promise.all([
+        supabase.from('modules').select('id, level_id, has_lectures, has_td').eq('is_active', true).eq('semester', 1),
+        supabase.from('level_semesters').select('level_id, num_sections, num_groups').eq('semester', 1),
+        supabase.from('assignments').select('module_id, teaching_type, section_number, group_number').eq('academic_year', ACADEMIC_YEAR).eq('semester', 1),
+      ]);
+      if (!mods || !ls) return;
+
+      const existingSet = new Set((existing || []).map((a: any) =>
+        `${a.module_id}__${a.teaching_type}__${a.section_number}__${a.group_number}`
+      ));
+
+      const toInsert: any[] = [];
+      for (const m of mods) {
+        const lsRow = ls.find((l: any) => l.level_id === m.level_id);
+        if (!lsRow) continue;
+        if (m.has_lectures) {
+          for (let sec = 1; sec <= lsRow.num_sections; sec++) {
+            if (!existingSet.has(`${m.id}__محاضرة__${sec}__null`)) {
+              toInsert.push({ module_id: m.id, professor_id: null, teaching_type: 'محاضرة', section_number: sec, group_number: null, weekly_hours: 4.5, academic_year: ACADEMIC_YEAR, semester: 1, status: 'مؤقت', wish_order_satisfied: 0, level_id: m.level_id });
+            }
+          }
+        }
+        if (m.has_td) {
+          for (let sec = 1; sec <= lsRow.num_sections; sec++) {
+            for (let grp = 1; grp <= lsRow.num_groups; grp++) {
+              const realGrp = (sec - 1) * lsRow.num_groups + grp;
+              if (!existingSet.has(`${m.id}__أعمال موجهة__${sec}__${realGrp}`)) {
+                toInsert.push({ module_id: m.id, professor_id: null, teaching_type: 'أعمال موجهة', section_number: sec, group_number: realGrp, weekly_hours: 1.5, academic_year: ACADEMIC_YEAR, semester: 1, status: 'مؤقت', wish_order_satisfied: 0, level_id: m.level_id });
+              }
+            }
+          }
+        }
+      }
+
+      if (toInsert.length > 0) {
+        await supabase.from('assignments').insert(toInsert);
+        setMessage({ type: 'success', text: `✓ تمت المزامنة — أُضيف ${toInsert.length} slot جديد` });
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        setMessage({ type: 'success', text: '✓ كل الـ Slots محدَّثة — لا شيء جديد' });
+      }
+    } catch (e: any) {
+      setMessage({ type: 'error', text: 'خطأ: ' + e.message });
+    }
+    setSyncing(false);
   }
 
   // ── استيراد Excel ──
