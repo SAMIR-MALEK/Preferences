@@ -708,6 +708,10 @@ interface AssignmentRequest {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {[...profs].sort((a, b) => {
+                  // المؤقتون دائماً في الأسفل
+                  const aV = String(a.username || '').startsWith('V');
+                  const bV = String(b.username || '').startsWith('V');
+                  if (aV !== bV) return aV ? 1 : -1;
                   let av: any, bv: any;
                   if (sortKey === 'name') { av = a.name; bv = b.name; }
                   else if (sortKey === 'rank') { av = a.rank; bv = b.rank; }
