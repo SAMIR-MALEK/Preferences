@@ -37,7 +37,7 @@ export default function ProfessorDashboard() {
   useEffect(() => { setProfData(prof); }, [prof]);
 
   const profileComplete = isProfileComplete(profData);
-  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'home' : 'profile'); // سيُحدَّث بعد جلب resultsPublished
+  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'schedule' : 'profile'); // سيُحدَّث بعد جلب resultsPublished
 
   // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function ProfessorDashboard() {
       .select('*')
       .eq('academic_year', '2026-2027')
       .single()
-      .then(({ data }) => { if(data) { setSettings(data); const pub = data.results_published === true; setResultsPublished(pub); setRegistrationOpen(data.registration_s1_open === true); if (pub && profileComplete) setTab('results'); } });
+      .then(({ data }) => { if(data) { setSettings(data); const pub = data.results_published === true; setResultsPublished(pub); setRegistrationOpen(data.registration_s1_open === true); // لا نغير التبويب تلقائياً عند نشر النتائج } });
 
     // فحص وجود نتائج إسناد أولية
     if (!prof?.id) return;
@@ -75,7 +75,7 @@ export default function ProfessorDashboard() {
   const s2Unlocked = true; // حرية تنقّل كاملة بين السداسيين — لا إلزام بتأكيد الأول قبل الوصول للثاني
 
   const tabs = [
-    { id: 'schedule' as ProfTab, label: 'توقيتي', icon: Clock, disabled: !profileComplete, highlighted: true },
+    { id: 'schedule' as ProfTab, label: 'التكليف البيداغوجي', icon: Clock, disabled: !profileComplete, highlighted: true },
     ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, small: true }] : []),
     { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User, small: true },
   ];
