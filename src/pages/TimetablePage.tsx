@@ -18,7 +18,7 @@ export default function TimetablePage() {
       .order('name_ar')
       .then(({ data }) => { if (data) setLevels(data); });
 
-    supabase.from('time_slots').select('*').order('day_of_week').order('slot_number')
+    supabase.from('time_slots').select('*').order('day').order('slot_number')
       .then(({ data }) => { if (data) setTimeSlots(data); });
   }, []);
 
@@ -95,7 +95,7 @@ export default function TimetablePage() {
   const byDay = DAYS.map(day => ({
     day,
     slots: schedule
-      .filter((s: any) => s.ts?.day_of_week === day)
+      .filter((s: any) => s.ts?.day === day)
       .sort((a: any, b: any) => a.ts?.slot_number - b.ts?.slot_number),
   })).filter(d => d.slots.length > 0);
 
