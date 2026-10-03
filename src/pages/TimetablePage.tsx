@@ -13,10 +13,17 @@ export default function TimetablePage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const LEVEL_ORDER = ['أولى ليسانس', 'ثانية ليسانس', 'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص'];
     supabase.from('levels').select('id, name_ar')
-      .in('name_ar', ['أولى ليسانس', 'ثانية ليسانس', 'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص'])
-      .order('name_ar')
-      .then(({ data }) => { if (data) setLevels(data); });
+      .in('name_ar', LEVEL_ORDER)
+      .then(({ data }) => {
+        if (data) {
+          const sorted = [...data].sort((a, b) =>
+            LEVEL_ORDER.indexOf(a.name_ar) - LEVEL_ORDER.indexOf(b.name_ar)
+          );
+          setLevels(sorted);
+        }
+      });
 
     supabase.from('time_slots').select('*').order('day').order('slot_number')
       .then(({ data }) => { if (data) setTimeSlots(data); });
