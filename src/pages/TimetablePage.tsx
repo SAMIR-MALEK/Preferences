@@ -49,7 +49,7 @@ export default function TimetablePage() {
       `)
       .eq('academic_year', '2026-2027')
       .eq('semester', 1)
-      .eq('status', 'معتمد');
+      .in('status', ['معتمد', 'مسودة']);
 
     if (data) {
       // فلترة المحاضرات للمستوى والمجموعة
