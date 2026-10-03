@@ -825,65 +825,7 @@ function ProfScheduleTab({ prof }: any) {
       )}
     </div>
   );
-}: any) {
-  const [lectures, setLectures] = useState<any[]>([]);
-  const [tds, setTds] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
-
-  useEffect(() => {
-    async function load() {
-      // جلب إسنادات الأستاذ
-      const { data: assignments } = await supabase.from('assignments')
-        .select('id, module_id, teaching_type, section_number, group_number, level:levels(name_ar), module:modules(name_ar)')
-        .eq('professor_id', prof?.id)
-        .eq('academic_year', '2026-2027')
-        .eq('semester', 1);
-
-      if (!assignments || assignments.length === 0) { setLoading(false); return; }
-
-      const lecIds = assignments.filter((a: any) => a.teaching_type === 'محاضرة').map((a: any) => a.id);
-      const tdAssignments = assignments.filter((a: any) => a.teaching_type === 'أعمال موجهة');
-
-      // جلب حصص المحاضرات من schedules
-      if (lecIds.length > 0) {
-        const { data: sch } = await supabase.from('schedules')
-          .select('id, assignment_id, room_id, time_slot_id, room:rooms(name), time_slot:time_slots(day, start_time, end_time, slot_number)')
-          .in('assignment_id', lecIds)
-          .eq('academic_year', '2026-2027')
-          .eq('semester', 1);
-
-        if (sch) {
-          const aMap = new Map(assignments.map((a: any) => [a.id, a]));
-          const result = sch.map((s: any) => {
-            const a = aMap.get(s.assignment_id);
-            return {
-              id: s.id,
-              module_name: (a as any)?.module?.name_ar || '—',
-              level_name: (a as any)?.level?.name_ar || '—',
-              section: (a as any)?.section_number,
-              room: s.room?.name || '—',
-              day: s.time_slot?.day,
-              start_time: s.time_slot?.start_time?.slice(0,5),
-              end_time: s.time_slot?.end_time?.slice(0,5),
-              slot_number: s.time_slot?.slot_number,
-            };
-          }).filter((s: any) => s.day);
-          setLectures(result);
-        }
-      }
-
-      setTds(tdAssignments.map((a: any) => ({
-        module_name: a.module?.name_ar || '—',
-        level_name: a.level?.name_ar || '—',
-        group: a.group_number,
-        section: a.section_number,
-      })));
-
-      setLoading(false);
-    }
-    load();
-  }, [prof?.id]);
+, [prof?.id]);
 
   if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
 
