@@ -75,15 +75,14 @@ export default function ProfessorDashboard() {
   const s2Unlocked = true; // حرية تنقّل كاملة بين السداسيين — لا إلزام بتأكيد الأول قبل الوصول للثاني
 
   const tabs = [
-    { id: 'home' as ProfTab, label: 'الرئيسية', icon: Home, disabled: !profileComplete },
-    { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User },
+    ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, highlighted: true }] : []),
     { id: 'schedule' as ProfTab, label: 'توقيتي', icon: Clock, disabled: !profileComplete },
+    { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User, small: true },
     ...(!isVacataire ? [
       { id: 's1' as ProfTab, label: 'رغبات س1', icon: Clock, disabled: !profileComplete, small: true },
       { id: 's2' as ProfTab, label: 'رغبات س2', icon: Clock, disabled: !profileComplete, small: true },
     ] : []),
-    { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked },
-    ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, highlighted: true }] : []),
+    { id: 'card' as ProfTab, label: 'بطاقتي', icon: FileText, disabled: !profileComplete || !s1Locked, small: true },
   ];
 
   return (
