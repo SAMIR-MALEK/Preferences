@@ -57,7 +57,7 @@ export default function TimetablePage() {
         const a = s.assignment;
         if (!a) return false;
         if (a.teaching_type !== 'محاضرة') return false;
-        if (a.module?.level_id !== selectedLevel && (a.module as any)?.level?.id !== selectedLevel) return false;
+        if (a.level_id !== selectedLevel) return false;
         if (a.section_number !== selectedSection) return false;
         return true;
       });
