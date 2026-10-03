@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import ProfessorDashboard from './pages/professor/ProfessorDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ApplyPage from './pages/ApplyPage';
+import TimetablePage from './pages/TimetablePage';
 
 function AppRouter() {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/apply" element={<ApplyPage />} />
+        <Route path="/timetable" element={<TimetablePage />} />
         <Route path="*" element={
           <AuthProvider>
             <AppRouter />
