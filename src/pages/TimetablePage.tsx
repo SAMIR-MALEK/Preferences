@@ -170,9 +170,8 @@ export default function TimetablePage() {
                     <div className="divide-y divide-gray-50">
                       {slots.map((s: any) => (
                         <div key={s.id} className="flex items-center gap-4 px-5 py-4">
-                          <div className="text-center min-w-[80px]">
-                            <p className="text-[#1a3a6b] font-bold text-sm">{s.ts?.start_time?.slice(0,5)}</p>
-                            <p className="text-gray-400 text-xs">{s.ts?.end_time?.slice(0,5)}</p>
+                          <div className="text-center min-w-[110px]">
+                            <p className="text-[#1a3a6b] font-bold text-sm">{s.ts?.start_time?.slice(0,5)} — {s.ts?.end_time?.slice(0,5)}</p>
                           </div>
                           <div className="w-px h-10 bg-gray-200" />
                           <div className="flex-1">
