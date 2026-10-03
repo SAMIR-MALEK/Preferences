@@ -42,7 +42,7 @@ export default function TimetablePage() {
         assignment:assignments(
           module_id, teaching_type, section_number, group_number,
           professor:professors(last_name, first_name),
-          module:modules(name_ar, weekly_sessions, level_id)
+          module:modules(name_ar, weekly_sessions, level_id, level:levels(id))
         ),
         room:rooms(name),
         time_slot:time_slots(day_of_week, slot_number, start_time, end_time)
@@ -57,7 +57,7 @@ export default function TimetablePage() {
         const a = s.assignment;
         if (!a) return false;
         if (a.teaching_type !== 'محاضرة') return false;
-        if (a.module?.level_id !== selectedLevel) return false;
+        if (a.module?.level_id !== selectedLevel && (a.module as any)?.level?.id !== selectedLevel) return false;
         if (a.section_number !== selectedSection) return false;
         return true;
       });
