@@ -51,6 +51,8 @@ export default function TimetablePage() {
       .eq('semester', 1)
       .in('status', ['معتمد', 'مسودة']);
 
+    console.log('total schedules:', data?.length);
+    console.log('sample:', JSON.stringify(data?.[0]?.assignment));
     if (data) {
       // فلترة المحاضرات للمستوى والمجموعة
       const filtered = data.filter((s: any) => {
@@ -61,6 +63,7 @@ export default function TimetablePage() {
         if (a.section_number !== selectedSection) return false;
         return true;
       });
+      console.log('filtered:', filtered.length, 'selectedLevel:', selectedLevel, 'selectedSection:', selectedSection);
       setSchedule(filtered);
     }
     setLoading(false);
