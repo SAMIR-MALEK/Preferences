@@ -97,7 +97,7 @@ export default function ProfessorDashboard() {
                 <GraduationCap className="w-4 h-4 text-white" />
               </div>
               <div className="hidden sm:block">
-                <p className="text-white font-bold text-xs font-display">منصة الرغبات البيداغوجية</p>
+                <p className="text-white font-bold text-xs font-display">المنصة البيداغوجية</p>
                 <p className="text-[#c9a227] text-[10px]">كلية الحقوق — برج بوعريريج</p>
               </div>
             </div>
