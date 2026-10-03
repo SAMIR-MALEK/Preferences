@@ -44,7 +44,7 @@ export default function LoginPage() {
             <GraduationCap className="w-10 h-10 text-white" />
           </div>
           <h1 className="font-display text-3xl font-bold text-white mb-1">
-            منصة تسجيل الرغبات
+            المنصة البيداغوجية
           </h1>
           <p className="text-[#c9a227] font-medium text-sm">
             كلية الحقوق والعلوم السياسية
