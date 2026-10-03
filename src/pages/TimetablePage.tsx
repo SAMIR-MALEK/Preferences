@@ -171,9 +171,9 @@ export default function TimetablePage() {
                           <div className="flex-1">
                             <p className="font-bold text-gray-800 text-sm">{s.module_name}</p>
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              <span className="text-xs text-[#1a3a6b] font-medium">{s.prof_name !== '—' ? `د. ${s.prof_name}` : '—'}</span>
+                              <span className="text-xs text-[#1a3a6b] font-medium">{s.prof_name !== '—' ? `أ. ${s.prof_name}` : '—'}</span>
                               <span className="text-xs text-gray-400">•</span>
-                              <span className="text-xs text-gray-500">القاعة: {s.room}</span>
+                              <span className="text-xs text-gray-500">{s.room}</span>
                               <span className="text-xs text-gray-400">•</span>
                               <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">محاضرة</span>
                             </div>
@@ -186,6 +186,7 @@ export default function TimetablePage() {
                 <div className="bg-white/10 rounded-2xl p-4 text-center">
                   <p className="text-white text-sm font-medium">{levelName} — المجموعة {String(selectedSection).padStart(2,'0')}</p>
                   <p className="text-gray-300 text-xs mt-1">الأعمال الموجهة: سيُعلَن عن توقيتها لاحقاً</p>
+                  <p className="text-amber-300 text-xs mt-1">⚠ مقياس اللغة الأجنبية (الإنجليزية) سيُجرى عن بُعد</p>
                 </div>
               </div>
             )}
