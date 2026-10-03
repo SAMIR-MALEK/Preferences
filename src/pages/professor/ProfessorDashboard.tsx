@@ -46,7 +46,7 @@ export default function ProfessorDashboard() {
       .select('*')
       .eq('academic_year', '2026-2027')
       .single()
-      .then(({ data }) => { if(data) { setSettings(data); const pub = data.results_published === true; setResultsPublished(pub); setRegistrationOpen(data.registration_s1_open === true); // لا نغير التبويب تلقائياً عند نشر النتائج } });
+      .then(({ data }) => { if(data) { setSettings(data); const pub = data.results_published === true; setResultsPublished(pub); setRegistrationOpen(data.registration_s1_open === true); } });
 
     // فحص وجود نتائج إسناد أولية
     if (!prof?.id) return;
