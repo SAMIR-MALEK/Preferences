@@ -11,7 +11,7 @@ import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -77,6 +77,7 @@ export default function ProfessorDashboard() {
   const tabs = [
     { id: 'home' as ProfTab, label: 'الرئيسية', icon: Home, disabled: !profileComplete },
     { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User },
+    { id: 'schedule' as ProfTab, label: 'توقيتي', icon: Clock, disabled: !profileComplete },
     ...(!isVacataire ? [
       { id: 's1' as ProfTab, label: 'رغبات س1', icon: Clock, disabled: !profileComplete, small: true },
       { id: 's2' as ProfTab, label: 'رغبات س2', icon: Clock, disabled: !profileComplete, small: true },
@@ -213,6 +214,7 @@ export default function ProfessorDashboard() {
         )}
         {tab === 'card' && <WishCard prof={profData} />}
         {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
+        {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
       </div>
     </div>
   );
@@ -686,6 +688,140 @@ function AssignmentCard({ prof }: any) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ProfScheduleTab({ prof }: any) {
+  const [lectures, setLectures] = useState<any[]>([]);
+  const [tds, setTds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
+  useEffect(() => {
+    async function load() {
+      // جلب إسنادات الأستاذ
+      const { data: assignments } = await supabase.from('assignments')
+        .select('id, module_id, teaching_type, section_number, group_number, level:levels(name_ar), module:modules(name_ar)')
+        .eq('professor_id', prof?.id)
+        .eq('academic_year', '2026-2027')
+        .eq('semester', 1);
+
+      if (!assignments || assignments.length === 0) { setLoading(false); return; }
+
+      const lecIds = assignments.filter((a: any) => a.teaching_type === 'محاضرة').map((a: any) => a.id);
+      const tdAssignments = assignments.filter((a: any) => a.teaching_type === 'أعمال موجهة');
+
+      // جلب حصص المحاضرات من schedules
+      if (lecIds.length > 0) {
+        const { data: sch } = await supabase.from('schedules')
+          .select('id, assignment_id, room_id, time_slot_id, room:rooms(name), time_slot:time_slots(day, start_time, end_time, slot_number)')
+          .in('assignment_id', lecIds)
+          .eq('academic_year', '2026-2027')
+          .eq('semester', 1);
+
+        if (sch) {
+          const aMap = new Map(assignments.map((a: any) => [a.id, a]));
+          const result = sch.map((s: any) => {
+            const a = aMap.get(s.assignment_id);
+            return {
+              id: s.id,
+              module_name: (a as any)?.module?.name_ar || '—',
+              level_name: (a as any)?.level?.name_ar || '—',
+              section: (a as any)?.section_number,
+              room: s.room?.name || '—',
+              day: s.time_slot?.day,
+              start_time: s.time_slot?.start_time?.slice(0,5),
+              end_time: s.time_slot?.end_time?.slice(0,5),
+              slot_number: s.time_slot?.slot_number,
+            };
+          }).filter((s: any) => s.day);
+          setLectures(result);
+        }
+      }
+
+      setTds(tdAssignments.map((a: any) => ({
+        module_name: a.module?.name_ar || '—',
+        level_name: a.level?.name_ar || '—',
+        group: a.group_number,
+        section: a.section_number,
+      })));
+
+      setLoading(false);
+    }
+    load();
+  }, [prof?.id]);
+
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
+
+  const byDay = DAYS.map(day => ({
+    day,
+    slots: lectures.filter(s => s.day === day).sort((a, b) => a.slot_number - b.slot_number),
+  })).filter(d => d.slots.length > 0);
+
+  return (
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-700 flex items-center gap-2">
+        <span>⚠</span> التوقيت مؤقت وقابل للتغيير — تابع المنصة بانتظام
+      </div>
+
+      {/* المحاضرات */}
+      <div>
+        <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2">
+          <span className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center text-[#1a3a6b] text-xs">📋</span>
+          توقيت المحاضرات
+        </h3>
+        {byDay.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-4">لم يُدخَل توقيت بعد</p>
+        ) : (
+          <div className="space-y-3">
+            {byDay.map(({ day, slots }) => (
+              <div key={day} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                <div className="bg-[#1a3a6b] px-4 py-2">
+                  <p className="text-white font-bold text-xs">{day}</p>
+                </div>
+                {slots.map(s => (
+                  <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                    <div className="text-center min-w-[100px]">
+                      <p className="text-[#1a3a6b] font-bold text-xs">{s.start_time} — {s.end_time}</p>
+                    </div>
+                    <div className="w-px h-8 bg-gray-200" />
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
+                      <p className="text-gray-400 text-[10px] mt-0.5">{s.level_name} — م{s.section} — {s.room}</p>
+                    </div>
+                    <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">محاضرة</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* الأعمال الموجهة */}
+      {tds.length > 0 && (
+        <div>
+          <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600 text-xs">👥</span>
+            الأعمال الموجهة
+          </h3>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-teal-600 px-4 py-2">
+              <p className="text-white text-xs font-bold">سيُحدَّد التوقيت لاحقاً</p>
+            </div>
+            {tds.map((td, i) => (
+              <div key={i} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
+                <div>
+                  <p className="font-bold text-gray-800 text-xs">{td.module_name}</p>
+                  <p className="text-gray-400 text-[10px] mt-0.5">{td.level_name} — ف{td.group}</p>
+                </div>
+                <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full">أعمال موجهة</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
