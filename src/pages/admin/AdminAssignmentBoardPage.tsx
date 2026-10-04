@@ -485,53 +485,23 @@ interface AssignmentRequest {
     setSaving(true);
     setMessage(null);
 
-    // 1. احذف المؤقت فقط
-    await supabase.from('assignments').delete()
-      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مؤقت');
+    // UPDATE فقط — لا DELETE لا INSERT — نحافظ على كل الـ slots
+    let updatedCount = 0;
+    const errors: string[] = [];
 
-    // 2. اجلب النهائي لتجنب التكرار
-    const { data: existingFinal } = await supabase
-      .from('assignments')
-      .select('professor_id, module_id, teaching_type, section_number, group_number')
-      .eq('academic_year', ACADEMIC_YEAR)
-      .eq('semester', 1)
-      .eq('status', 'نهائي');
-
-    const finalKeys = new Set((existingFinal || []).map((a: any) =>
-      `${a.professor_id}__${a.module_id}__${a.teaching_type}__${a.section_number}__${a.group_number}`
-    ));
-
-    // 3. أضف فقط ما لم يكن نهائياً مسبقاً
-    const toInsert = slots
-      .filter(s => s.professor_id)
-      .filter(s => !finalKeys.has(`${s.professor_id}__${s.module_id}__${s.teaching_type}__${s.section}__${s.group}`))
-      .map(s => ({
-        professor_id: s.professor_id,
-        module_id: s.module_id,
-        level_id: modules.find(m => m.id === s.module_id)?.level_id,
-        academic_year: ACADEMIC_YEAR,
-        semester: 1,
-        teaching_type: s.teaching_type,
-        section_number: s.section,
-        group_number: s.group,
-        weekly_hours: s.weekly_hours,
-        wish_order_satisfied: s.wish_order || 0,
-        status: 'مؤقت',
-        conflict_resolved: false,
-        score: null,
-      }));
-
-    if (toInsert.length === 0) {
-      setMessage({ type: 'success', text: 'لا توجد إسنادات جديدة للحفظ — كل شيء محفوظ' });
-      setSaving(false);
-      return;
+    for (const s of slots) {
+      if (!s.assignment_db_id) continue;
+      const { error } = await supabase.from('assignments')
+        .update({ professor_id: s.professor_id || null })
+        .eq('id', s.assignment_db_id);
+      if (error) errors.push(error.message);
+      else updatedCount++;
     }
-    const { error } = await supabase.from('assignments').insert(toInsert);
-    if (error) {
-      setMessage({ type: 'error', text: 'خطأ في الحفظ: ' + error.message });
+
+    if (errors.length > 0) {
+      setMessage({ type: 'error', text: 'خطأ في الحفظ: ' + errors[0] });
     } else {
-      setSavedCount(toInsert.length);
-      setMessage({ type: 'success', text: `تم حفظ ${toArabicNum(toInsert.length)} إسناداً — مؤقت (غير معلَن للأساتذة بعد)` });
+      setMessage({ type: 'success', text: `✓ تم حفظ ${toArabicNum(updatedCount)} إسناداً` });
     }
     setSaving(false);
   }
