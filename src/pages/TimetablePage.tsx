@@ -64,12 +64,11 @@ export default function TimetablePage() {
     // جلب المعلومات المرتبطة
     const moduleIds = [...new Set(assignments.map((a: any) => a.module_id))];
     const roomIds = [...new Set(sch.map((s: any) => s.room_id).filter(Boolean))];
-    const profAssignmentIds = assignmentIds;
 
     const [{ data: modules }, { data: rooms }, { data: profs }] = await Promise.all([
       supabase.from('modules').select('id, name_ar').in('id', moduleIds),
       roomIds.length > 0 ? supabase.from('rooms').select('id, name').in('id', roomIds) : Promise.resolve({ data: [] }),
-      supabase.from('assignments').select('id, professor:professors(last_name, first_name)').in('id', profAssignmentIds),
+      supabase.from('assignments').select('id, professor:professors(last_name, first_name)').in('id', assignmentIds),
     ]);
 
     const modMap = new Map((modules || []).map((m: any) => [m.id, m.name_ar]));
