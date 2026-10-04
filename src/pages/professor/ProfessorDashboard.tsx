@@ -714,7 +714,8 @@ function ProfScheduleTab({ prof }: any) {
         if (sch) {
           const rIds = [...new Set((sch).map((s: any) => s.room_id).filter(Boolean))];
           console.log('rIds:', rIds, 'sch[0].room_id:', sch[0]?.room_id);
-          const { data: rData } = rIds.length > 0 ? await supabase.from('rooms').select('id, name').in('id', rIds) : { data: [] };
+          const { data: rData, error: rErr } = rIds.length > 0 ? await supabase.from('rooms').select('id, name').in('id', rIds) : { data: [], error: null };
+          console.log('rData:', rData, 'rErr:', rErr);
           const rMap = new Map((rData || []).map((r: any) => [r.id, r.name]));
           const aMap = new Map(assignments.map((a: any) => [a.id, a]));
           const result = sch.map((s: any) => {
