@@ -706,12 +706,15 @@ function ProfScheduleTab({ prof }: any) {
       const lecIds = assignments.filter((a: any) => a.teaching_type === 'محاضرة').map((a: any) => a.id);
       if (lecIds.length > 0) {
         const { data: sch } = await supabase.from('schedules')
-          .select('id, assignment_id, room_id, time_slot_id, room:rooms(name), time_slot:time_slots(day, start_time, end_time, slot_number)')
+          .select('id, assignment_id, room_id, time_slot_id, time_slot:time_slots(day, start_time, end_time, slot_number)')
           .in('assignment_id', lecIds)
           .eq('academic_year', '2026-2027')
           .eq('semester', 1);
 
         if (sch) {
+          const rIds = [...new Set((sch).map((s: any) => s.room_id).filter(Boolean))];
+          const { data: rData } = rIds.length > 0 ? await supabase.from('rooms').select('id, name').in('id', rIds) : { data: [] };
+          const rMap = new Map((rData || []).map((r: any) => [r.id, r.name]));
           const aMap = new Map(assignments.map((a: any) => [a.id, a]));
           const result = sch.map((s: any) => {
             const a = aMap.get(s.assignment_id) as any;
@@ -721,7 +724,7 @@ function ProfScheduleTab({ prof }: any) {
               module_name: a?.module?.name_ar || '—',
               level_name: a?.level?.name_ar || '—',
               section: a?.section_number,
-              room: s.room?.name || '—',
+              room: rMap.get(s.room_id) || '—',
               day: s.time_slot?.day,
               start_time: s.time_slot?.start_time?.slice(0,5),
               end_time: s.time_slot?.end_time?.slice(0,5),
