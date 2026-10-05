@@ -42,8 +42,18 @@ export default function AdminStudentsTab() {
 
   async function loadStudents() {
     setLoading(true);
-    const { data } = await supabase.from('students').select('*').order('last_name');
-    if (data) setStudents(data);
+    // جلب كل الطلبة بدفعات (Supabase يحد عند 1000)
+    let all: any[] = [];
+    let from = 0;
+    const STEP = 1000;
+    while (true) {
+      const { data } = await supabase.from('students').select('*').order('last_name').range(from, from + STEP - 1);
+      if (!data || data.length === 0) break;
+      all = [...all, ...data];
+      if (data.length < STEP) break;
+      from += STEP;
+    }
+    setStudents(all);
     setLoading(false);
   }
 
