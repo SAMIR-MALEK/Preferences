@@ -75,7 +75,7 @@ export default function AdminStudentsTab() {
       let inserted = 0;
       for (let i = 0; i < toInsert.length; i += BATCH) {
         const batch = toInsert.slice(i, i + BATCH);
-        await supabase.from('students').upsert(batch, { onConflict: 'mat_etudiant', ignoreDuplicates: false });
+        await supabase.from('students').insert(batch).then(({ error }) => { if (error) console.log('batch error:', error.message); });
         inserted += batch.length;
         setImportMsg(`تم استيراد ${inserted}/${toInsert.length}...`);
       }
