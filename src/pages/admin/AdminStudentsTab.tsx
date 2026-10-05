@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, Plus } from 'lucide-react';
+import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const SPECIALITES = [
@@ -21,6 +21,8 @@ interface Student {
   first_name: string;
   username: string;
   email: string;
+  section: number | null;
+  grp: number | null;
   created_at: string;
 }
 
@@ -42,16 +44,14 @@ export default function AdminStudentsTab() {
 
   async function loadStudents() {
     setLoading(true);
-    // جلب كل الطلبة بدفعات (Supabase يحد عند 1000)
-    let all: any[] = [];
+    let all: Student[] = [];
     let from = 0;
-    const STEP = 1000;
     while (true) {
-      const { data } = await supabase.from('students').select('*').order('last_name').range(from, from + STEP - 1);
+      const { data } = await supabase.from('students').select('*').order('last_name').range(from, from + 999);
       if (!data || data.length === 0) break;
       all = [...all, ...data];
-      if (data.length < STEP) break;
-      from += STEP;
+      if (data.length < 1000) break;
+      from += 1000;
     }
     setStudents(all);
     setLoading(false);
@@ -65,31 +65,68 @@ export default function AdminStudentsTab() {
       const wb = XLSX.read(buf);
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws);
-      setImportMsg(`قراءة ${rows.length} طالب...`);
+      setImportMsg(`${rows.length} سطر — جارٍ المعالجة...`);
 
-      const toInsert = rows.map((r: any) => ({
-        mat_bac: String(r['Mat. BAC'] || '').trim(),
-        mat_etudiant: String(r['Mat. Etudiant'] || '').trim(),
-        specialite: String(r['specialité'] || r['specialite'] || '').trim(),
-        phone: String(r['N° de téléphone'] || '').trim(),
-        last_name: String(r['Nom'] || r['اللقب'] || '').trim(),
-        first_name: String(r['Prénom'] || r['الإسم'] || '').trim(),
-        carte_rfid: String(r['carte rfid'] || '').trim(),
-        username: String(r['USER'] || '').trim(),
-        password: String(r['PASSWORD'] || '').trim(),
-        email: String(r['MAIL'] || '').trim(),
-      })).filter(s => s.mat_etudiant || s.last_name || s.username);
-
-      // إدخال دفعات
-      const BATCH = 500;
-      let inserted = 0;
-      for (let i = 0; i < toInsert.length; i += BATCH) {
-        const batch = toInsert.slice(i, i + BATCH);
-        await supabase.from('students').insert(batch).then(({ error }) => { if (error) console.log('batch error:', error.message); });
-        inserted += batch.length;
-        setImportMsg(`تم استيراد ${inserted}/${toInsert.length}...`);
+      // جلب كل الطلبة الحاليين للمقارنة
+      let existing: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data } = await supabase.from('students').select('id, mat_bac, mat_etudiant').range(from, from + 999);
+        if (!data || data.length === 0) break;
+        existing = [...existing, ...data];
+        if (data.length < 1000) break;
+        from += 1000;
       }
-      setImportMsg(`✓ تم استيراد ${inserted} طالب بنجاح`);
+      const existingMap = new Map(existing.map((s: any) => [`${String(s.mat_bac).trim()}`, s.id]));
+
+      const toInsert: any[] = [];
+      const toUpdate: any[] = [];
+
+      for (const r of rows) {
+        const matBac = String(r['Mat. BAC'] || '').trim();
+        const matEtudiant = String(r['Mat. Etudiant'] || '').trim();
+        const record = {
+          mat_bac: matBac,
+          mat_etudiant: matEtudiant,
+          specialite: String(r['specialité'] || r['specialite'] || '').trim(),
+          phone: String(r['N° de téléphone'] || '').trim(),
+          last_name: String(r['Nom'] || r['اللقب'] || '').trim(),
+          first_name: String(r['Prénom'] || r['الإسم'] || '').trim(),
+          carte_rfid: String(r['carte rfid'] || '').trim(),
+          username: String(r['USER'] || '').trim() || null,
+          password: String(r['PASSWORD'] || '').trim() || null,
+          email: String(r['MAIL'] || '').trim() || null,
+          section: r['Section'] ? Number(r['Section']) : null,
+          grp: r['Groupe'] ? Number(r['Groupe']) : null,
+        };
+
+        const existingId = existingMap.get(matBac);
+        if (existingId) {
+          toUpdate.push({ id: existingId, ...record });
+        } else {
+          toInsert.push(record);
+        }
+      }
+
+      // INSERT الجدد
+      let inserted = 0;
+      const BATCH = 300;
+      for (let i = 0; i < toInsert.length; i += BATCH) {
+        await supabase.from('students').insert(toInsert.slice(i, i + BATCH));
+        inserted += Math.min(BATCH, toInsert.length - i);
+        setImportMsg(`إضافة ${inserted}/${toInsert.length} جديد...`);
+      }
+
+      // UPDATE الموجودين
+      let updated = 0;
+      for (const s of toUpdate) {
+        const { id, ...fields } = s;
+        await supabase.from('students').update(fields).eq('id', id);
+        updated++;
+        if (updated % 100 === 0) setImportMsg(`تحديث ${updated}/${toUpdate.length}...`);
+      }
+
+      setImportMsg(`✓ تم: إضافة ${inserted} جديد + تحديث ${updated} طالب`);
       await loadStudents();
     } catch (e: any) {
       setImportMsg('خطأ: ' + e.message);
@@ -107,6 +144,8 @@ export default function AdminStudentsTab() {
       'Téléphone': s.phone,
       'USER': s.username,
       'MAIL': s.email,
+      'Section': s.section,
+      'Groupe': s.grp,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -123,9 +162,11 @@ export default function AdminStudentsTab() {
       specialite: editStudent.specialite,
       phone: editStudent.phone,
       email: editStudent.email,
+      section: editStudent.section,
+      grp: editStudent.grp,
       ...(newPassword ? { password: newPassword } : {}),
     }).eq('id', editStudent.id);
-    setStudents(prev => prev.map(s => s.id === editStudent.id ? { ...editStudent, ...(newPassword ? { password: newPassword } : {}) } : s));
+    setStudents(prev => prev.map(s => s.id === editStudent.id ? { ...editStudent } : s));
     setEditStudent(null);
     setNewPassword('');
     setSaving(false);
@@ -139,11 +180,7 @@ export default function AdminStudentsTab() {
 
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-
-  const specCounts = SPECIALITES.reduce((acc, s) => {
-    acc[s] = students.filter(st => st.specialite === s).length;
-    return acc;
-  }, {} as Record<string, number>);
+  const specCounts = SPECIALITES.reduce((acc, s) => { acc[s] = students.filter(st => st.specialite === s).length; return acc; }, {} as Record<string, number>);
 
   return (
     <div className="space-y-4 animate-fade-in" dir="rtl">
@@ -171,12 +208,11 @@ export default function AdminStudentsTab() {
       </div>
 
       {importMsg && (
-        <div className={`rounded-xl px-4 py-3 text-sm ${importMsg.startsWith('✓') ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
+        <div className={`rounded-xl px-4 py-3 text-sm ${importMsg.startsWith('✓') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-blue-50 text-blue-700'}`}>
           {importMsg}
         </div>
       )}
 
-      {/* فلاتر */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -191,15 +227,14 @@ export default function AdminStudentsTab() {
         </select>
       </div>
 
-      <p className="text-xs text-gray-400">{filtered.length} نتيجة — صفحة {page+1}/{totalPages}</p>
+      <p className="text-xs text-gray-400">{filtered.length} نتيجة — صفحة {page+1}/{Math.max(1,totalPages)}</p>
 
-      {/* جدول */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['اللقب والاسم', 'التخصص', 'اسم المستخدم', 'البريد', 'الهاتف', 'إجراءات'].map(h => (
+                {['اللقب والاسم', 'التخصص', 'م/ف', 'اسم المستخدم', 'الهاتف', 'إجراءات'].map(h => (
                   <th key={h} className="text-right px-4 py-3 text-xs font-bold text-gray-500">{h}</th>
                 ))}
               </tr>
@@ -216,9 +251,11 @@ export default function AdminStudentsTab() {
                     <p className="text-xs text-gray-400">{s.mat_etudiant}</p>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600">{s.specialite}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-[#1a3a6b]">{s.username}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{s.email}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{s.phone}</td>
+                  <td className="px-4 py-3 text-xs text-center">
+                    {s.section ? <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">م{s.section}/ف{s.grp}</span> : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-[#1a3a6b]">{s.username || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{s.phone || '—'}</td>
                   <td className="px-4 py-3">
                     <button onClick={() => { setEditStudent(s); setNewPassword(''); }}
                       className="text-gray-400 hover:text-[#1a3a6b] transition-colors p-1">
@@ -232,7 +269,6 @@ export default function AdminStudentsTab() {
         </div>
       </div>
 
-      {/* pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center gap-2">
           <button onClick={() => setPage(p => Math.max(0, p-1))} disabled={page === 0}
@@ -243,7 +279,6 @@ export default function AdminStudentsTab() {
         </div>
       )}
 
-      {/* نافذة التعديل */}
       {editStudent && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEditStudent(null)}>
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" dir="rtl" onClick={e => e.stopPropagation()}>
@@ -271,14 +306,21 @@ export default function AdminStudentsTab() {
                   {SPECIALITES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">الهاتف</label>
-                <input value={editStudent.phone} onChange={e => setEditStudent({...editStudent, phone: e.target.value})}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">المجموعة</label>
+                  <input type="number" value={editStudent.section || ''} onChange={e => setEditStudent({...editStudent, section: Number(e.target.value) || null})}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">الفوج</label>
+                  <input type="number" value={editStudent.grp || ''} onChange={e => setEditStudent({...editStudent, grp: Number(e.target.value) || null})}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
+                </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">البريد</label>
-                <input value={editStudent.email} onChange={e => setEditStudent({...editStudent, email: e.target.value})}
+                <label className="text-xs text-gray-500 mb-1 block">الهاتف</label>
+                <input value={editStudent.phone || ''} onChange={e => setEditStudent({...editStudent, phone: e.target.value})}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
               </div>
               <div>
