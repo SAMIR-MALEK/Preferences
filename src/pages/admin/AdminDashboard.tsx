@@ -20,13 +20,14 @@ import AdminEmailPage         from './AdminEmailPage';
 import AdminRoomsPage         from './AdminRoomsPage';
 import AdminAuditPage         from './AdminAuditPage';
 import AdminVacataireTab      from './AdminVacataireTab';
+import AdminStudentsTab       from './AdminStudentsTab';
 import AdminSchedulePage      from './AdminSchedulePage';
 import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -92,6 +93,7 @@ export default function AdminDashboard() {
     { id: 'schedule',   label: 'التوقيت',             icon: CalendarDays },
     { id: 'audit',      label: 'سجل التدقيق',         icon: Shield     },
     { id: 'vacataire',  label: 'الأساتذة المؤقتون',     icon: Users      },
+    { id: 'students',   label: 'الطلبة',                icon: GraduationCap },
     { id: 'settings',     label: 'الإعدادات',          icon: Settings   },
   ];
 
@@ -219,6 +221,7 @@ export default function AdminDashboard() {
         {tab === 'schedule'   && <AdminSchedulePage />}
         {!isDeptHead && tab === 'audit'      && <AdminAuditPage />}
         {tab === 'vacataire' && <AdminVacataireTab />}
+        {tab === 'students' && <AdminStudentsTab />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
