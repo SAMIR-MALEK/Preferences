@@ -68,7 +68,7 @@ export default function AdminStudentsTab() {
         username: String(r['USER'] || '').trim(),
         password: String(r['PASSWORD'] || '').trim(),
         email: String(r['MAIL'] || '').trim(),
-      })).filter(s => s.username && s.last_name);
+      })).filter(s => s.mat_etudiant || s.last_name || s.username);
 
       // إدخال دفعات
       const BATCH = 500;
