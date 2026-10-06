@@ -72,7 +72,7 @@ export default function AdminProfScheduleTab() {
         section: a?.section_number,
         group: a?.group_number,
         room: roomMap.get(s.room_id) || '—',
-        weekly_hours: a?.weekly_hours,
+        weekly_hours: a?.teaching_type === 'محاضرة' ? 2.25 : 1.5,
       };
     }).filter((s: any) => s.day);
 
@@ -92,7 +92,7 @@ export default function AdminProfScheduleTab() {
       teaching_type: a.teaching_type,
       section: a.section_number,
       group: a.group_number,
-      weekly_hours: a.weekly_hours,
+      weekly_hours: a.teaching_type === 'محاضرة' ? 2.25 : 1.5,
     }));
     setUnscheduled(unsch);
     setLoading(false);
