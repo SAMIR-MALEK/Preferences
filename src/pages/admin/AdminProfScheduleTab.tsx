@@ -27,7 +27,7 @@ export default function AdminProfScheduleTab() {
 
     // جلب كل إسنادات الأستاذ
     const { data: assignments } = await supabase.from('assignments')
-      .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level:levels(name_ar), module:modules(name_ar)')
+      .select('id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, level:levels(name_ar), module:modules(name_ar)')
       .eq('professor_id', prof.id)
       .eq('academic_year', '2026-2027')
       .eq('semester', 1);
@@ -67,7 +67,7 @@ export default function AdminProfScheduleTab() {
         end_time: s.time_slot?.end_time?.slice(0, 5),
         slot_number: s.time_slot?.slot_number,
         module_name: a?.module?.name_ar || '—',
-        level_name: a?.level?.name_ar || '—',
+        level_name: lvlMap.get(a?.level_id) || a?.level?.name_ar || '—',
         teaching_type: a?.teaching_type,
         section: a?.section_number,
         group: a?.group_number,
@@ -88,7 +88,7 @@ export default function AdminProfScheduleTab() {
     // غير المبرمجة
     const unsch = assignments.filter((a: any) => !scheduledIds.has(a.id)).map((a: any) => ({
       module_name: a.module?.name_ar || '—',
-      level_name: a.level?.name_ar || '—',
+      level_name: lvlMap.get(a.level_id) || a.level?.name_ar || '—',
       teaching_type: a.teaching_type,
       section: a.section_number,
       group: a.group_number,
