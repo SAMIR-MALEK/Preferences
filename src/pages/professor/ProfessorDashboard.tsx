@@ -701,7 +701,18 @@ function ProfScheduleTab({ prof }: any) {
         .eq('semester', 1);
 
       if (!assignments || assignments.length === 0) { setLoading(false); return; }
-      setAllAssignments(assignments);
+
+      // جلب weekly_sessions منفصلاً
+      const moduleIds = [...new Set(assignments.map((a: any) => a.module_id))];
+      const { data: modulesData } = await supabase.from('modules').select('id, weekly_sessions').in('id', moduleIds);
+      const modSessionsMap = new Map((modulesData || []).map((m: any) => [m.id, m.weekly_sessions || 1]));
+
+      // إضافة weekly_sessions لكل إسناد
+      const assignmentsWithSessions = assignments.map((a: any) => ({
+        ...a,
+        weekly_sessions: modSessionsMap.get(a.module_id) || 1,
+      }));
+      setAllAssignments(assignmentsWithSessions);
 
       const lecIds = assignments.filter((a: any) => a.teaching_type === 'محاضرة').map((a: any) => a.id);
       if (lecIds.length > 0) {
@@ -720,7 +731,7 @@ function ProfScheduleTab({ prof }: any) {
           const aMap = new Map(assignments.map((a: any) => [a.id, a]));
           const result = sch.map((s: any) => {
             const a = aMap.get(s.assignment_id) as any;
-            const sessions = a?.module?.weekly_sessions || 1;
+            const sessions = (a as any)?.weekly_sessions || 1;
             return {
               id: s.id,
               assignment_id: s.assignment_id,
@@ -751,8 +762,8 @@ function ProfScheduleTab({ prof }: any) {
   // دمج الأعمال الموجهة — بدون تكرار لنفس المقياس والمستوى
   const tdMap = new Map<string, any>();
   allAssignments.filter((a: any) => a.teaching_type === 'أعمال موجهة').forEach((a: any) => {
-    const key = `${a.module_id}_${(a.level as any)?.name_ar}`;
-    if (!tdMap.has(key)) tdMap.set(key, { module_name: a.module?.name_ar || '—', level_name: (a.level as any)?.name_ar || '—' });
+    const key = `${a.module_id}_${a.level?.name_ar}`;
+    if (!tdMap.has(key)) tdMap.set(key, { module_name: a.module?.name_ar || '—', level_name: a.level?.name_ar || '—' });
   });
   const tds = [...tdMap.values()];
   const scheduledIds = new Set(scheduled.map((s: any) => s.assignment_id));
