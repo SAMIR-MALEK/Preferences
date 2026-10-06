@@ -16,14 +16,17 @@ export default function TimetablePage() {
 
   useEffect(() => {
     const LEVEL_ORDER = [
-      'أولى ليسانس', 'ثانية ليسانس',
-      'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص',
-      'ماستر 1 قانون عام', 'ماستر 1 قانون خاص', 'ماستر 1 قانون جنائي',
-      'ماستر 2 قانون عام', 'ماستر 2 قانون خاص', 'ماستر 2 قانون جنائي',
+      'أولى ليسانس',
+      'ثانية ليسانس',
+      'ثالثة ليسانس قانون خاص',
+      'ثالثة ليسانس قانون عام',
       'ماستر 1 قانون أعمال', 'ماستر 2 قانون أعمال',
+      'ماستر 1 قانون جنائي', 'ماستر 2 قانون جنائي',
+      'ماستر 1 قانون الإعلام الآلي والإنترنت', 'ماستر 2 قانون الإعلام الآلي والإنترنت',
       'ماستر 1 قانون الصحة', 'ماستر 2 قانون الصحة',
       'ماستر 1 قانون التهيئة والتعمير', 'ماستر 2 قانون التهيئة والتعمير',
-      'ماستر 1 قانون الإعلام الآلي والإنترنت', 'ماستر 2 قانون الإعلام الآلي والإنترنت',
+      'ماستر 1 قانون عام', 'ماستر 2 قانون عام',
+      'ماستر 1 قانون خاص', 'ماستر 2 قانون خاص',
     ];
     supabase.from('levels').select('id, name_ar').order('name_ar')
       .then(({ data }) => {
@@ -239,21 +242,21 @@ export default function TimetablePage() {
               </div>
             ))}
 
-            {/* غير المبرمجة */}
+            {/* غير المبرمجة — تظهر كصفوف عادية بـ — */}
             {unscheduled.length > 0 && (
               <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-gray-400 px-5 py-3">
-                  <h3 className="text-white font-bold text-sm">لم يُبرمج بعد</h3>
+                <div className="bg-gray-500 px-5 py-3">
+                  <h3 className="text-white font-bold text-sm">—</h3>
                 </div>
                 <div className="divide-y divide-gray-50">
                   {unscheduled.map((s: any) => (
-                    <div key={s.id} className="flex items-center gap-4 px-5 py-4">
+                    <div key={s.id} className="flex items-center gap-4 px-5 py-4 opacity-60">
                       <div className="text-center min-w-[110px]">
-                        <p className="text-gray-300 font-bold text-sm">—</p>
+                        <p className="text-gray-400 font-bold text-sm">— • —</p>
                       </div>
                       <div className="w-px h-10 bg-gray-200" />
                       <div className="flex-1">
-                        <p className="font-bold text-gray-600 text-sm">{s.module_name}</p>
+                        <p className="font-bold text-gray-700 text-sm">{s.module_name}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-gray-400">
                           <span>{s.prof_name !== '—' ? `أ. ${s.prof_name}` : '—'}</span>
                           <span>•</span>
