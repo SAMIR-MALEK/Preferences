@@ -34,6 +34,10 @@ export default function AdminProfScheduleTab() {
 
     if (!assignments || assignments.length === 0) { setLoading(false); return; }
 
+
+    const lvlIds = [...new Set(assignments.map((a: any) => a.level_id).filter(Boolean))];
+    const { data: lvlsData } = lvlIds.length > 0 ? await supabase.from('levels').select('id, name_ar').in('id', lvlIds) : { data: [] };
+    const lvlMap = new Map((lvlsData || []).map((l: any) => [l.id, l.name_ar]));
     const total = assignments.reduce((sum: number, a: any) => sum + (a.weekly_hours || 0), 0);
     setTotalHours(total);
 
