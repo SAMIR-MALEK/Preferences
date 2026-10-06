@@ -720,14 +720,17 @@ function ProfScheduleTab({ prof }: any) {
           const aMap = new Map(assignments.map((a: any) => [a.id, a]));
           const result = sch.map((s: any) => {
             const a = aMap.get(s.assignment_id) as any;
+            const sessions = a?.module?.weekly_sessions || 1;
             return {
               id: s.id,
               assignment_id: s.assignment_id,
               module_name: a?.module?.name_ar || '—',
               level_name: a?.level?.name_ar || '—',
+              teaching_type: a?.teaching_type || 'محاضرة',
               section: a?.section_number,
+              group: a?.group_number,
+              weekly_hours: (a?.weekly_hours || 0) / sessions,
               room: rMap.get(s.room_id) || '—',
-              sessions: (aMap.get(s.assignment_id) as any)?.module?.weekly_sessions || 1,
               day: s.time_slot?.day,
               start_time: s.time_slot?.start_time?.slice(0,5),
               end_time: s.time_slot?.end_time?.slice(0,5),
@@ -745,7 +748,13 @@ function ProfScheduleTab({ prof }: any) {
   if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
 
   const lectures = allAssignments.filter((a: any) => a.teaching_type === 'محاضرة');
-  const tds = allAssignments.filter((a: any) => a.teaching_type === 'أعمال موجهة');
+  // دمج الأعمال الموجهة — بدون تكرار لنفس المقياس والمستوى
+  const tdMap = new Map<string, any>();
+  allAssignments.filter((a: any) => a.teaching_type === 'أعمال موجهة').forEach((a: any) => {
+    const key = `${a.module_id}_${(a.level as any)?.name_ar}`;
+    if (!tdMap.has(key)) tdMap.set(key, { module_name: a.module?.name_ar || '—', level_name: (a.level as any)?.name_ar || '—' });
+  });
+  const tds = [...tdMap.values()];
   const scheduledIds = new Set(scheduled.map((s: any) => s.assignment_id));
 
   const byDay = DAYS.map(day => ({
@@ -764,7 +773,7 @@ function ProfScheduleTab({ prof }: any) {
       {/* المحاضرات المبرمجة */}
       {byDay.length > 0 && (
         <div>
-          <h3 className="font-bold text-gray-800 text-sm mb-3">📋 المحاضرات المبرمجة</h3>
+          <h3 className="font-bold text-gray-800 text-sm mb-3">📋 الحصص المبرمجة</h3>
           <div className="space-y-3">
             {byDay.map(({ day, slots }) => (
               <div key={day} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
@@ -779,7 +788,7 @@ function ProfScheduleTab({ prof }: any) {
                     <div className="w-px h-8 bg-gray-200" />
                     <div className="flex-1">
                       <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
-                      <p className="text-gray-400 text-[10px] mt-0.5">{s.level_name} — {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`} — {s.room} — {(s.weekly_hours/s.sessions).toFixed(2)}س</p>
+                      <p className="text-gray-400 text-[10px] mt-0.5">{s.level_name} — {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`} — {s.room} — {s.weekly_hours?.toFixed(2)}س</p>
                     </div>
                     <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">محاضرة</span>
                   </div>
