@@ -95,7 +95,7 @@ export default function AdminDashboard() {
     { id: 'audit',      label: 'سجل التدقيق',         icon: Shield     },
     { id: 'vacataire',  label: 'الأساتذة المؤقتون',     icon: Users      },
     { id: 'students',   label: 'الطلبة',                icon: GraduationCap },
-    { id: 'profschedule', label: 'برامج الأساتذة',        icon: Calendar },
+    { id: 'profschedule', label: 'برامج الأساتذة',        icon: CalendarDays },
     { id: 'settings',     label: 'الإعدادات',          icon: Settings   },
   ];
 
