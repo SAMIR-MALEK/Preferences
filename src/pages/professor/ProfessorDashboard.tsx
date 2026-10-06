@@ -687,6 +687,194 @@ function AssignmentCard({ prof }: any) {
 }
 
 function ProfScheduleTab({ prof }: any) {
+  const [scheduled, setScheduled] = useState<any[]>([]);
+  const [unscheduled, setUnscheduled] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalHours, setTotalHours] = useState(0);
+  const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
+  useEffect(() => {
+    async function load() {
+      // جلب كل إسنادات الأستاذ
+      const { data: assignments } = await supabase.from('assignments')
+        .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level_id')
+        .eq('professor_id', prof?.id)
+        .eq('academic_year', '2026-2027')
+        .eq('semester', 1);
+
+      if (!assignments || assignments.length === 0) { setLoading(false); return; }
+
+      const total = assignments.reduce((s: number, a: any) => s + (a.weekly_hours || 0), 0);
+      setTotalHours(total);
+
+      // جلب المقاييس والمستويات منفصلاً
+      const moduleIds = [...new Set(assignments.map((a: any) => a.module_id))];
+      const levelIds = [...new Set(assignments.map((a: any) => a.level_id).filter(Boolean))];
+      const [{ data: mods }, { data: lvls }] = await Promise.all([
+        supabase.from('modules').select('id, name_ar, weekly_sessions').in('id', moduleIds),
+        supabase.from('levels').select('id, name_ar').in('id', levelIds),
+      ]);
+      const modMap = new Map((mods || []).map((m: any) => [m.id, m]));
+      const lvlMap = new Map((lvls || []).map((l: any) => [l.id, l.name_ar]));
+
+      // جلب الحصص المبرمجة
+      const allIds = assignments.map((a: any) => a.id);
+      const { data: sch } = await supabase.from('schedules')
+        .select('id, assignment_id, room_id, time_slot_id, time_slot:time_slots(day, start_time, end_time, slot_number)')
+        .in('assignment_id', allIds)
+        .eq('academic_year', '2026-2027')
+        .eq('semester', 1);
+
+      // جلب القاعات
+      const roomIds = [...new Set((sch || []).map((s: any) => s.room_id).filter(Boolean))];
+      const { data: rooms } = roomIds.length > 0
+        ? await supabase.from('rooms').select('id, name').in('id', roomIds)
+        : { data: [] };
+      const rMap = new Map((rooms || []).map((r: any) => [r.id, r.name]));
+      const aMap = new Map(assignments.map((a: any) => [a.id, a]));
+
+      const scheduledItems = (sch || []).map((s: any) => {
+        const a = aMap.get(s.assignment_id) as any;
+        const mod = modMap.get(a?.module_id);
+        const sessions = mod?.weekly_sessions || 1;
+        return {
+          id: s.id,
+          assignment_id: s.assignment_id,
+          module_name: mod?.name_ar || '—',
+          level_name: lvlMap.get(a?.level_id) || '—',
+          teaching_type: a?.teaching_type || 'محاضرة',
+          section: a?.section_number,
+          group: a?.group_number,
+          weekly_hours: (a?.weekly_hours || 0) / sessions,
+          room: rMap.get(s.room_id) || '—',
+          day: s.time_slot?.day,
+          start_time: s.time_slot?.start_time?.slice(0, 5),
+          end_time: s.time_slot?.end_time?.slice(0, 5),
+          slot_number: s.time_slot?.slot_number,
+        };
+      }).filter((s: any) => s.day);
+
+      // ترتيب باليوم والوقت
+      const dayOrder = Object.fromEntries(['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map((d,i) => [d,i]));
+      scheduledItems.sort((a: any, b: any) => {
+        const di = (dayOrder[a.day]??99) - (dayOrder[b.day]??99);
+        return di !== 0 ? di : a.slot_number - b.slot_number;
+      });
+      setScheduled(scheduledItems);
+
+      // غير المبرمجة — بدون تكرار للأعمال الموجهة
+      const scheduledIds = new Set(scheduledItems.map((s: any) => s.assignment_id));
+      const unsch: any[] = [];
+      const tdSeen = new Set<string>();
+      assignments.filter((a: any) => !scheduledIds.has(a.id)).forEach((a: any) => {
+        const mod = modMap.get(a.module_id);
+        const level = lvlMap.get(a.level_id) || '—';
+        if (a.teaching_type === 'أعمال موجهة') {
+          const key = `${a.module_id}_${a.level_id}`;
+          if (tdSeen.has(key)) return;
+          tdSeen.add(key);
+        }
+        unsch.push({
+          module_name: mod?.name_ar || '—',
+          level_name: level,
+          teaching_type: a.teaching_type,
+          section: a.section_number,
+          group: a.group_number,
+          weekly_hours: (a.weekly_hours || 0) / (mod?.weekly_sessions || 1),
+        });
+      });
+      setUnscheduled(unsch);
+      setLoading(false);
+    }
+    load();
+  }, [prof?.id]);
+
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
+
+  const byDay = ['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map(day => ({
+    day,
+    slots: scheduled.filter((s: any) => s.day === day),
+  })).filter(d => d.slots.length > 0);
+
+  return (
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-700 flex items-center gap-2">
+        <span>⚠</span> التوقيت مؤقت وقابل للتغيير — تابع المنصة بانتظام
+      </div>
+
+      {/* الحجم الساعي */}
+      <div className="bg-[#1a3a6b] text-white rounded-2xl p-4 flex items-center justify-between">
+        <p className="text-sm font-bold">الحجم الساعي الإجمالي</p>
+        <p className="text-[#c9a227] font-bold text-lg">{totalHours.toFixed(2)} س/أسبوع</p>
+      </div>
+
+      {/* الحصص المبرمجة */}
+      {byDay.length > 0 && (
+        <div>
+          <h3 className="font-bold text-gray-800 text-sm mb-3">📋 الحصص المبرمجة</h3>
+          <div className="space-y-3">
+            {byDay.map(({ day, slots }) => (
+              <div key={day} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                <div className="bg-[#1a3a6b] px-4 py-2">
+                  <p className="text-white font-bold text-xs">{day}</p>
+                </div>
+                {slots.map((s: any) => (
+                  <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                    <div className="min-w-[110px]">
+                      <p className="text-[#1a3a6b] font-bold text-xs">{s.start_time} — {s.end_time}</p>
+                    </div>
+                    <div className="w-px h-8 bg-gray-200" />
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
+                      <p className="text-gray-400 text-[10px] mt-0.5">
+                        {s.level_name} —
+                        {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ` ف${String(s.group).padStart(2,'0')}`} —
+                        {s.room}
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium block mb-1 ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                        {s.teaching_type}
+                      </span>
+                      <span className="text-[10px] text-gray-400 block text-center">{s.weekly_hours?.toFixed(2)}س</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* غير المبرمجة */}
+      {unscheduled.length > 0 && (
+        <div>
+          <h3 className="font-bold text-gray-800 text-sm mb-3">⏳ سيُبرمج توقيتها لاحقاً</h3>
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 overflow-hidden">
+            {unscheduled.map((s: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                <div className="flex-1">
+                  <p className="font-bold text-gray-600 text-xs">{s.module_name}</p>
+                  <p className="text-gray-300 text-[10px] mt-0.5">
+                    {s.level_name} —
+                    {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ' أعمال موجهة'}
+                  </p>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-400' : 'bg-teal-50 text-teal-400'}`}>
+                  {s.teaching_type}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {scheduled.length === 0 && unscheduled.length === 0 && (
+        <p className="text-center text-gray-400 text-sm py-8">لا توجد إسنادات بعد</p>
+      )}
+    </div>
+  );
+}: any) {
   const [allAssignments, setAllAssignments] = useState<any[]>([]);
   const [scheduled, setScheduled] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
