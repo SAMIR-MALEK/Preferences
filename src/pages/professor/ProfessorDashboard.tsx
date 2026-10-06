@@ -798,7 +798,7 @@ function ProfScheduleTab({ prof }: any) {
   return (
     <div className="space-y-4 animate-fade-in" dir="rtl">
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-700 flex items-center gap-2">
-        <span>⚠</span> التوقيت مؤقت وقابل للتغيير — تابع المنصة بانتظام
+        <span>⚠</span> في حالة أي ملاحظة حول البرنامج يرجى الاتصال برئيسي القسمين
       </div>
 
       {/* الحجم الساعي */}
