@@ -736,7 +736,7 @@ function ProfScheduleTab({ prof }: any) {
       const scheduledItems = (sch || []).map((s: any) => {
         const a = aMap.get(s.assignment_id) as any;
         const mod = modMap.get(a?.module_id);
-        const sessions = mod?.weekly_sessions || 1;
+        const sessions = a?.teaching_type === 'محاضرة' ? (mod?.weekly_sessions || 1) : 1;
         return {
           id: s.id,
           assignment_id: s.assignment_id,
