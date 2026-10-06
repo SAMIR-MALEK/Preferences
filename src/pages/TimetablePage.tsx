@@ -103,34 +103,52 @@ export default function TimetablePage() {
     const modMap = new Map((modules || []).map((m: any) => [m.id, m.name_ar]));
     const roomMap = new Map((rooms || []).map((r: any) => [r.id, r.name]));
     const profMap = new Map((profs || []).map((p: any) => [p.id, `${p.last_name} ${p.first_name}`]));
-    const schMap = new Map((sch || []).map((s: any) => [s.assignment_id, s]));
     const tsMap = new Map(timeSlots.map(ts => [ts.id, ts]));
 
-    // بناء الصفوف — كل إسناد صف
-    const result = filtered.map((a: any) => {
-      const s = schMap.get(a.id);
-      const ts = s ? tsMap.get(s.time_slot_id) : null;
+    // بناء الصفوف — كل حصة في schedules = صف منفصل
+    const scheduledRows: any[] = (sch || []).map((s: any) => {
+      const a = filtered.find((x: any) => x.id === s.assignment_id);
+      if (!a) return null;
+      const ts = tsMap.get(s.time_slot_id);
       return {
+        id: s.id,
+        module_name: modMap.get(a.module_id) || '—',
+        teaching_type: a.teaching_type,
+        section: a.section_number,
+        group: a.group_number,
+        prof_name: a.professor_id ? (profMap.get(a.professor_id) || '—') : '—',
+        room: roomMap.get(s.room_id) || '—',
+        day: ts?.day || null,
+        start_time: ts?.start_time?.slice(0, 5) || null,
+        end_time: ts?.end_time?.slice(0, 5) || null,
+        slot_number: ts?.slot_number || 9999,
+        scheduled: true,
+      };
+    }).filter(Boolean);
+
+    // الإسنادات غير المبرمجة
+    const scheduledAssignmentIds = new Set((sch || []).map((s: any) => s.assignment_id));
+    const unscheduledRows: any[] = filtered
+      .filter((a: any) => !scheduledAssignmentIds.has(a.id))
+      .map((a: any) => ({
         id: a.id,
         module_name: modMap.get(a.module_id) || '—',
         teaching_type: a.teaching_type,
         section: a.section_number,
         group: a.group_number,
         prof_name: a.professor_id ? (profMap.get(a.professor_id) || '—') : '—',
-        room: s ? (roomMap.get(s.room_id) || '—') : '—',
-        day: ts?.day || null,
-        start_time: ts?.start_time?.slice(0, 5) || null,
-        end_time: ts?.end_time?.slice(0, 5) || null,
-        slot_number: ts?.slot_number || 9999,
-        scheduled: !!ts,
-      };
-    });
+        room: '—',
+        day: null,
+        start_time: null,
+        end_time: null,
+        slot_number: 9999,
+        scheduled: false,
+      }));
 
-    // ترتيب: المبرمجة أولاً حسب اليوم والوقت ثم غير المبرمجة
+    const result = [...scheduledRows, ...unscheduledRows];
+
     const dayOrder = Object.fromEntries(DAYS.map((d, i) => [d, i]));
-    result.sort((a: any, b: any) => {
-      if (a.scheduled && !b.scheduled) return -1;
-      if (!a.scheduled && b.scheduled) return 1;
+    scheduledRows.sort((a: any, b: any) => {
       const di = (dayOrder[a.day] ?? 99) - (dayOrder[b.day] ?? 99);
       return di !== 0 ? di : a.slot_number - b.slot_number;
     });
