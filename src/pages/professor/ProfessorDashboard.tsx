@@ -695,7 +695,7 @@ function ProfScheduleTab({ prof }: any) {
   useEffect(() => {
     async function load() {
       const { data: assignments } = await supabase.from('assignments')
-        .select('id, module_id, teaching_type, section_number, group_number, level:levels(name_ar), module:modules(name_ar)')
+        .select('id, module_id, teaching_type, section_number, group_number, level:levels(name_ar), module:modules(name_ar, weekly_sessions)')
         .eq('professor_id', prof?.id)
         .eq('academic_year', '2026-2027')
         .eq('semester', 1);
@@ -727,6 +727,7 @@ function ProfScheduleTab({ prof }: any) {
               level_name: a?.level?.name_ar || '—',
               section: a?.section_number,
               room: rMap.get(s.room_id) || '—',
+              sessions: (aMap.get(s.assignment_id) as any)?.module?.weekly_sessions || 1,
               day: s.time_slot?.day,
               start_time: s.time_slot?.start_time?.slice(0,5),
               end_time: s.time_slot?.end_time?.slice(0,5),
@@ -778,7 +779,7 @@ function ProfScheduleTab({ prof }: any) {
                     <div className="w-px h-8 bg-gray-200" />
                     <div className="flex-1">
                       <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
-                      <p className="text-gray-400 text-[10px] mt-0.5">{s.level_name} — م{s.section} — {s.room}</p>
+                      <p className="text-gray-400 text-[10px] mt-0.5">{s.level_name} — {s.teaching_type === 'محاضرة' ? `م${s.section}` : `ف${s.group}`} — {s.room} — {(s.weekly_hours/s.sessions).toFixed(2)}س</p>
                     </div>
                     <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">محاضرة</span>
                   </div>
