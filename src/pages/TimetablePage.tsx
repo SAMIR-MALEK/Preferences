@@ -15,8 +15,17 @@ export default function TimetablePage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const LEVEL_ORDER = ['أولى ليسانس', 'ثانية ليسانس', 'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص'];
-    supabase.from('levels').select('id, name_ar').in('name_ar', LEVEL_ORDER)
+    const LEVEL_ORDER = [
+      'أولى ليسانس', 'ثانية ليسانس',
+      'ثالثة ليسانس قانون عام', 'ثالثة ليسانس قانون خاص',
+      'ماستر 1 قانون عام', 'ماستر 1 قانون خاص', 'ماستر 1 قانون جنائي',
+      'ماستر 2 قانون عام', 'ماستر 2 قانون خاص', 'ماستر 2 قانون جنائي',
+      'ماستر 1 قانون أعمال', 'ماستر 2 قانون أعمال',
+      'ماستر 1 قانون الصحة', 'ماستر 2 قانون الصحة',
+      'ماستر 1 قانون التهيئة والتعمير', 'ماستر 2 قانون التهيئة والتعمير',
+      'ماستر 1 قانون الإعلام الآلي والإنترنت', 'ماستر 2 قانون الإعلام الآلي والإنترنت',
+    ];
+    supabase.from('levels').select('id, name_ar').order('name_ar')
       .then(({ data }) => {
         if (data) setLevels([...data].sort((a, b) => LEVEL_ORDER.indexOf(a.name_ar) - LEVEL_ORDER.indexOf(b.name_ar)));
       });
@@ -33,16 +42,16 @@ export default function TimetablePage() {
     }
   }
 
-  function loadGroups(sec: number) {
-    // الأفواج = (sec-1)*num_groups + 1 إلى sec*num_groups
-    // نجلبها من level_semesters
+  function loadGroups(sec: number, autoSelect = false) {
     supabase.from('level_semesters')
       .select('num_groups').eq('level_id', selectedLevel).eq('semester', 1).single()
       .then(({ data }) => {
         if (data) {
           const start = (sec - 1) * data.num_groups + 1;
           const end = sec * data.num_groups;
-          setGroups(Array.from({ length: end - start + 1 }, (_, i) => start + i));
+          const grps = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+          setGroups(grps);
+          if (autoSelect && grps.length > 0) setSelectedGroup(grps[0]);
         }
       });
   }
@@ -172,7 +181,7 @@ export default function TimetablePage() {
                 const sec = Number(e.target.value);
                 setSelectedSection(sec);
                 setSelectedGroup(0);
-                if (sec) loadGroups(sec);
+                if (sec) loadGroups(sec, true);
               }} disabled={!selectedLevel}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 disabled:opacity-50">
                 <option value={0}>— المجموعة —</option>
@@ -197,7 +206,7 @@ export default function TimetablePage() {
           </div>
         )}
 
-        {!loading && selectedLevel && selectedSection > 0 && rows.length > 0 && (
+        {!loading && selectedLevel && selectedSection > 0 && selectedGroup > 0 && rows.length > 0 && (
           <div className="space-y-4">
             {/* الحصص المبرمجة */}
             {byDay.map(({ day, slots }) => (
@@ -268,7 +277,7 @@ export default function TimetablePage() {
           </div>
         )}
 
-        {!loading && selectedLevel && selectedSection > 0 && rows.length === 0 && (
+        {!loading && selectedLevel && selectedSection > 0 && selectedGroup > 0 && rows.length === 0 && (
           <div className="bg-white rounded-2xl p-8 text-center text-gray-400">
             لا توجد إسنادات لهذه المجموعة
           </div>
