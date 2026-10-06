@@ -856,7 +856,7 @@ function ProfScheduleTab({ prof }: any) {
                   <p className="font-bold text-gray-600 text-xs">{s.module_name}</p>
                   <p className="text-gray-300 text-[10px] mt-0.5">
                     {s.level_name} —
-                    {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ' أعمال موجهة'}
+                    {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ` أعمال موجهة`}
                   </p>
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-400' : 'bg-teal-50 text-teal-400'}`}>
