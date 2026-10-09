@@ -19,6 +19,7 @@ const emptyForm = {
   degree_speciality: '',
   degree_title: '',
   email: '',
+  password: '',
 };
 
 export default function AdminProfessorsPage() {
@@ -83,11 +84,17 @@ export default function AdminProfessorsPage() {
       const numbers = existingUsernames.map(u => parseInt(u)).filter(n => !isNaN(n));
       const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
 
+      if (form.password && form.password.length < 6) {
+        setMessage({ type: 'error', text: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
+        setSaving(false);
+        return;
+      }
       const result = await callEdgeFunction('create-professor', {
         ...form,
         last_name: form.last_name.trim(),
         first_name: form.first_name.trim(),
         username_index: maxNum + 1,
+        ...(form.password ? { password: form.password } : {}),
       });
 
       setNewCredentials({ username: result.username, password: result.password });
@@ -319,6 +326,15 @@ export default function AdminProfessorsPage() {
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50" dir="ltr" />
             </div>
           </div>
+          {!editingId && (
+            <div className="mb-4">
+              <label className="text-sm text-gray-600 mb-1 block">كلمة المرور <span className="text-gray-400 text-xs">(6 أحرف على الأقل — اتركها فارغة لتوليد تلقائي)</span></label>
+              <input type="text" value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="مثال: 123456"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50" dir="ltr" />
+            </div>
+          )}
           <div className="mb-4">
             <label className="text-sm text-gray-600 mb-1 block">عنوان الشهادة</label>
             <textarea value={form.degree_title} onChange={e => setForm({ ...form, degree_title: e.target.value })}
