@@ -61,49 +61,65 @@ export default function AdminEmailPage() {
     setLoadingProfs(true);
 
     // 1. جلب كل الإسنادات مع بيانات المقياس والمستوى والأستاذ
-    // خطوة 1: استعلام مبسط بدون علاقات
-    const { data: asgn, error: asgnErr } = await supabase
+    // جلب الإسنادات
+    const { data: asgn } = await supabase
       .from('assignments')
       .select('id, teaching_type, section_number, group_number, module_id, level_id, professor_id')
       .eq('academic_year', '2026-2027')
       .eq('semester', 1)
       .in('status', ['نهائي', 'مؤقت']);
 
-    console.log('asgn result:', asgn, 'error:', asgnErr);
     if (!asgn || asgn.length === 0) { setLoadingProfs(false); return; }
-    console.log('first row:', JSON.stringify(asgn[0], null, 2));
 
+    // جلب جداول المواعيد
+    const asgnIds = asgn.map((a: any) => a.id);
+    const { data: schedules } = await supabase
+      .from('schedules')
+      .select('assignment_id, day, time_slot, room_number')
+      .in('assignment_id', asgnIds);
+
+    // جلب الأساتذة
+    const profIds = [...new Set(asgn.map((a: any) => a.professor_id).filter(Boolean))];
+    const { data: profsData } = await supabase
+      .from('professors')
+      .select('id, last_name, first_name, email, rank')
+      .in('id', profIds);
+
+    // جلب المقاييس والمستويات
+    const moduleIds = [...new Set(asgn.map((a: any) => a.module_id).filter(Boolean))];
+    const levelIds = [...new Set(asgn.map((a: any) => a.level_id).filter(Boolean))];
+    const { data: modulesData } = await supabase.from('modules').select('id, name_ar').in('id', moduleIds);
+    const { data: levelsData } = await supabase.from('levels').select('id, name_ar').in('id', levelIds);
+
+    // بناء خرائط للوصول السريع
     const profMap: Record<string, ProfessorAssignment> = {};
+    const schedMap: Record<string, {day:string|null;time_slot:string|null;room_number:string|null}[]> = {};
+    const moduleMap: Record<string, string> = {};
+    const levelMap: Record<string, string> = {};
+
+    (profsData || []).forEach((p: any) => {
+      profMap[p.id] = { id: p.id, last_name: p.last_name, first_name: p.first_name, email: p.email || '', rank: p.rank || '', assignments: [], selected: true, status: 'pending' };
+    });
+    (schedules || []).forEach((s: any) => {
+      if (!schedMap[s.assignment_id]) schedMap[s.assignment_id] = [];
+      schedMap[s.assignment_id].push(s);
+    });
+    (modulesData || []).forEach((m: any) => { moduleMap[m.id] = m.name_ar; });
+    (levelsData || []).forEach((l: any) => { levelMap[l.id] = l.name_ar; });
 
     asgn.forEach((a: any) => {
-      // professor قد يأتي كـ object أو كمصفوفة حسب إعداد العلاقة في Supabase
-      const prof = Array.isArray(a.professor) ? a.professor[0] : a.professor;
+      const prof = profMap[a.professor_id];
       if (!prof) return;
 
-      if (!profMap[prof.id]) {
-        profMap[prof.id] = {
-          id: prof.id,
-          last_name: prof.last_name,
-          first_name: prof.first_name,
-          email: prof.email || '',
-          rank: prof.rank || '',
-          assignments: [],
-          selected: true,
-          status: 'pending',
-        };
-      }
-
       const hours = a.teaching_type === 'محاضرة' ? 2.25 : 1.5;
+      const aSchedList = schedMap[a.id] || [];
 
-      // إذا كان مبرمجاً في التوقيت — سطر لكل حصة
-      const schedules: any[] = Array.isArray(a.schedules) ? a.schedules : (a.schedules ? [a.schedules] : []);
-
-      if (schedules.length > 0) {
-        schedules.forEach((s: any) => {
-          profMap[prof.id].assignments.push({
+      if (aSchedList.length > 0) {
+        aSchedList.forEach((s: any) => {
+          prof.assignments.push({
             assignment_id: a.id,
-            module_name: (Array.isArray(a.module) ? a.module[0] : a.module)?.name_ar || '—',
-            level_name: (Array.isArray(a.level) ? a.level[0] : a.level)?.name_ar || '—',
+            module_name: moduleMap[a.module_id] || '—',
+            level_name: levelMap[a.level_id] || '—',
             teaching_type: a.teaching_type,
             section: a.section_number ?? null,
             group: a.group_number ?? null,
@@ -114,11 +130,10 @@ export default function AdminEmailPage() {
           });
         });
       } else {
-        // غير مبرمج — سطر واحد بدون توقيت
-        profMap[prof.id].assignments.push({
+        prof.assignments.push({
           assignment_id: a.id,
-          module_name: (Array.isArray(a.module) ? a.module[0] : a.module)?.name_ar || '—',
-          level_name: (Array.isArray(a.level) ? a.level[0] : a.level)?.name_ar || '—',
+          module_name: moduleMap[a.module_id] || '—',
+          level_name: levelMap[a.level_id] || '—',
           teaching_type: a.teaching_type,
           section: a.section_number ?? null,
           group: a.group_number ?? null,
