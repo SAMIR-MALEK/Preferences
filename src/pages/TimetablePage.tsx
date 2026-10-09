@@ -87,19 +87,25 @@ export default function TimetablePage() {
     const profIds = [...new Set(filtered.map((a: any) => a.professor_id).filter(Boolean))];
 
     const { data: sch } = await supabase.from('schedules')
-      .select('id, assignment_id, time_slot_id, room_id, rooms(name), time_slots(day, start_time, end_time, slot_number)')
+      .select('id, assignment_id, time_slot_id, room_id')
       .in('assignment_id', allIds)
       .eq('academic_year', '2026-2027')
       .eq('semester', 1);
 
-    const moduleIds2 = [...new Set(filtered.map((a: any) => a.module_id))];
-    const [{ data: modules }, { data: profs }] = await Promise.all([
-      supabase.from('modules').select('id, name_ar').in('id', moduleIds2),
+    const roomIds = [...new Set((sch || []).map((s: any) => s.room_id).filter(Boolean))];
+    const timeSlotIds = [...new Set((sch || []).map((s: any) => s.time_slot_id).filter(Boolean))];
+
+    const [{ data: modules }, { data: profs }, { data: rooms }, { data: freshSlots }] = await Promise.all([
+      supabase.from('modules').select('id, name_ar').in('id', moduleIds),
       profIds.length > 0 ? supabase.from('professors').select('id, last_name, first_name').in('id', profIds) : Promise.resolve({ data: [] }),
+      roomIds.length > 0 ? supabase.from('rooms').select('id, name').in('id', roomIds) : Promise.resolve({ data: [] }),
+      timeSlotIds.length > 0 ? supabase.from('time_slots').select('id, day, start_time, end_time, slot_number').in('id', timeSlotIds) : Promise.resolve({ data: [] }),
     ]);
 
     const modMap = new Map((modules || []).map((m: any) => [m.id, m.name_ar]));
     const profMap = new Map((profs || []).map((p: any) => [p.id, `${p.last_name} ${p.first_name}`]));
+    const roomMap = new Map((rooms || []).map((r: any) => [r.id, r.name]));
+    const tsMap = new Map((freshSlots || []).map((ts: any) => [ts.id, ts]));
 
     // تشخيص
     const allRoomIds = (sch || []).map((s: any) => s.room_id ?? 'NULL');
@@ -113,10 +119,8 @@ export default function TimetablePage() {
     const scheduledRows: any[] = (sch || []).map((s: any) => {
       const a = filtered.find((x: any) => x.id === s.assignment_id);
       if (!a) return null;
-      const tsRaw = (s as any).time_slots;
-      const ts = Array.isArray(tsRaw) ? tsRaw[0] : tsRaw;
-      const roomsRaw = (s as any).rooms;
-      const roomName = (Array.isArray(roomsRaw) ? roomsRaw[0]?.name : roomsRaw?.name) || '—';
+      const ts = tsMap.get(s.time_slot_id);
+      const roomName = roomMap.get(s.room_id) || '—';
       return {
         id: s.id,
         module_name: modMap.get(a.module_id) || '—',
