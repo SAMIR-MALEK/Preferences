@@ -100,18 +100,17 @@ export default function TimetablePage() {
     const modMap = new Map((modules || []).map((m: any) => [m.id, m.name_ar]));
     const profMap = new Map((profs || []).map((p: any) => [p.id, `${p.last_name} ${p.first_name}`]));
 
-    // تشخيص مؤقت
-    console.log('🔍 DEBUG schedules count:', (sch || []).length);
-    console.log('🔍 DEBUG roomIds:', roomIds);
-    console.log('🔍 DEBUG rooms fetched:', rooms);
-    console.log('🔍 DEBUG roomMap size:', roomMap.size);
-    console.log('🔍 DEBUG sample sch[0]:', (sch || [])[0]);
+    // تشخيص مؤقت — يظهر على الشاشة
+    const firstSch = (sch || [])[0];
+    const debugMsg = `sch:${(sch||[]).length} | room_id:${firstSch?.room_id} | rooms.name:${(firstSch as any)?.rooms?.name} | room_id_type:${typeof firstSch?.room_id}`;
+    setRows([{ __debug: true, module_name: debugMsg, teaching_type: '', room: '', day: 'السبت', start_time: '00:00', end_time: '00:00', slot_number: 0, prof_name: '' }]);
 
     // فقط الحصص المبرمجة
     const scheduledRows: any[] = (sch || []).map((s: any) => {
       const a = filtered.find((x: any) => x.id === s.assignment_id);
       if (!a) return null;
-      const ts = tsMap.get(s.time_slot_id);
+      const ts = (s as any).time_slots;
+      const roomName = (s as any).rooms?.name || '—';
       return {
         id: s.id,
         module_name: modMap.get(a.module_id) || '—',
@@ -119,7 +118,7 @@ export default function TimetablePage() {
         section: a.section_number,
         group: a.group_number,
         prof_name: a.professor_id ? (profMap.get(a.professor_id) || '—') : '—',
-        room: roomMap.get(s.room_id) || '—',
+        room: roomName,
         day: ts?.day || null,
         start_time: ts?.start_time?.slice(0, 5) || null,
         end_time: ts?.end_time?.slice(0, 5) || null,
