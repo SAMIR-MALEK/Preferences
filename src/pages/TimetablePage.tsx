@@ -13,6 +13,7 @@ export default function TimetablePage() {
   const [rows, setRows] = useState<any[]>([]);
   const [timeSlots, setTimeSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'classic'>('classic');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -100,10 +101,9 @@ export default function TimetablePage() {
     const modMap = new Map((modules || []).map((m: any) => [m.id, m.name_ar]));
     const profMap = new Map((profs || []).map((p: any) => [p.id, `${p.last_name} ${p.first_name}`]));
 
-    // تشخيص مؤقت — يظهر على الشاشة
+    // تشخيص
     const firstSch = (sch || [])[0];
-    const debugMsg = `sch:${(sch||[]).length} | room_id:${firstSch?.room_id} | rooms.name:${(firstSch as any)?.rooms?.name} | room_id_type:${typeof firstSch?.room_id}`;
-    setRows([{ __debug: true, module_name: debugMsg, teaching_type: '', room: '', day: 'السبت', start_time: '00:00', end_time: '00:00', slot_number: 0, prof_name: '' }]);
+    setDebugInfo(`schedules:${(sch||[]).length} | room_id:${firstSch?.room_id ?? 'null'} | rooms.name:${(firstSch as any)?.rooms?.name ?? 'null'}`);
 
     // فقط الحصص المبرمجة
     const scheduledRows: any[] = (sch || []).map((s: any) => {
@@ -409,6 +409,7 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
             <div className="bg-white/10 rounded-2xl p-4 text-center">
               <p className="text-white text-sm font-medium">{levelName} — المجموعة {String(selectedSection).padStart(2,'0')}{selectedGroup ? ` — الفوج ${String(selectedGroup).padStart(2,'0')}` : ''}</p>
               <p className="text-amber-300 text-xs mt-1">⚠ مقياس اللغة الأجنبية (الإنجليزية) سيُجرى عن بُعد</p>
+              {debugInfo && <p className="text-red-300 text-[10px] mt-2 break-all">{debugInfo}</p>}
             </div>
           </div>
         )}
