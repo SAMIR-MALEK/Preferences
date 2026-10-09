@@ -234,14 +234,12 @@ export default function AdminProfessorsPage() {
           <h2 className="text-xl font-bold text-gray-900 font-display">إدارة الأساتذة</h2>
           <p className="text-gray-500 text-sm">{toArabicNum(professors.length)} أستاذ مسجّل</p>
         </div>
-        {!isDeptHead && (
-          <button
+        <button
             onClick={() => { resetForm(); setShowForm(true); }}
             className="flex items-center gap-2 bg-[#1a3a6b] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors">
             <UserPlus className="w-4 h-4" />
             إضافة أستاذ
           </button>
-        )}
       </div>
 
       {message && (
@@ -277,7 +275,7 @@ export default function AdminProfessorsPage() {
         </div>
       )}
 
-      {showForm && !isDeptHead && (
+      {showForm && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-[#1a3a6b]/20 animate-slide-up">
           <h3 className="font-bold text-gray-800 mb-4 font-display flex items-center gap-2">
             {editingId ? <Pencil className="w-5 h-5 text-[#1a3a6b]" /> : <UserPlus className="w-5 h-5 text-[#1a3a6b]" />}
