@@ -73,10 +73,11 @@ export default function AdminEmailPage() {
 
     // جلب جداول المواعيد
     const asgnIds = asgn.map((a: any) => a.id);
-    const { data: schedules } = await supabase
+    const { data: schedules, error: schedErr } = await supabase
       .from('schedules')
       .select('assignment_id, day, time_slot, room_number')
       .in('assignment_id', asgnIds);
+    console.log('schedules:', schedules?.length, 'error:', schedErr, 'sample:', JSON.stringify(schedules?.[0]));
 
     // جلب الأساتذة
     const profIds = [...new Set(asgn.map((a: any) => a.professor_id).filter(Boolean))];
