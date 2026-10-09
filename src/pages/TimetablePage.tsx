@@ -338,17 +338,19 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                             <p className="text-[#1a3a6b] font-bold text-sm">{s.start_time} — {s.end_time}</p>
                           </div>
                           <div className="w-px h-10 bg-gray-200" />
-                          <div className="flex-1">
-                            <p className="font-bold text-gray-800 text-sm">{s.module_name}</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-gray-500">
-                              <span>{s.prof_name !== '—' ? `أ. ${s.prof_name}` : '—'}</span>
-                              <span>•</span>
-                              <span>{s.room}</span>
-                              <span>•</span>
-                              <span className={`px-2 py-0.5 rounded-full font-medium ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-800 text-sm leading-tight">{s.module_name}</p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
                                 {s.teaching_type === 'محاضرة' ? `محاضرة — م${String(s.section).padStart(2,'0')}` : `أعمال موجهة — ف${String(s.group).padStart(2,'0')}`}
                               </span>
+                              {s.room && s.room !== '—' && (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700">🏛 {s.room}</span>
+                              )}
                             </div>
+                            {s.prof_name !== '—' && (
+                              <p className="text-xs text-gray-400 mt-1">أ. {s.prof_name}</p>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -384,13 +386,13 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                               <td key={day} className="border border-gray-200 px-2 py-3 text-center text-gray-200">—</td>
                             );
                             return (
-                              <td key={day} className="border border-gray-200 px-2 py-3 text-center">
-                                <p className="font-bold text-gray-800 leading-tight mb-1">{entry.module_name}</p>
+                              <td key={day} className="border border-gray-200 px-1.5 py-2 text-center align-top">
+                                <p className="font-bold text-gray-800 leading-tight text-[11px] mb-0.5">{entry.module_name}</p>
+                                <p className="text-[#1a3a6b] text-[11px] font-semibold">{entry.room}</p>
                                 {entry.prof_name !== '—' && (
-                                  <p className="text-gray-500 text-[11px] mb-0.5">أ. {entry.prof_name}</p>
+                                  <p className="text-gray-400 text-[10px] mt-0.5 leading-tight">أ. {entry.prof_name}</p>
                                 )}
-                                <p className="text-[#1a3a6b] text-[11px] font-medium">{entry.room}</p>
-                                <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${entry.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                                <span className={`inline-block mt-1 px-1 py-0.5 rounded-full text-[9px] font-medium ${entry.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
                                   {entry.teaching_type === 'محاضرة' ? 'محاضرة' : 'أعمال موجهة'}
                                 </span>
                               </td>
