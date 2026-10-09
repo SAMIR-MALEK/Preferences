@@ -348,7 +348,7 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                               {s.teaching_type === 'محاضرة' ? `محاضرة — م${String(s.section).padStart(2,'0')}` : `أعمال موجهة — ف${String(s.group).padStart(2,'0')}`}
                             </span>
                             {s.room && s.room !== '—' && (
-                              <p className="text-xs font-bold text-amber-700 mt-1">🏛 {s.room}</p>
+                              <p className="text-xs font-bold mt-1" style={{color:'#b45309',display:'block'}}>[ {s.room} ]</p>
                             )}
                             {s.prof_name !== '—' && (
                               <p className="text-xs text-gray-400 mt-0.5">أ. {s.prof_name}</p>
@@ -390,7 +390,7 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                             return (
                               <td key={day} className="border border-gray-200 px-2 py-2 text-center align-top">
                                 <p className="font-bold text-gray-800 leading-tight text-[11px] mb-1">{entry.module_name}</p>
-                                <p className="text-amber-700 text-[11px] font-bold mb-0.5">🏛 {entry.room}</p>
+                                <p style={{color:'#b45309',fontWeight:'bold',fontSize:'11px',marginBottom:'2px',display:'block'}}>[ {entry.room} ]</p>
                                 {entry.prof_name !== '—' && (
                                   <p className="text-gray-400 text-[10px] leading-tight">أ. {entry.prof_name}</p>
                                 )}
