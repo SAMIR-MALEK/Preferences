@@ -86,25 +86,26 @@ export default function TimetablePage() {
     const profIds = [...new Set(filtered.map((a: any) => a.professor_id).filter(Boolean))];
 
     const { data: sch } = await supabase.from('schedules')
-      .select('id, assignment_id, time_slot_id, room_id')
+      .select('id, assignment_id, time_slot_id, room_id, rooms(name), time_slots(day, start_time, end_time, slot_number)')
       .in('assignment_id', allIds)
       .eq('academic_year', '2026-2027')
       .eq('semester', 1);
 
-    const roomIds = [...new Set((sch || []).map((s: any) => s.room_id).filter(Boolean))];
-    const timeSlotIds = [...new Set((sch || []).map((s: any) => s.time_slot_id).filter(Boolean))];
-
-    const [{ data: modules }, { data: rooms }, { data: profs }, { data: freshSlots }] = await Promise.all([
-      supabase.from('modules').select('id, name_ar').in('id', moduleIds),
-      roomIds.length > 0 ? supabase.from('rooms').select('id, name').in('id', roomIds) : Promise.resolve({ data: [] }),
+    const moduleIds2 = [...new Set(filtered.map((a: any) => a.module_id))];
+    const [{ data: modules }, { data: profs }] = await Promise.all([
+      supabase.from('modules').select('id, name_ar').in('id', moduleIds2),
       profIds.length > 0 ? supabase.from('professors').select('id, last_name, first_name').in('id', profIds) : Promise.resolve({ data: [] }),
-      timeSlotIds.length > 0 ? supabase.from('time_slots').select('*').in('id', timeSlotIds) : Promise.resolve({ data: [] }),
     ]);
 
     const modMap = new Map((modules || []).map((m: any) => [m.id, m.name_ar]));
-    const roomMap = new Map((rooms || []).map((r: any) => [r.id, r.name]));
     const profMap = new Map((profs || []).map((p: any) => [p.id, `${p.last_name} ${p.first_name}`]));
-    const tsMap = new Map((freshSlots || []).map((ts: any) => [ts.id, ts]));
+
+    // تشخيص مؤقت
+    console.log('🔍 DEBUG schedules count:', (sch || []).length);
+    console.log('🔍 DEBUG roomIds:', roomIds);
+    console.log('🔍 DEBUG rooms fetched:', rooms);
+    console.log('🔍 DEBUG roomMap size:', roomMap.size);
+    console.log('🔍 DEBUG sample sch[0]:', (sch || [])[0]);
 
     // فقط الحصص المبرمجة
     const scheduledRows: any[] = (sch || []).map((s: any) => {
