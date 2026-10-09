@@ -67,6 +67,7 @@ export default function AdminProfessorsPage() {
       degree_speciality: prof.degree_speciality || '',
       degree_title: prof.degree_title || '',
       email: prof.email || '',
+      password: '',
     });
     setEditingId(prof.id);
     setNewCredentials(null);
