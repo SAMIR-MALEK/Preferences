@@ -391,7 +391,7 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                                 )}
                                 <p className="text-[#1a3a6b] text-[11px] font-medium">{entry.room}</p>
                                 <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${entry.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
-                                  {entry.teaching_type === 'محاضرة' ? 'م' : 'ت.م'}
+                                  {entry.teaching_type === 'محاضرة' ? 'محاضرة' : 'أعمال موجهة'}
                                 </span>
                               </td>
                             );
