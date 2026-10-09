@@ -79,7 +79,8 @@ export default function AdminEmailPage() {
     const profMap: Record<string, ProfessorAssignment> = {};
 
     asgn.forEach((a: any) => {
-      const prof = a.professor;
+      // professor قد يأتي كـ object أو كمصفوفة حسب إعداد العلاقة في Supabase
+      const prof = Array.isArray(a.professor) ? a.professor[0] : a.professor;
       if (!prof) return;
 
       if (!profMap[prof.id]) {
@@ -104,8 +105,8 @@ export default function AdminEmailPage() {
         schedules.forEach((s: any) => {
           profMap[prof.id].assignments.push({
             assignment_id: a.id,
-            module_name: a.module?.name_ar || '—',
-            level_name: a.level?.name_ar || '—',
+            module_name: (Array.isArray(a.module) ? a.module[0] : a.module)?.name_ar || '—',
+            level_name: (Array.isArray(a.level) ? a.level[0] : a.level)?.name_ar || '—',
             teaching_type: a.teaching_type,
             section: a.section_number ?? null,
             group: a.group_number ?? null,
@@ -119,8 +120,8 @@ export default function AdminEmailPage() {
         // غير مبرمج — سطر واحد بدون توقيت
         profMap[prof.id].assignments.push({
           assignment_id: a.id,
-          module_name: a.module?.name_ar || '—',
-          level_name: a.level?.name_ar || '—',
+          module_name: (Array.isArray(a.module) ? a.module[0] : a.module)?.name_ar || '—',
+          level_name: (Array.isArray(a.level) ? a.level[0] : a.level)?.name_ar || '—',
           teaching_type: a.teaching_type,
           section: a.section_number ?? null,
           group: a.group_number ?? null,
