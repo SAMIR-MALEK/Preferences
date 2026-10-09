@@ -362,10 +362,10 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
             {viewMode === 'classic' && (
               <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse" style={{ minWidth: '600px' }}>
+                  <table className="w-full text-xs border-collapse" style={{ minWidth: '1100px' }}>
                     <thead>
                       <tr className="bg-[#1a3a6b] text-white">
-                        <th className="border border-[#1a3a6b]/30 px-3 py-3 text-center font-bold">الوقت</th>
+                        <th className="border border-[#1a3a6b]/30 px-3 py-3 text-center font-bold" style={{ width: '110px' }}>الوقت</th>
                         {DAYS.map(day => (
                           <th key={day} className="border border-[#1a3a6b]/30 px-3 py-3 text-center font-bold">{day}</th>
                         ))}
@@ -374,7 +374,7 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                     <tbody>
                       {uniqueSlots.map((slot, idx) => (
                         <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                          <td className="border border-gray-200 px-2 py-3 text-center font-bold text-[#1a3a6b] whitespace-nowrap bg-slate-50">
+                          <td className="border border-gray-200 px-2 py-3 text-center font-bold text-[#1a3a6b] whitespace-nowrap bg-slate-50" style={{ width: '110px' }}>
                             <p className="text-xs">{slot.start_time}</p>
                             <p className="text-xs text-gray-400">{slot.end_time}</p>
                           </td>
@@ -384,13 +384,13 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                               <td key={day} className="border border-gray-200 px-2 py-3 text-center text-gray-200">—</td>
                             );
                             return (
-                              <td key={day} className="border border-gray-200 px-1.5 py-2 text-center align-top">
-                                <p className="font-bold text-gray-800 leading-tight text-[11px] mb-0.5">{entry.module_name}</p>
-                                <p className="text-[#1a3a6b] text-[11px] font-semibold">{entry.room}</p>
+                              <td key={day} className="border border-gray-200 px-2 py-2 text-center align-top">
+                                <p className="font-bold text-gray-800 leading-tight text-[11px] mb-1">{entry.module_name}</p>
+                                <p className="text-amber-700 text-[11px] font-bold mb-0.5">🏛 {entry.room}</p>
                                 {entry.prof_name !== '—' && (
-                                  <p className="text-gray-400 text-[10px] mt-0.5 leading-tight">أ. {entry.prof_name}</p>
+                                  <p className="text-gray-400 text-[10px] leading-tight">أ. {entry.prof_name}</p>
                                 )}
-                                <span className={`inline-block mt-1 px-1 py-0.5 rounded-full text-[9px] font-medium ${entry.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                                <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${entry.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
                                   {entry.teaching_type === 'محاضرة' ? 'محاضرة' : 'أعمال موجهة'}
                                 </span>
                               </td>
