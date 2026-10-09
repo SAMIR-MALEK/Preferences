@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import AdminReminderTab from './AdminReminderTab';
 import { callEdgeFunction } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
@@ -6,16 +6,26 @@ import { Upload, Send, CheckCircle, AlertCircle, Mail, Users, X, RefreshCw, File
 import { supabase } from '../../lib/supabase';
 import * as XLSX from 'xlsx';
 
+interface AssignmentRow {
+  assignment_id: string;
+  module_name: string;
+  level_name: string;
+  teaching_type: string;
+  section: number | null;
+  group: number | null;
+  hours: number;
+  day: string | null;
+  time_slot: string | null;
+  room: string | null;
+}
+
 interface ProfessorAssignment {
   id: string;
   last_name: string;
   first_name: string;
   email: string;
   rank: string;
-  specialty: string;
-  total_hours: number;
-  lectures: { module_name: string; level_name: string; sessions: number }[];
-  tds: { module_name: string; level_name: string; group_count: number }[];
+  assignments: AssignmentRow[];
   selected: boolean;
   status: 'pending' | 'sending' | 'sent' | 'failed';
 }
@@ -32,6 +42,10 @@ interface Recipient {
   error?: string;
 }
 
+const DAY_ORDER: Record<string, number> = {
+  'السبت': 0, 'الأحد': 1, 'الاثنين': 2, 'الثلاثاء': 3, 'الأربعاء': 4, 'الخميس': 5,
+};
+
 export default function AdminEmailPage() {
   const [mainTab, setMainTab] = useState<'credentials' | 'reminder' | 'assignments'>('credentials');
   const [professors, setProfessors] = useState<ProfessorAssignment[]>([]);
@@ -45,57 +59,119 @@ export default function AdminEmailPage() {
 
   async function loadProfessors() {
     setLoadingProfs(true);
+
+    // 1. جلب كل الإسنادات مع بيانات المقياس والمستوى والأستاذ
     const { data: asgn } = await supabase
       .from('assignments')
-      .select('professor_id, teaching_type, weekly_hours, section_number, group_number, module:modules(name_ar), level:levels(name_ar), professor:professors(id, last_name, first_name, email, rank)')
-      .eq('academic_year', '2026-2027').eq('semester', 1).in('status', ['نهائي', 'مؤقت']);
+      .select(`
+        id, teaching_type, section_number, group_number,
+        module:modules(name_ar),
+        level:levels(name_ar),
+        professor:professors(id, last_name, first_name, email, rank),
+        schedules(day, time_slot, room_number)
+      `)
+      .eq('academic_year', '2026-2027')
+      .eq('semester', 1)
+      .in('status', ['نهائي', 'مؤقت']);
 
     if (!asgn) { setLoadingProfs(false); return; }
 
     const profMap: Record<string, ProfessorAssignment> = {};
+
     asgn.forEach((a: any) => {
       const prof = a.professor;
       if (!prof) return;
+
       if (!profMap[prof.id]) {
         profMap[prof.id] = {
-          id: prof.id, last_name: prof.last_name, first_name: prof.first_name,
-          email: prof.email || '', rank: prof.rank || '', specialty: '',  // غير موجود في DB
-          total_hours: 0, lectures: [], tds: [], selected: true, status: 'pending',
+          id: prof.id,
+          last_name: prof.last_name,
+          first_name: prof.first_name,
+          email: prof.email || '',
+          rank: prof.rank || '',
+          assignments: [],
+          selected: true,
+          status: 'pending',
         };
       }
-      const p = profMap[prof.id];
-      p.total_hours += a.weekly_hours;
-      const modName = a.module?.name_ar || '—';
-      const levelName = a.level?.name_ar || '—';
-      if (a.teaching_type === 'محاضرة') {
-        const existing = p.lectures.find(l => l.module_name === modName && l.level_name === levelName);
-        if (!existing) p.lectures.push({ module_name: modName, level_name: levelName, sessions: a.weekly_hours >= 4 ? 2 : 1 });
+
+      const hours = a.teaching_type === 'محاضرة' ? 2.25 : 1.5;
+
+      // إذا كان مبرمجاً في التوقيت — سطر لكل حصة
+      const schedules: any[] = Array.isArray(a.schedules) ? a.schedules : (a.schedules ? [a.schedules] : []);
+
+      if (schedules.length > 0) {
+        schedules.forEach((s: any) => {
+          profMap[prof.id].assignments.push({
+            assignment_id: a.id,
+            module_name: a.module?.name_ar || '—',
+            level_name: a.level?.name_ar || '—',
+            teaching_type: a.teaching_type,
+            section: a.section_number ?? null,
+            group: a.group_number ?? null,
+            hours,
+            day: s.day ?? null,
+            time_slot: s.time_slot ?? null,
+            room: s.room_number ?? null,
+          });
+        });
       } else {
-        const existing = p.tds.find(t => t.module_name === modName && t.level_name === levelName);
-        if (existing) existing.group_count++;
-        else p.tds.push({ module_name: modName, level_name: levelName, group_count: 1 });
+        // غير مبرمج — سطر واحد بدون توقيت
+        profMap[prof.id].assignments.push({
+          assignment_id: a.id,
+          module_name: a.module?.name_ar || '—',
+          level_name: a.level?.name_ar || '—',
+          teaching_type: a.teaching_type,
+          section: a.section_number ?? null,
+          group: a.group_number ?? null,
+          hours,
+          day: null,
+          time_slot: null,
+          room: null,
+        });
       }
     });
-    setProfessors(Object.values(profMap).sort((a, b) => a.last_name.localeCompare(b.last_name)));
+
+    // ترتيب الإسنادات لكل أستاذ: باليوم ثم الساعة
+    Object.values(profMap).forEach(p => {
+      p.assignments.sort((a, b) => {
+        const da = a.day ? (DAY_ORDER[a.day] ?? 99) : 99;
+        const db = b.day ? (DAY_ORDER[b.day] ?? 99) : 99;
+        if (da !== db) return da - db;
+        return (a.time_slot || 'ω').localeCompare(b.time_slot || 'ω');
+      });
+    });
+
+    setProfessors(
+      Object.values(profMap).sort((a, b) => a.last_name.localeCompare(b.last_name, 'ar'))
+    );
     setLoadingProfs(false);
   }
 
   async function sendAssignmentEmails() {
     const toSend = professors.filter(p => p.selected && p.email);
-    if (toSend.length === 0) { setAssignMessage({ type: 'error', text: 'لا يوجد أساتذة محدَّدون' }); return; }
+    if (toSend.length === 0) {
+      setAssignMessage({ type: 'error', text: 'لا يوجد أساتذة محدَّدون لديهم بريد إلكتروني' });
+      return;
+    }
     if (!window.confirm(`إرسال بطاقة التكليف إلى ${toSend.length} أستاذ؟`)) return;
     setSendingAssign(true);
+    setAssignMessage(null);
     setProfessors(prev => prev.map(p => toSend.find(t => t.id === p.id) ? { ...p, status: 'sending' } : p));
     try {
       const result = await callEdgeFunction('send-assignment-email', { recipients: toSend });
       setProfessors(prev => prev.map(p => {
-        const found = result.results?.find((r: any) => r.name === `${p.last_name} ${p.first_name}`);
+        const found = result.results?.find((r: any) => r.id === p.id);
         if (!found) return p;
         return { ...p, status: found.status === 'sent' ? 'sent' : 'failed' };
       }));
-      setAssignMessage({ type: result.failed_count > 0 ? 'error' : 'success', text: `تم الإرسال إلى ${result.sent_count} أستاذ بنجاح${result.failed_count > 0 ? ` · فشل ${result.failed_count}` : ''}` });
+      setAssignMessage({
+        type: result.failed_count > 0 ? 'error' : 'success',
+        text: `تم الإرسال إلى ${toArabicNum(result.sent_count)} أستاذ بنجاح${result.failed_count > 0 ? ` · فشل ${toArabicNum(result.failed_count)}` : ''}`,
+      });
     } catch (e: any) {
       setAssignMessage({ type: 'error', text: e.message });
+      setProfessors(prev => prev.map(p => toSend.find(t => t.id === p.id) ? { ...p, status: 'pending' } : p));
     }
     setSendingAssign(false);
   }
@@ -203,6 +279,7 @@ export default function AdminEmailPage() {
 
       {mainTab === 'reminder' && <AdminReminderTab />}
 
+      {/* ── بطاقات التكليف ── */}
       {mainTab === 'assignments' && (
         <div className="space-y-4">
           {assignMessage && (
@@ -211,55 +288,95 @@ export default function AdminEmailPage() {
               {assignMessage.text}
             </div>
           )}
+
           {loadingProfs ? (
-            <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full animate-spin"/></div>
+            <div className="flex justify-center py-10">
+              <div className="w-6 h-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full animate-spin"/>
+            </div>
           ) : professors.length === 0 ? (
-            <button onClick={loadProfessors} className="flex items-center gap-2 bg-[#1a3a6b] text-white px-4 py-2 rounded-xl text-sm font-bold">
+            <button onClick={loadProfessors} className="flex items-center gap-2 bg-[#1a3a6b] text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040]">
               <RefreshCw className="w-4 h-4" /> تحميل بيانات الأساتذة
             </button>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600">{professors.filter(p=>p.selected).length} أستاذ محدَّد</span>
-                  <button onClick={() => setProfessors(prev => { const all = prev.every(p=>p.selected); return prev.map(p=>({...p,selected:!all})); })}
-                    className="text-xs text-[#1a3a6b] hover:underline">تحديد الكل/إلغاء</button>
+                  <span className="text-sm text-gray-600">
+                    {toArabicNum(professors.filter(p => p.selected).length)} أستاذ محدَّد
+                    <span className="text-gray-400 mr-1">
+                      ({toArabicNum(professors.filter(p => p.selected && p.email).length)} لديهم بريد)
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => setProfessors(prev => { const all = prev.every(p => p.selected); return prev.map(p => ({ ...p, selected: !all })); })}
+                    className="text-xs text-[#1a3a6b] hover:underline">
+                    تحديد الكل / إلغاء
+                  </button>
+                  <button onClick={() => setProfessors([])} className="text-xs text-gray-400 hover:text-gray-600 hover:underline">
+                    إعادة التحميل
+                  </button>
                 </div>
-                <button onClick={sendAssignmentEmails} disabled={sendingAssign || professors.filter(p=>p.selected&&p.email).length===0}
+                <button
+                  onClick={sendAssignmentEmails}
+                  disabled={sendingAssign || professors.filter(p => p.selected && p.email).length === 0}
                   className="flex items-center gap-2 bg-[#1a3a6b] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0d2040] disabled:opacity-50">
-                  <Send className="w-4 h-4"/>
-                  {sendingAssign ? 'جارٍ الإرسال...' : `إرسال البطاقات (${professors.filter(p=>p.selected&&p.email).length})`}
+                  <Send className="w-4 h-4" />
+                  {sendingAssign ? 'جارٍ الإرسال...' : `إرسال البطاقات (${toArabicNum(professors.filter(p => p.selected && p.email).length)})`}
                 </button>
               </div>
+
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="max-h-[500px] overflow-y-auto">
+                <div className="max-h-[520px] overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
+                    <thead className="sticky top-0 bg-gray-50 border-b border-gray-100 z-10">
                       <tr>
-                        <th className="px-3 py-3 w-10"><input type="checkbox" checked={professors.every(p=>p.selected)} onChange={() => setProfessors(prev=>{const all=prev.every(p=>p.selected);return prev.map(p=>({...p,selected:!all}));})} className="w-4 h-4 accent-[#1a3a6b]"/></th>
+                        <th className="px-3 py-3 w-10">
+                          <input type="checkbox"
+                            checked={professors.every(p => p.selected)}
+                            onChange={() => setProfessors(prev => { const all = prev.every(p => p.selected); return prev.map(p => ({ ...p, selected: !all })); })}
+                            className="w-4 h-4 accent-[#1a3a6b]" />
+                        </th>
                         <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الأستاذ</th>
                         <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">البريد</th>
-                        <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">المقاييس</th>
-                        <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الحجم الساعي</th>
+                        <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الإسنادات</th>
+                        <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">المجموع</th>
                         <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الحالة</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {professors.map(p => (
-                        <tr key={p.id} className={!p.email ? 'bg-red-50/30' : ''}>
-                          <td className="px-3 py-2.5"><input type="checkbox" checked={p.selected} onChange={() => setProfessors(prev=>prev.map(x=>x.id===p.id?{...x,selected:!x.selected}:x))} className="w-4 h-4 accent-[#1a3a6b]"/></td>
-                          <td className="px-3 py-2.5 font-medium text-gray-800">{p.last_name} {p.first_name}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-400" dir="ltr">{p.email || <span className="text-red-500">بدون بريد</span>}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-500">{p.lectures.length} محاضرة · {p.tds.length} TD</td>
-                          <td className="px-3 py-2.5 text-xs font-bold text-[#1a3a6b]">{p.total_hours}س</td>
-                          <td className="px-3 py-2.5">
-                            {p.status==='pending' && <span className="text-xs text-gray-400">في الانتظار</span>}
-                            {p.status==='sending' && <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin"/>}
-                            {p.status==='sent' && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> أُرسل</span>}
-                            {p.status==='failed' && <span className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5"/> فشل</span>}
-                          </td>
-                        </tr>
-                      ))}
+                      {professors.map(p => {
+                        const totalHours = p.assignments.reduce((s, a) => s + a.hours, 0);
+                        return (
+                          <tr key={p.id} className={!p.email ? 'bg-red-50/30' : ''}>
+                            <td className="px-3 py-2.5">
+                              <input type="checkbox" checked={p.selected}
+                                onChange={() => setProfessors(prev => prev.map(x => x.id === p.id ? { ...x, selected: !x.selected } : x))}
+                                className="w-4 h-4 accent-[#1a3a6b]" />
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <p className="font-medium text-gray-800">{p.last_name} {p.first_name}</p>
+                              <p className="text-xs text-gray-400">{p.rank}</p>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-gray-400" dir="ltr">
+                              {p.email || <span className="text-red-500 font-medium">بدون بريد</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-gray-500">
+                              {toArabicNum(p.assignments.filter(a => a.teaching_type === 'محاضرة').length)} م
+                              {' · '}
+                              {toArabicNum(p.assignments.filter(a => a.teaching_type !== 'محاضرة').length)} TD
+                            </td>
+                            <td className="px-3 py-2.5 text-xs font-bold text-[#1a3a6b]">
+                              {totalHours}سا
+                            </td>
+                            <td className="px-3 py-2.5">
+                              {p.status === 'pending'  && <span className="text-xs text-gray-400">في الانتظار</span>}
+                              {p.status === 'sending'  && <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />}
+                              {p.status === 'sent'     && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> أُرسل</span>}
+                              {p.status === 'failed'   && <span className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> فشل</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -269,6 +386,7 @@ export default function AdminEmailPage() {
         </div>
       )}
 
+      {/* ── بريد معلومات الدخول ── */}
       {mainTab === 'credentials' && (
         <div className="space-y-5">
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
