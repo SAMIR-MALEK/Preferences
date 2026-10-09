@@ -71,13 +71,20 @@ export default function AdminEmailPage() {
 
     if (!asgn || asgn.length === 0) { setLoadingProfs(false); return; }
 
-    // جلب جداول المواعيد
+    // جلب جداول المواعيد مع تفاصيل الوقت
     const asgnIds = asgn.map((a: any) => a.id);
-    const { data: schedules, error: schedErr } = await supabase
+    const { data: schedules } = await supabase
       .from('schedules')
-      .select('assignment_id, day, time_slot, room_number')
+      .select('assignment_id, room_id, time_slot_id, time_slot:time_slots(day, start_time, end_time)')
       .in('assignment_id', asgnIds);
-    console.log('schedules:', schedules?.length, 'error:', schedErr, 'sample:', JSON.stringify(schedules?.[0]));
+
+    // جلب القاعات
+    const roomIds = [...new Set((schedules || []).map((s: any) => s.room_id).filter(Boolean))];
+    const { data: roomsData } = roomIds.length > 0
+      ? await supabase.from('rooms').select('id, name').in('id', roomIds)
+      : { data: [] };
+    const roomMap: Record<string, string> = {};
+    (roomsData || []).forEach((r: any) => { roomMap[r.id] = r.name; });
 
     // جلب الأساتذة
     const profIds = [...new Set(asgn.map((a: any) => a.professor_id).filter(Boolean))];
@@ -94,7 +101,7 @@ export default function AdminEmailPage() {
 
     // بناء خرائط للوصول السريع
     const profMap: Record<string, ProfessorAssignment> = {};
-    const schedMap: Record<string, {day:string|null;time_slot:string|null;room_number:string|null}[]> = {};
+    const schedMap: Record<string, {day:string|null;time_slot:string|null;room:string|null}[]> = {};
     const moduleMap: Record<string, string> = {};
     const levelMap: Record<string, string> = {};
 
@@ -103,7 +110,12 @@ export default function AdminEmailPage() {
     });
     (schedules || []).forEach((s: any) => {
       if (!schedMap[s.assignment_id]) schedMap[s.assignment_id] = [];
-      schedMap[s.assignment_id].push(s);
+      const ts = s.time_slot as any;
+      schedMap[s.assignment_id].push({
+        day: ts?.day ?? null,
+        time_slot: ts ? `${(ts.start_time || '').slice(0, 5)}–${(ts.end_time || '').slice(0, 5)}` : null,
+        room: roomMap[s.room_id] || null,
+      });
     });
     (modulesData || []).forEach((m: any) => { moduleMap[m.id] = m.name_ar; });
     (levelsData || []).forEach((l: any) => { levelMap[l.id] = l.name_ar; });
@@ -127,7 +139,7 @@ export default function AdminEmailPage() {
             hours,
             day: s.day ?? null,
             time_slot: s.time_slot ?? null,
-            room: s.room_number ?? null,
+            room: s.room ?? null,
           });
         });
       } else {
