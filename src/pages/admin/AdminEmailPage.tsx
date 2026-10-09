@@ -198,7 +198,7 @@ export default function AdminEmailPage() {
         <td style="text-align:center">${grp}</td>
         <td style="text-align:center">${a.hours}س</td>
         <td style="text-align:center">${a.day || '—'}</td>
-        <td style="text-align:center;direction:ltr">${a.time_slot || '—'}</td>
+        <td style="text-align:center;direction:ltr;white-space:nowrap">${a.time_slot || '—'}</td>
         <td style="text-align:center">${a.room || '—'}</td>
       </tr>`;
     }).join('');
