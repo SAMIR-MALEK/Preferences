@@ -13,7 +13,6 @@ export default function TimetablePage() {
   const [rows, setRows] = useState<any[]>([]);
   const [timeSlots, setTimeSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'classic'>('classic');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -106,14 +105,6 @@ export default function TimetablePage() {
     const profMap = new Map((profs || []).map((p: any) => [p.id, `${p.last_name} ${p.first_name}`]));
     const roomMap = new Map((rooms || []).map((r: any) => [r.id, r.name]));
     const tsMap = new Map((freshSlots || []).map((ts: any) => [ts.id, ts]));
-
-    // تشخيص
-    const allRoomIds = (sch || []).map((s: any) => s.room_id ?? 'NULL');
-    const allRoomNames = (sch || []).map((s: any) => {
-      const r = (s as any).rooms;
-      return Array.isArray(r) ? r[0]?.name : r?.name ?? 'NULL';
-    });
-    setDebugInfo(`total:${(sch||[]).length} | room_ids:[${allRoomIds.join(',')}] | names:[${allRoomNames.join(',')}]`);
 
     // فقط الحصص المبرمجة
     const scheduledRows: any[] = (sch || []).map((s: any) => {
@@ -419,7 +410,6 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
             <div className="bg-white/10 rounded-2xl p-4 text-center">
               <p className="text-white text-sm font-medium">{levelName} — المجموعة {String(selectedSection).padStart(2,'0')}{selectedGroup ? ` — الفوج ${String(selectedGroup).padStart(2,'0')}` : ''}</p>
               <p className="text-amber-300 text-xs mt-1">⚠ مقياس اللغة الأجنبية (الإنجليزية) سيُجرى عن بُعد</p>
-              {debugInfo && <p className="text-red-300 text-[10px] mt-2 break-all">{debugInfo}</p>}
             </div>
           </div>
         )}
