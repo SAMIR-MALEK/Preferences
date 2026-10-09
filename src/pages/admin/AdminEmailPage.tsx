@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import AdminReminderTab from './AdminReminderTab';
 import { callEdgeFunction } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import { Upload, Send, CheckCircle, AlertCircle, Mail, Users, X, RefreshCw, FileText } from 'lucide-react';
+import { Upload, Send, CheckCircle, AlertCircle, Mail, Users, X, RefreshCw, FileText, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import * as XLSX from 'xlsx';
 
