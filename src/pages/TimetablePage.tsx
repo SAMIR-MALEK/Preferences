@@ -109,8 +109,10 @@ export default function TimetablePage() {
     const scheduledRows: any[] = (sch || []).map((s: any) => {
       const a = filtered.find((x: any) => x.id === s.assignment_id);
       if (!a) return null;
-      const ts = (s as any).time_slots;
-      const roomName = (s as any).rooms?.name || '—';
+      const tsRaw = (s as any).time_slots;
+      const ts = Array.isArray(tsRaw) ? tsRaw[0] : tsRaw;
+      const roomsRaw = (s as any).rooms;
+      const roomName = (Array.isArray(roomsRaw) ? roomsRaw[0]?.name : roomsRaw?.name) || '—';
       return {
         id: s.id,
         module_name: modMap.get(a.module_id) || '—',
