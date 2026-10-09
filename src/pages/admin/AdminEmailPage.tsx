@@ -61,23 +61,17 @@ export default function AdminEmailPage() {
     setLoadingProfs(true);
 
     // 1. جلب كل الإسنادات مع بيانات المقياس والمستوى والأستاذ
-    const { data: asgn } = await supabase
+    // خطوة 1: استعلام مبسط بدون علاقات
+    const { data: asgn, error: asgnErr } = await supabase
       .from('assignments')
-      .select(`
-        id, teaching_type, section_number, group_number,
-        module:modules(name_ar),
-        level:levels(name_ar),
-        professor:professors(id, last_name, first_name, email, rank),
-        schedules(day, time_slot, room_number)
-      `)
+      .select('id, teaching_type, section_number, group_number, module_id, level_id, professor_id')
       .eq('academic_year', '2026-2027')
       .eq('semester', 1)
       .in('status', ['نهائي', 'مؤقت']);
 
-    console.log('asgn result:', asgn, 'length:', asgn?.length);
+    console.log('asgn result:', asgn, 'error:', asgnErr);
     if (!asgn || asgn.length === 0) { setLoadingProfs(false); return; }
-
-    console.log('first row sample:', JSON.stringify(asgn[0], null, 2));
+    console.log('first row:', JSON.stringify(asgn[0], null, 2));
 
     const profMap: Record<string, ProfessorAssignment> = {};
 
