@@ -174,6 +174,81 @@ export default function AdminEmailPage() {
     setLoadingProfs(false);
   }
 
+  function printProfCard(p: ProfessorAssignment) {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const DAY_O: Record<string, number> = {
+      'السبت': 0, 'الأحد': 1, 'الاثنين': 2, 'الثلاثاء': 3, 'الأربعاء': 4, 'الخميس': 5,
+    };
+    const sorted = [...p.assignments].sort((a, b) => {
+      const da = a.day ? (DAY_O[a.day] ?? 99) : 99;
+      const db = b.day ? (DAY_O[b.day] ?? 99) : 99;
+      if (da !== db) return da - db;
+      return (a.time_slot || 'ω').localeCompare(b.time_slot || 'ω');
+    });
+    const totalHours = sorted.reduce((s, a) => s + a.hours, 0);
+    const rows = sorted.map(a => {
+      const grp = a.teaching_type === 'محاضرة'
+        ? (a.section != null ? `م ${a.section}` : '—')
+        : (a.group != null ? `ف ${a.group}` : '—');
+      return `<tr>
+        <td>${a.module_name}</td>
+        <td>${a.level_name}</td>
+        <td>${a.teaching_type}</td>
+        <td style="text-align:center">${grp}</td>
+        <td style="text-align:center">${a.hours}س</td>
+        <td style="text-align:center">${a.day || '—'}</td>
+        <td style="text-align:center;direction:ltr">${a.time_slot || '—'}</td>
+        <td style="text-align:center">${a.room || '—'}</td>
+      </tr>`;
+    }).join('');
+    w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,Tahoma,sans-serif;padding:24px 28px;color:#1f2937;font-size:14px;direction:rtl}
+h2{color:#1a3a6b;margin:0 0 4px;font-size:18px}
+.sub{color:#6b7280;font-size:13px;margin:0 0 18px}
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
+thead tr{background:#1a3a6b;color:#fff}
+th,td{padding:8px 10px;font-size:12px;border:1px solid #d1d5db}
+tbody tr:nth-child(even){background:#f8fafc}
+.total{background:#1a3a6b;color:#fff;padding:10px 16px;border-radius:8px;font-size:15px;font-weight:bold;text-align:center;margin:12px 0}
+.header{text-align:center;margin-bottom:20px;border-bottom:2px solid #1a3a6b;padding-bottom:14px}
+.sigs{display:flex;justify-content:space-between;margin-top:40px}
+.sig{text-align:center;width:180px}
+.sig-line{border-top:1px solid #000;padding-top:6px;font-size:11px;color:#6b7280}
+@media print{body{padding:12px}}
+</style></head><body>
+<div class="header">
+  <p style="font-size:11px;color:#6b7280;margin:0 0 2px">الجمهورية الجزائرية الديمقراطية الشعبية</p>
+  <p style="font-weight:bold;margin:0 0 2px">جامعة محمد البشير الإبراهيمي — برج بوعريريج</p>
+  <p style="color:#1a3a6b;font-weight:bold;margin:0 0 6px">كلية الحقوق والعلوم السياسية</p>
+  <h2>التكليف البيداغوجي — السداسي الأول 2026/2027</h2>
+  <p style="margin:4px 0 0;font-size:14px">أ. <strong>${p.last_name} ${p.first_name}</strong> — ${p.rank || '—'}</p>
+</div>
+<table>
+  <thead><tr>
+    <th style="text-align:right">المقياس</th>
+    <th style="text-align:right">المستوى</th>
+    <th style="text-align:center">النوع</th>
+    <th style="text-align:center">الفوج</th>
+    <th style="text-align:center">الحجم</th>
+    <th style="text-align:center">اليوم</th>
+    <th style="text-align:center">الساعة</th>
+    <th style="text-align:center">القاعة</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="total">الحجم الساعي الأسبوعي الإجمالي: ${totalHours.toFixed(2)} ساعة</div>
+<div class="sigs">
+  <div class="sig"><div class="sig-line">توقيع الأستاذ</div></div>
+  <div class="sig"><div class="sig-line">نائب العميد المكلف بالبيداغوجيا</div></div>
+</div>
+</body></html>`);
+    w.document.close();
+    w.print();
+  }
+
   async function sendAssignmentEmails() {
     const toSend = professors.filter(p => p.selected && p.email);
     if (toSend.length === 0) {
@@ -367,6 +442,7 @@ export default function AdminEmailPage() {
                         <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الإسنادات</th>
                         <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">المجموع</th>
                         <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">الحالة</th>
+                        <th className="px-3 py-3 w-10"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -399,6 +475,12 @@ export default function AdminEmailPage() {
                               {p.status === 'sending'  && <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />}
                               {p.status === 'sent'     && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> أُرسل</span>}
                               {p.status === 'failed'   && <span className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> فشل</span>}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <button onClick={() => printProfCard(p)} title="طباعة / PDF"
+                                className="text-gray-400 hover:text-[#1a3a6b] transition-colors">
+                                <Printer className="w-4 h-4" />
+                              </button>
                             </td>
                           </tr>
                         );
