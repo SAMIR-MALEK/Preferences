@@ -25,6 +25,7 @@ interface ProfessorAssignment {
   first_name: string;
   email: string;
   rank: string;
+  username: string;
   assignments: AssignmentRow[];
   selected: boolean;
   status: 'pending' | 'sending' | 'sent' | 'failed';
@@ -90,7 +91,7 @@ export default function AdminEmailPage() {
     const profIds = [...new Set(asgn.map((a: any) => a.professor_id).filter(Boolean))];
     const { data: profsData } = await supabase
       .from('professors')
-      .select('id, last_name, first_name, email, rank')
+      .select('id, last_name, first_name, email, rank, username')
       .in('id', profIds);
 
     // جلب المقاييس والمستويات
@@ -106,7 +107,7 @@ export default function AdminEmailPage() {
     const levelMap: Record<string, string> = {};
 
     (profsData || []).forEach((p: any) => {
-      profMap[p.id] = { id: p.id, last_name: p.last_name, first_name: p.first_name, email: p.email || '', rank: p.rank || '', assignments: [], selected: true, status: 'pending' };
+      profMap[p.id] = { id: p.id, last_name: p.last_name, first_name: p.first_name, email: p.email || '', rank: p.rank || '', username: p.username || '', assignments: [], selected: true, status: 'pending' };
     });
     (schedules || []).forEach((s: any) => {
       if (!schedMap[s.assignment_id]) schedMap[s.assignment_id] = [];
@@ -446,45 +447,73 @@ tbody tr:nth-child(even){background:#f8fafc}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {professors.map(p => {
-                        const totalHours = p.assignments.reduce((s, a) => s + a.hours, 0);
+                      {(() => {
+                        const permanent = professors.filter(p => !String(p.username || '').startsWith('V'));
+                        const vacataire = professors.filter(p => String(p.username || '').startsWith('V'));
+                        const renderRow = (p: ProfessorAssignment) => {
+                          const totalHours = p.assignments.reduce((s, a) => s + a.hours, 0);
+                          return (
+                            <tr key={p.id} className={!p.email ? 'bg-red-50/30' : ''}>
+                              <td className="px-3 py-2.5">
+                                <input type="checkbox" checked={p.selected}
+                                  onChange={() => setProfessors(prev => prev.map(x => x.id === p.id ? { ...x, selected: !x.selected } : x))}
+                                  className="w-4 h-4 accent-[#1a3a6b]" />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <p className="font-medium text-gray-800">{p.last_name} {p.first_name}</p>
+                                <p className="text-xs text-gray-400">{p.rank}</p>
+                              </td>
+                              <td className="px-3 py-2.5 text-xs text-gray-400" dir="ltr">
+                                {p.email || <span className="text-red-500 font-medium">بدون بريد</span>}
+                              </td>
+                              <td className="px-3 py-2.5 text-xs text-gray-500">
+                                {toArabicNum(p.assignments.filter(a => a.teaching_type === 'محاضرة').length)} م
+                                {' · '}
+                                {toArabicNum(p.assignments.filter(a => a.teaching_type !== 'محاضرة').length)} TD
+                              </td>
+                              <td className="px-3 py-2.5 text-xs font-bold text-[#1a3a6b]">
+                                {totalHours}سا
+                              </td>
+                              <td className="px-3 py-2.5">
+                                {p.status === 'pending'  && <span className="text-xs text-gray-400">في الانتظار</span>}
+                                {p.status === 'sending'  && <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />}
+                                {p.status === 'sent'     && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> أُرسل</span>}
+                                {p.status === 'failed'   && <span className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> فشل</span>}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <button onClick={() => printProfCard(p)} title="طباعة / PDF"
+                                  className="text-gray-400 hover:text-[#1a3a6b] transition-colors">
+                                  <Printer className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        };
                         return (
-                          <tr key={p.id} className={!p.email ? 'bg-red-50/30' : ''}>
-                            <td className="px-3 py-2.5">
-                              <input type="checkbox" checked={p.selected}
-                                onChange={() => setProfessors(prev => prev.map(x => x.id === p.id ? { ...x, selected: !x.selected } : x))}
-                                className="w-4 h-4 accent-[#1a3a6b]" />
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <p className="font-medium text-gray-800">{p.last_name} {p.first_name}</p>
-                              <p className="text-xs text-gray-400">{p.rank}</p>
-                            </td>
-                            <td className="px-3 py-2.5 text-xs text-gray-400" dir="ltr">
-                              {p.email || <span className="text-red-500 font-medium">بدون بريد</span>}
-                            </td>
-                            <td className="px-3 py-2.5 text-xs text-gray-500">
-                              {toArabicNum(p.assignments.filter(a => a.teaching_type === 'محاضرة').length)} م
-                              {' · '}
-                              {toArabicNum(p.assignments.filter(a => a.teaching_type !== 'محاضرة').length)} TD
-                            </td>
-                            <td className="px-3 py-2.5 text-xs font-bold text-[#1a3a6b]">
-                              {totalHours}سا
-                            </td>
-                            <td className="px-3 py-2.5">
-                              {p.status === 'pending'  && <span className="text-xs text-gray-400">في الانتظار</span>}
-                              {p.status === 'sending'  && <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />}
-                              {p.status === 'sent'     && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> أُرسل</span>}
-                              {p.status === 'failed'   && <span className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> فشل</span>}
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <button onClick={() => printProfCard(p)} title="طباعة / PDF"
-                                className="text-gray-400 hover:text-[#1a3a6b] transition-colors">
-                                <Printer className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
+                          <>
+                            {permanent.length > 0 && (
+                              <>
+                                <tr className="bg-[#1a3a6b]/5">
+                                  <td colSpan={7} className="px-3 py-2 text-xs font-bold text-[#1a3a6b] text-right">
+                                    الأساتذة الدائمون ({toArabicNum(permanent.length)})
+                                  </td>
+                                </tr>
+                                {permanent.map(renderRow)}
+                              </>
+                            )}
+                            {vacataire.length > 0 && (
+                              <>
+                                <tr className="bg-amber-50">
+                                  <td colSpan={7} className="px-3 py-2 text-xs font-bold text-amber-700 text-right">
+                                    الأساتذة المؤقتون ({toArabicNum(vacataire.length)})
+                                  </td>
+                                </tr>
+                                {vacataire.map(renderRow)}
+                              </>
+                            )}
+                          </>
                         );
-                      })}
+                      })()}
                     </tbody>
                   </table>
                 </div>
