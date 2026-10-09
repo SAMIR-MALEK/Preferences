@@ -13,7 +13,7 @@ export default function TimetablePage() {
   const [rows, setRows] = useState<any[]>([]);
   const [timeSlots, setTimeSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'classic'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'classic'>('classic');
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
