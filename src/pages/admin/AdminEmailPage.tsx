@@ -74,7 +74,10 @@ export default function AdminEmailPage() {
       .eq('semester', 1)
       .in('status', ['نهائي', 'مؤقت']);
 
-    if (!asgn) { setLoadingProfs(false); return; }
+    console.log('asgn result:', asgn, 'length:', asgn?.length);
+    if (!asgn || asgn.length === 0) { setLoadingProfs(false); return; }
+
+    console.log('first row sample:', JSON.stringify(asgn[0], null, 2));
 
     const profMap: Record<string, ProfessorAssignment> = {};
 
