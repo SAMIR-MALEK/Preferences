@@ -102,8 +102,12 @@ export default function TimetablePage() {
     const profMap = new Map((profs || []).map((p: any) => [p.id, `${p.last_name} ${p.first_name}`]));
 
     // تشخيص
-    const firstSch = (sch || [])[0];
-    setDebugInfo(`schedules:${(sch||[]).length} | room_id:${firstSch?.room_id ?? 'null'} | rooms.name:${(firstSch as any)?.rooms?.name ?? 'null'}`);
+    const allRoomIds = (sch || []).map((s: any) => s.room_id ?? 'NULL');
+    const allRoomNames = (sch || []).map((s: any) => {
+      const r = (s as any).rooms;
+      return Array.isArray(r) ? r[0]?.name : r?.name ?? 'NULL';
+    });
+    setDebugInfo(`total:${(sch||[]).length} | room_ids:[${allRoomIds.join(',')}] | names:[${allRoomNames.join(',')}]`);
 
     // فقط الحصص المبرمجة
     const scheduledRows: any[] = (sch || []).map((s: any) => {
