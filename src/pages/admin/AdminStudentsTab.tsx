@@ -218,21 +218,17 @@ export default function AdminStudentsTab() {
         <div>
           <h2 className="text-xl font-bold text-gray-900 font-display">إدارة الطلبة</h2>
           <p className="text-gray-500 text-sm">{students.length} طالب مسجّل</p>
+          <button onClick={() => setShowColumns(v => !v)} className="text-xs text-[#1a3a6b] underline underline-offset-2 mt-0.5 hover:text-[#c9a227] transition-colors">
+            {showColumns ? 'إخفاء أعمدة الاستيراد' : 'عرض أعمدة ملف Excel المطلوبة'}
+          </button>
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e => { if (e.target.files?.[0]) importExcel(e.target.files[0]); }} />
-          <div className="relative">
-            <button onClick={() => fileRef.current?.click()} disabled={importing}
-              className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
-              <Upload className="w-4 h-4" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد Excel'}
-            </button>
-            <button onClick={() => setShowColumns(v => !v)}
-              title="عرض أعمدة الملف المطلوبة"
-              className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-gray-600 hover:bg-gray-700 text-white rounded-full text-xs font-bold flex items-center justify-center shadow">
-              ?
-            </button>
-          </div>
+          <button onClick={() => fileRef.current?.click()} disabled={importing}
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
+            <Upload className="w-4 h-4" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد Excel'}
+          </button>
           <button onClick={exportExcel}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <Download className="w-4 h-4" /> تحميل Excel
@@ -249,8 +245,25 @@ export default function AdminStudentsTab() {
       </div>
 
       {importMsg && (
-        <div className={`rounded-xl px-4 py-3 text-sm ${importMsg.startsWith('✓') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-blue-50 text-blue-700'}`}>
+        <div className={`rounded-xl px-4 py-3 text-sm ${importMsg.startsWith('✓') ? 'bg-green-50 text-green-700 border border-green-200' : importMsg.startsWith('خطأ') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700'}`}>
           {importMsg}
+        </div>
+      )}
+
+      {showColumns && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4" dir="ltr">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-amber-800 font-bold text-sm" dir="rtl">أعمدة ملف Excel المطلوبة (بنفس الترتيب)</p>
+            <button onClick={() => setShowColumns(false)} className="text-amber-500 hover:text-amber-700 text-xs">✕ إغلاق</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {REQUIRED_COLUMNS.map((col, i) => (
+              <span key={col} className="inline-flex items-center gap-1 bg-white border border-amber-200 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-900 shadow-sm">
+                <span className="text-amber-400 font-normal">{i + 1}.</span> {col}
+              </span>
+            ))}
+          </div>
+          <p className="text-amber-600 text-xs mt-3" dir="rtl">⚠ الأعمدة <span className="font-bold">Section، Groupe، USER، PASSWORD، MAIL</span> اختيارية — يمكن تركها فارغة</p>
         </div>
       )}
 
