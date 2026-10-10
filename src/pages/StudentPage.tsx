@@ -120,7 +120,7 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
         {/* Card */}
         <div className="rounded-2xl p-7 shadow-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="flex items-center justify-end gap-2 mb-6">
-            <h2 className="text-lg font-bold text-white">تسجيل الدخول</h2>
+            <h2 className="text-lg font-bold text-white">فضاء الطالب</h2>
             <BookOpen className="w-5 h-5" style={{ color: '#c9a227' }} />
           </div>
 
