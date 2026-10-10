@@ -157,15 +157,7 @@ export default function AdminStudentsTab() {
 
   async function deleteAllStudents() {
     setDeleting(true);
-    // حذف على دفعات لتفادي timeout
-    let from = 0;
-    while (true) {
-      const { data } = await supabase.from('students').select('id').range(from, from + 999);
-      if (!data || data.length === 0) break;
-      const ids = data.map((s: any) => s.id);
-      await supabase.from('students').delete().in('id', ids);
-      if (data.length < 1000) break;
-    }
+    await supabase.from('students').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setStudents([]);
     setConfirmDelete(false);
     setDeleting(false);
