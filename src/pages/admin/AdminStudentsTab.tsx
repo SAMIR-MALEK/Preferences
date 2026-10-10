@@ -41,7 +41,11 @@ export default function AdminStudentsTab() {
   const [page, setPage] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [importingGroups, setImportingGroups] = useState(false);
+  const [sortCol, setSortCol] = useState<keyof Student>('last_name');
+  const [sortAsc, setSortAsc] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
+  const groupsFileRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 50;
 
   useEffect(() => { loadStudents(); }, []);
@@ -168,6 +172,54 @@ export default function AdminStudentsTab() {
     XLSX.writeFile(wb, `طلبة_${filterSpec || 'كل'}_${new Date().toLocaleDateString('fr')}.xlsx`);
   }
 
+  async function importGroups(file: File) {
+    setImportingGroups(true);
+    setImportMsg('جارٍ قراءة ملف الأفواج...');
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      // استخراج الصفوف التي تحتوي على بيانات طلبة (رقم + matricule)
+      const updates: { mat_bac: string; section: number; groupe: number }[] = [];
+      for (const r of rows) {
+        const mat = String(r['Matricule'] || r['matricule'] || '').trim();
+        const secRaw = String(r['Section'] || '').trim(); // المجموعة 01
+        const grpRaw = String(r['Groupe'] || '').trim();  // الفوج 02
+        if (!mat || !secRaw || !grpRaw) continue;
+        const secMatch = secRaw.match(/\d+/);
+        const grpMatch = grpRaw.match(/\d+/);
+        if (!secMatch || !grpMatch) continue;
+        updates.push({ mat_bac: mat, section: Number(secMatch[0]), groupe: Number(grpMatch[0]) });
+      }
+
+      if (updates.length === 0) {
+        setImportMsg('لم يتم العثور على بيانات أفواج في الملف');
+        setImportingGroups(false);
+        return;
+      }
+
+      setImportMsg(`${updates.length} طالب — جارٍ التحديث...`);
+      let updated = 0;
+      const BATCH = 50;
+      for (let i = 0; i < updates.length; i += BATCH) {
+        const batch = updates.slice(i, i + BATCH);
+        await Promise.all(batch.map(u =>
+          supabase.from('students').update({ section: u.section, groupe: u.groupe }).eq('mat_bac', u.mat_bac)
+        ));
+        updated += batch.length;
+        setImportMsg(`تحديث ${updated}/${updates.length}...`);
+      }
+
+      setImportMsg(`✓ تم تحديث أفواج ${updated} طالب`);
+      await loadStudents();
+    } catch (e: any) {
+      setImportMsg('خطأ: ' + e.message);
+    }
+    setImportingGroups(false);
+  }
+
   async function deleteAllStudents() {
     setDeleting(true);
     await supabase.from('students').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -195,11 +247,23 @@ export default function AdminStudentsTab() {
     setSaving(false);
   }
 
-  const filtered = students.filter(s => {
-    const matchSearch = !search || `${s.last_name} ${s.first_name} ${s.username} ${s.mat_etudiant}`.toLowerCase().includes(search.toLowerCase());
-    const matchSpec = !filterSpec || s.specialite === filterSpec;
-    return matchSearch && matchSpec;
-  });
+  const filtered = students
+    .filter(s => {
+      const matchSearch = !search || `${s.last_name} ${s.first_name} ${s.username} ${s.mat_etudiant} ${s.mat_bac}`.toLowerCase().includes(search.toLowerCase());
+      const matchSpec = !filterSpec || s.specialite === filterSpec;
+      return matchSearch && matchSpec;
+    })
+    .sort((a, b) => {
+      const av = a[sortCol] ?? '';
+      const bv = b[sortCol] ?? '';
+      const cmp = String(av).localeCompare(String(bv), 'ar');
+      return sortAsc ? cmp : -cmp;
+    });
+
+  function toggleSort(col: keyof Student) {
+    if (sortCol === col) setSortAsc(a => !a);
+    else { setSortCol(col); setSortAsc(true); }
+  }
 
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -215,6 +279,8 @@ export default function AdminStudentsTab() {
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e => { if (e.target.files?.[0]) importExcel(e.target.files[0]); }} />
+          <input ref={groupsFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+            onChange={e => { if (e.target.files?.[0]) importGroups(e.target.files[0]); e.target.value = ''; }} />
           <div className="relative group">
             <button onClick={() => fileRef.current?.click()} disabled={importing}
               className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
@@ -229,6 +295,10 @@ export default function AdminStudentsTab() {
               </div>
             </div>
           </div>
+          <button onClick={() => groupsFileRef.current?.click()} disabled={importingGroups}
+            className="flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
+            <Upload className="w-4 h-4" /> {importingGroups ? 'جارٍ الاستيراد...' : 'استيراد الأفواج'}
+          </button>
           <button onClick={exportExcel}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <Download className="w-4 h-4" /> تحميل Excel
@@ -272,8 +342,20 @@ export default function AdminStudentsTab() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['اللقب والاسم', 'التخصص', 'م/ف', 'اسم المستخدم', 'الهاتف', 'إجراءات'].map(h => (
-                  <th key={h} className="text-right px-4 py-3 text-xs font-bold text-gray-500">{h}</th>
+                {([
+                  { label: 'اللقب والاسم', col: 'last_name' },
+                  { label: 'التخصص', col: 'specialite' },
+                  { label: 'الوضعية', col: 'sit_ins' },
+                  { label: 'م/ف', col: 'section' },
+                  { label: 'الهاتف', col: 'phone' },
+                  { label: 'إجراءات', col: null },
+                ] as { label: string; col: keyof Student | null }[]).map(({ label, col }) => (
+                  <th key={label}
+                    onClick={() => col && toggleSort(col)}
+                    className={`text-right px-4 py-3 text-xs font-bold text-gray-500 ${col ? 'cursor-pointer hover:text-[#1a3a6b] select-none' : ''}`}>
+                    {label}
+                    {col && sortCol === col && <span className="mr-1">{sortAsc ? '↑' : '↓'}</span>}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -290,9 +372,14 @@ export default function AdminStudentsTab() {
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600">{s.specialite}</td>
                   <td className="px-4 py-3 text-xs text-center">
+                    {s.sit_ins === 'Validée' && <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">Validée</span>}
+                    {s.sit_ins === 'Générée' && <span className="bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Générée</span>}
+                    {s.sit_ins === 'Enregistrée' && <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-medium">Enregistrée</span>}
+                    {!s.sit_ins && <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-center">
                     {s.section ? <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">م{s.section}/ف{s.groupe}</span> : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-[#1a3a6b]">{s.username || '—'}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{s.phone || '—'}</td>
                   <td className="px-4 py-3">
                     <button onClick={() => { setEditStudent(s); setNewPassword(''); }}
