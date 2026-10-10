@@ -119,16 +119,14 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
 
         {/* Card */}
         <div className="rounded-2xl p-7 shadow-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div className="flex items-center justify-end gap-2 mb-6">
-            <h2 className="text-lg font-bold text-white">فضاء الطالب</h2>
+          <div className="flex items-center justify-center gap-2 mb-6">
             <BookOpen className="w-5 h-5" style={{ color: '#c9a227' }} />
+            <h2 className="text-lg font-bold text-white">فضاء الطالب</h2>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <div className="flex items-center justify-end gap-2 mb-1.5">
-                <label className="text-sm text-white/70">سنة البكالوريا</label>
-              </div>
+              <label className="block text-sm text-white/70 mb-1.5 text-right">سنة البكالوريا</label>
               <input
                 value={anneeBac}
                 onChange={e => setAnneeBac(e.target.value)}
@@ -139,9 +137,7 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
               />
             </div>
             <div>
-              <div className="flex items-center justify-end gap-2 mb-1.5">
-                <label className="text-sm text-white/70">رقم البكالوريا</label>
-              </div>
+              <label className="block text-sm text-white/70 mb-1.5 text-right">رقم البكالوريا</label>
               <input
                 value={matBac}
                 onChange={e => setMatBac(e.target.value)}
