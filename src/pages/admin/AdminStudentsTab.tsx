@@ -120,7 +120,12 @@ export default function AdminStudentsTab() {
       let inserted = 0;
       const BATCH = 300;
       for (let i = 0; i < toInsert.length; i += BATCH) {
-        await supabase.from('students').insert(toInsert.slice(i, i + BATCH));
+        const { error } = await supabase.from('students').insert(toInsert.slice(i, i + BATCH));
+        if (error) {
+          setImportMsg(`خطأ في الإضافة: ${error.message} | code: ${error.code}`);
+          setImporting(false);
+          return;
+        }
         inserted += Math.min(BATCH, toInsert.length - i);
         setImportMsg(`إضافة ${inserted}/${toInsert.length} جديد...`);
       }
