@@ -491,8 +491,7 @@ export default function StudentPage() {
         time_slots (id, day, start_time, end_time, slot_number),
         rooms (name)
       `)
-      .in('assignment_id', assignmentIds)
-      .eq('status', 'نهائي');
+      .in('assignment_id', assignmentIds);
 
     console.log('schedules found:', schedData?.length, schedData);
     if (!schedData) { setLoadingSchedule(false); return; }
@@ -636,38 +635,58 @@ export default function StudentPage() {
             )}
 
             {activeTab === 'info' && (
-              <div>
-                {/* Student level/speciality card */}
-                <div className="rounded-xl p-4 mb-4 text-center" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #1a3a6b 100%)' }}>
-                  <p className="text-white/60 text-xs mb-1">التخصص</p>
-                  <p className="text-white font-bold text-base leading-snug">{student.specialite}</p>
-                  <div className="flex justify-center gap-3 mt-3">
-                    {student.section && (
-                      <span className="bg-white/15 text-white/90 px-3 py-1 rounded-full text-xs font-medium">
-                        المجموعة {student.section}
-                      </span>
-                    )}
-                    {student.groupe && (
-                      <span className="bg-white/15 text-white/90 px-3 py-1 rounded-full text-xs font-medium">
-                        الفوج {student.groupe}
-                      </span>
-                    )}
+              <div className="space-y-3">
+                {/* Name banner */}
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #1a3a6b 100%)' }}>
+                  <div className="p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold shrink-0"
+                        style={{ background: '#c9a227', color: '#0a1628' }}>
+                        {student.last_name?.[0] || '؟'}
+                      </div>
+                      <div>
+                        <p className="text-white font-bold text-lg leading-tight">{student.last_name} {student.first_name}</p>
+                        <p className="text-white/50 text-xs mt-0.5">{student.mat_etudiant || student.mat_bac}</p>
+                      </div>
+                    </div>
+                    {/* Specialite + section/groupe */}
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-white/60 text-[10px] uppercase tracking-wider mb-1">التخصص</p>
+                      <p className="text-white font-semibold text-sm">{student.specialite}</p>
+                      <div className="flex gap-2 mt-2">
+                        {student.section && (
+                          <span className="bg-white/15 text-white/80 px-2.5 py-0.5 rounded-full text-xs">
+                            مجموعة {student.section}
+                          </span>
+                        )}
+                        {student.groupe && (
+                          <span className="bg-white/15 text-white/80 px-2.5 py-0.5 rounded-full text-xs">
+                            فوج {student.groupe}
+                          </span>
+                        )}
+                        {student.sit_ins && (
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs ${
+                            student.sit_ins === 'Validée' ? 'bg-green-400/25 text-green-200' :
+                            student.sit_ins === 'Générée' ? 'bg-amber-400/25 text-amber-200' :
+                            'bg-red-400/25 text-red-200'
+                          }`}>{student.sit_ins}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Info rows */}
-                <div className="divide-y divide-gray-50">
+                {/* Info grid — 2 columns */}
+                <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: 'اللقب', value: student.last_name },
-                    { label: 'الاسم', value: student.first_name },
                     { label: 'رقم البكالوريا', value: student.mat_bac },
-                    { label: 'سنة البكالوريا', value: student.annee_bac?.toString() },
+                    { label: 'سنة البكالوريا', value: student.annee_bac?.toString() ?? '—' },
                     { label: 'رقم التسجيل', value: student.mat_etudiant || '—' },
                     { label: 'الهاتف', value: student.phone || '—' },
                   ].map(({ label, value }) => (
-                    <div key={label} className="flex items-center gap-2 py-3">
-                      <span className="text-xs text-gray-400 w-28 shrink-0 text-left">{label}</span>
-                      <span className="text-sm font-semibold text-gray-800 flex-1 text-right">{value}</span>
+                    <div key={label} className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-[10px] text-gray-400 mb-1">{label}</p>
+                      <p className="text-sm font-bold text-gray-800 truncate">{value}</p>
                     </div>
                   ))}
                 </div>
