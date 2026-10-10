@@ -24,7 +24,7 @@ interface Student {
   username: string;
   email: string;
   section: number | null;
-  grp: number | null;
+  groupe: number | null;
   created_at: string;
 }
 
@@ -105,7 +105,7 @@ export default function AdminStudentsTab() {
           password: String(r['PASSWORD'] || '').trim() || null,
           email: String(r['MAIL'] || '').trim() || null,
           section: r['Section'] ? Number(r['Section']) : null,
-          grp: r['Groupe'] ? Number(r['Groupe']) : null,
+          groupe: r['Groupe'] ? Number(r['Groupe']) : null,
         };
 
         const existingId = existingMap.get(matBac);
@@ -160,7 +160,7 @@ export default function AdminStudentsTab() {
       'USER': s.username,
       'MAIL': s.email,
       'Section': s.section,
-      'Groupe': s.grp,
+      'Groupe': s.groupe,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -186,7 +186,7 @@ export default function AdminStudentsTab() {
       phone: editStudent.phone,
       email: editStudent.email,
       section: editStudent.section,
-      grp: editStudent.grp,
+      groupe: editStudent.groupe,
       ...(newPassword ? { password: newPassword } : {}),
     }).eq('id', editStudent.id);
     setStudents(prev => prev.map(s => s.id === editStudent.id ? { ...editStudent } : s));
@@ -279,7 +279,7 @@ export default function AdminStudentsTab() {
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600">{s.specialite}</td>
                   <td className="px-4 py-3 text-xs text-center">
-                    {s.section ? <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">م{s.section}/ف{s.grp}</span> : <span className="text-gray-300">—</span>}
+                    {s.section ? <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">م{s.section}/ف{s.groupe}</span> : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-[#1a3a6b]">{s.username || '—'}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{s.phone || '—'}</td>
@@ -365,7 +365,7 @@ export default function AdminStudentsTab() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">الفوج</label>
-                  <input type="number" value={editStudent.grp || ''} onChange={e => setEditStudent({...editStudent, grp: Number(e.target.value) || null})}
+                  <input type="number" value={editStudent.groupe || ''} onChange={e => setEditStudent({...editStudent, groupe: Number(e.target.value) || null})}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
                 </div>
               </div>
