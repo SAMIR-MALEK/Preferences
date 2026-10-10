@@ -179,9 +179,33 @@ export default function AdminStudentsTab() {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      // البحث عن سطر الرؤوس — قد يكون في أي صف (ملف Progres يبدأ من السطر 7)
+      const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-      // استخراج الصفوف التي تحتوي على بيانات طلبة (رقم + matricule)
+      // إيجاد السطر الذي يحتوي على "Matricule" أو "Section"
+      let headerRowIdx = -1;
+      for (let i = 0; i < rawRows.length; i++) {
+        const rowStr = String(rawRows[i]).toLowerCase();
+        if (rowStr.includes('matricule') && rowStr.includes('section')) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+
+      // إذا لم نجد سطر الرؤوس، نحاول قراءة عادية
+      let rows: any[];
+      if (headerRowIdx >= 0) {
+        const headers: string[] = rawRows[headerRowIdx].map((h: any) => String(h).trim());
+        rows = rawRows.slice(headerRowIdx + 1).map((row: any[]) => {
+          const obj: any = {};
+          headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
+          return obj;
+        });
+      } else {
+        rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      }
+
+      // استخراج الصفوف التي تحتوي على بيانات طلبة
       const updates: { mat_bac: string; section: number; groupe: number }[] = [];
       for (const r of rows) {
         const mat = String(r['Matricule'] || r['matricule'] || '').trim();
