@@ -41,13 +41,6 @@ export default function AdminStudentsTab() {
   const [page, setPage] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showColumns, setShowColumns] = useState(false);
-
-  const REQUIRED_COLUMNS = [
-    'Mat. BAC', 'Année du bac', 'Mat. Etudiant', 'specialité',
-    'N° de téléphone', 'اللقب', 'الإسم', "Sit. d'ins.",
-    'carte rfid', 'Section', 'Groupe', 'USER', 'PASSWORD', 'MAIL',
-  ];
   const fileRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 50;
 
@@ -218,9 +211,7 @@ export default function AdminStudentsTab() {
         <div>
           <h2 className="text-xl font-bold text-gray-900 font-display">إدارة الطلبة</h2>
           <p className="text-gray-500 text-sm">{students.length} طالب مسجّل</p>
-          <button onClick={() => setShowColumns(v => !v)} className="text-xs text-[#1a3a6b] underline underline-offset-2 mt-0.5 hover:text-[#c9a227] transition-colors">
-            {showColumns ? 'إخفاء أعمدة الاستيراد' : 'عرض أعمدة ملف Excel المطلوبة'}
-          </button>
+          <p className="text-gray-400 text-xs mt-0.5" dir="ltr">Mat. BAC · Année du bac · Mat. Etudiant · specialité · N° de téléphone · اللقب · الإسم · Sit. d'ins. · carte rfid · Section · Groupe · USER · PASSWORD · MAIL</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
@@ -250,22 +241,6 @@ export default function AdminStudentsTab() {
         </div>
       )}
 
-      {showColumns && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4" dir="ltr">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-amber-800 font-bold text-sm" dir="rtl">أعمدة ملف Excel المطلوبة (بنفس الترتيب)</p>
-            <button onClick={() => setShowColumns(false)} className="text-amber-500 hover:text-amber-700 text-xs">✕ إغلاق</button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {REQUIRED_COLUMNS.map((col, i) => (
-              <span key={col} className="inline-flex items-center gap-1 bg-white border border-amber-200 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-900 shadow-sm">
-                <span className="text-amber-400 font-normal">{i + 1}.</span> {col}
-              </span>
-            ))}
-          </div>
-          <p className="text-amber-600 text-xs mt-3" dir="rtl">⚠ الأعمدة <span className="font-bold">Section، Groupe، USER، PASSWORD، MAIL</span> اختيارية — يمكن تركها فارغة</p>
-        </div>
-      )}
 
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
