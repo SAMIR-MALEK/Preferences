@@ -102,7 +102,7 @@ export default function AdminStudentsTab() {
           first_name: String(r['Prénom'] || r['الإسم'] || '').trim(),
           carte_rfid: String(r['carte rfid'] || '').trim() || null,
           username: String(r['USER'] || '').trim() || null,
-          password: String(r['PASSWORD'] || '').trim() || null,
+          password: String(r['PASSWORD'] || '').trim() || matBac,
           email: String(r['MAIL'] || '').trim() || null,
           section: r['Section'] ? Number(r['Section']) : null,
           groupe: r['Groupe'] ? Number(r['Groupe']) : null,
