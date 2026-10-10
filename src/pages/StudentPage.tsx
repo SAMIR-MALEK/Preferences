@@ -127,18 +127,6 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <div className="flex items-center justify-end gap-2 mb-1.5">
-                <label className="text-sm text-white/70">رقم البكالوريا</label>
-              </div>
-              <input
-                value={matBac}
-                onChange={e => setMatBac(e.target.value)}
-                placeholder="أدخل رقم البكالوريا"
-                className="w-full rounded-xl px-4 py-3 text-sm text-right focus:outline-none focus:ring-2"
-                style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: '#1a1a2e' }}
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-end gap-2 mb-1.5">
                 <label className="text-sm text-white/70">سنة البكالوريا</label>
               </div>
               <input
@@ -146,6 +134,18 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
                 onChange={e => setAnneeBac(e.target.value)}
                 placeholder="مثال: 2023"
                 type="number"
+                className="w-full rounded-xl px-4 py-3 text-sm text-right focus:outline-none focus:ring-2"
+                style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: '#1a1a2e' }}
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-end gap-2 mb-1.5">
+                <label className="text-sm text-white/70">رقم البكالوريا</label>
+              </div>
+              <input
+                value={matBac}
+                onChange={e => setMatBac(e.target.value)}
+                placeholder="أدخل رقم البكالوريا"
                 className="w-full rounded-xl px-4 py-3 text-sm text-right focus:outline-none focus:ring-2"
                 style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: '#1a1a2e' }}
               />
@@ -547,8 +547,14 @@ export default function StudentPage() {
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* Header */}
-      <div className="bg-[#1a3a6b] text-white px-4 pt-6 pb-16">
+      <div className="text-white px-4 pt-6 pb-16" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #0f2040 50%, #0a1628 100%)' }}>
         <div className="max-w-2xl mx-auto">
+          {/* Platform title */}
+          <div className="flex items-center justify-center gap-2 mb-5 pb-4 border-b border-white/10">
+            <span className="text-xs text-white/40">فضاء الطالب</span>
+            <span className="text-white/20">|</span>
+            <span className="text-sm font-bold" style={{ color: '#c9a227' }}>المنصة البيداغوجية</span>
+          </div>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white/60 text-xs mb-0.5">مرحباً،</p>
@@ -557,7 +563,7 @@ export default function StudentPage() {
             </div>
             <button
               onClick={() => setStudent(null)}
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-sm transition-colors"
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-xs transition-colors"
             >
               <LogOut className="w-4 h-4" />
               خروج
