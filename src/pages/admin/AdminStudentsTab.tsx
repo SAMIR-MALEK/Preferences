@@ -14,7 +14,9 @@ const SPECIALITES = [
 interface Student {
   id: string;
   mat_bac: string;
+  annee_bac: number | null;
   mat_etudiant: string;
+  sit_ins: string | null;
   specialite: string;
   phone: string;
   last_name: string;
@@ -87,14 +89,18 @@ export default function AdminStudentsTab() {
       for (const r of rows) {
         const matBac = String(r['Mat. BAC'] || '').trim();
         const matEtudiant = String(r['Mat. Etudiant'] || '').trim();
+        const anneeBacRaw = r['Année du bac'] || r['Annee du bac'] || r['année du bac'] || r['annee_bac'] || '';
+        const sitIns = String(r["Sit. d'ins."] || r["Sit d'ins"] || r['sit_ins'] || '').trim() || null;
         const record = {
           mat_bac: matBac,
+          annee_bac: anneeBacRaw ? Number(String(anneeBacRaw).trim()) || null : null,
           mat_etudiant: matEtudiant,
+          sit_ins: sitIns,
           specialite: String(r['specialité'] || r['specialite'] || '').trim(),
           phone: String(r['N° de téléphone'] || '').trim(),
           last_name: String(r['Nom'] || r['اللقب'] || '').trim(),
           first_name: String(r['Prénom'] || r['الإسم'] || '').trim(),
-          carte_rfid: String(r['carte rfid'] || '').trim(),
+          carte_rfid: String(r['carte rfid'] || '').trim() || null,
           username: String(r['USER'] || '').trim() || null,
           password: String(r['PASSWORD'] || '').trim() || null,
           email: String(r['MAIL'] || '').trim() || null,
@@ -139,7 +145,9 @@ export default function AdminStudentsTab() {
   function exportExcel() {
     const data = filtered.map(s => ({
       'Mat. BAC': s.mat_bac,
+      'Année du bac': s.annee_bac,
       'Mat. Etudiant': s.mat_etudiant,
+      "Sit. d'ins.": s.sit_ins,
       'Spécialité': s.specialite,
       'Nom': s.last_name,
       'Prénom': s.first_name,
