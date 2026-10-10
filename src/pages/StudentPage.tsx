@@ -100,55 +100,88 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f2544] via-[#1a3a6b] to-[#0f2544] flex items-center justify-center p-4" dir="rtl">
-      <div className="w-full max-w-md">
-        {/* Logo */}
+    <div className="min-h-screen flex flex-col items-center justify-center p-4" dir="rtl"
+      style={{ background: 'linear-gradient(135deg, #0a1628 0%, #0f2040 50%, #0a1628 100%)' }}>
+      <div className="w-full max-w-sm">
+        {/* Logo + Title — same as LoginPage */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur">
-            <BookOpen className="w-8 h-8 text-white" />
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5"
+            style={{ backgroundColor: '#c9a227' }}>
+            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">بوابة الطالب</h1>
-          <p className="text-white/60 mt-1 text-sm">كلية الحقوق والعلوم السياسية</p>
+          <h1 className="text-3xl font-bold text-white mb-1">المنصة البيداغوجية</h1>
+          <p style={{ color: '#c9a227' }} className="text-sm font-medium">كلية الحقوق والعلوم السياسية</p>
+          <p className="text-white/50 text-xs mt-1">جامعة برج بوعريريج — الموسم الجامعي 2026/2027</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-lg font-bold text-gray-800 mb-6 text-center">تسجيل الدخول</h2>
+        <div className="rounded-2xl p-7 shadow-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="flex items-center justify-end gap-2 mb-6">
+            <h2 className="text-lg font-bold text-white">تسجيل الدخول</h2>
+            <BookOpen className="w-5 h-5" style={{ color: '#c9a227' }} />
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">رقم البكالوريا</label>
+              <div className="flex items-center justify-end gap-2 mb-1.5">
+                <label className="text-sm text-white/70">رقم البكالوريا</label>
+              </div>
               <input
                 value={matBac}
                 onChange={e => setMatBac(e.target.value)}
-                placeholder="أدخل رقم بكالوريا"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 focus:border-[#1a3a6b]"
+                placeholder="أدخل رقم البكالوريا"
+                className="w-full rounded-xl px-4 py-3 text-sm text-right focus:outline-none focus:ring-2"
+                style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: '#1a1a2e' }}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">سنة البكالوريا</label>
+              <div className="flex items-center justify-end gap-2 mb-1.5">
+                <label className="text-sm text-white/70">سنة البكالوريا</label>
+              </div>
               <input
                 value={anneeBac}
                 onChange={e => setAnneeBac(e.target.value)}
                 placeholder="مثال: 2023"
                 type="number"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 focus:border-[#1a3a6b]"
+                className="w-full rounded-xl px-4 py-3 text-sm text-right focus:outline-none focus:ring-2"
+                style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: '#1a1a2e' }}
               />
             </div>
+
             {error && (
-              <div className="flex items-center gap-2 bg-red-50 text-red-600 rounded-xl px-4 py-3 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <div className="flex items-center justify-end gap-2 rounded-xl px-4 py-3 text-sm"
+                style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
                 {error}
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
               </div>
             )}
+
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#1a3a6b] hover:bg-[#0f2544] text-white py-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50"
+              className="w-full py-3.5 rounded-xl font-bold text-sm transition-all disabled:opacity-50 mt-2"
+              style={{ backgroundColor: '#c9a227', color: '#fff' }}
             >
               {loading ? 'جارٍ التحقق...' : 'دخول'}
             </button>
           </form>
+
+          <div className="mt-5 pt-4 border-t border-white/10 flex items-start justify-end gap-2">
+            <p className="text-xs text-white/40 text-right leading-relaxed">
+              بيانات الدخول هي رقم البكالوريا وسنة الحصول عليها.
+              للمساعدة، تواصل مع{' '}
+              <span style={{ color: '#c9a227' }}>نيابة العمادة المكلفة بالبيداغوجيا</span>
+            </p>
+            <BookOpen className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" />
+          </div>
         </div>
+
+        <p className="text-center text-white/25 text-xs mt-6">
+          تحت إشراف نائب العميد د. عشاش حمزة
+        </p>
       </div>
     </div>
   );
