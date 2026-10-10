@@ -58,15 +58,15 @@ const DAY_ORDER: Record<string, number> = {
 };
 
 const TYPE_LABEL: Record<string, string> = {
-  lecture: 'محاضرة',
-  td: 'أعمال موجهة',
-  tp: 'أعمال تطبيقية',
+  'محاضرة': 'محاضرة',
+  'أعمال موجهة': 'أعمال موجهة',
+  'أعمال تطبيقية': 'أعمال تطبيقية',
 };
 
 const TYPE_COLOR: Record<string, string> = {
-  lecture: 'bg-blue-50 text-blue-700 border-blue-200',
-  td: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  tp: 'bg-purple-50 text-purple-700 border-purple-200',
+  'محاضرة': 'bg-blue-50 text-blue-700 border-blue-200',
+  'أعمال موجهة': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'أعمال تطبيقية': 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ function ScheduleView({ schedule }: { schedule: ScheduleEntry[] }) {
               .map(entry => {
                 const modName = entry.custom_module || entry.module_name;
                 const profName = entry.custom_professor || entry.professor_name;
-                const typeKey = entry.teaching_type?.toLowerCase();
+                const typeKey = entry.teaching_type || '';
                 return (
                   <div key={entry.id} className="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-4 shadow-sm">
                     {/* Time */}
@@ -468,10 +468,10 @@ export default function StudentPage() {
       .from('assignments')
       .select('id, teaching_type, module_id, professor_id, section_number, group_number')
       .eq('level_id', levelId)
-      .eq('status', 'confirmed')
+      .eq('status', 'نهائي')
       .or(
-        `and(teaching_type.eq.lecture,section_number.eq.${student.section ?? 0}),` +
-        `and(teaching_type.neq.lecture,section_number.eq.${student.section ?? 0},group_number.eq.${student.groupe ?? 0})`
+        `and(teaching_type.eq.محاضرة,section_number.eq.${student.section ?? 0}),` +
+        `and(teaching_type.neq.محاضرة,section_number.eq.${student.section ?? 0},group_number.eq.${student.groupe ?? 0})`
       );
 
     if (!assignmentsData || assignmentsData.length === 0) { setLoadingSchedule(false); return; }
@@ -490,7 +490,7 @@ export default function StudentPage() {
         rooms (name)
       `)
       .in('assignment_id', assignmentIds)
-      .eq('status', 'confirmed');
+      .eq('status', 'نهائي');
 
     if (!schedData) { setLoadingSchedule(false); return; }
 
