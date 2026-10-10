@@ -460,6 +460,7 @@ export default function StudentPage() {
       .eq('name_ar', student.specialite)
       .maybeSingle();
 
+    console.log('level found:', levelData, 'for specialite:', student.specialite);
     if (!levelData) { setLoadingSchedule(false); return; }
     const levelId = levelData.id;
 
@@ -474,6 +475,7 @@ export default function StudentPage() {
         `and(teaching_type.neq.محاضرة,section_number.eq.${student.section ?? 0},group_number.eq.${student.groupe ?? 0})`
       );
 
+    console.log('assignments found:', assignmentsData?.length, assignmentsData);
     if (!assignmentsData || assignmentsData.length === 0) { setLoadingSchedule(false); return; }
 
     const assignmentIds = assignmentsData.map(a => a.id);
@@ -492,6 +494,7 @@ export default function StudentPage() {
       .in('assignment_id', assignmentIds)
       .eq('status', 'نهائي');
 
+    console.log('schedules found:', schedData?.length, schedData);
     if (!schedData) { setLoadingSchedule(false); return; }
 
     // 4. Get modules and professors
@@ -627,34 +630,47 @@ export default function StudentPage() {
                   <Clock className="w-8 h-8 mx-auto mb-3 animate-pulse opacity-40" />
                   <p className="text-sm">جارٍ تحميل التوقيت...</p>
                 </div>
-              ) : !isActive ? (
-                <div className="text-center py-12 text-gray-400">
-                  <AlertCircle className="w-8 h-8 mx-auto mb-3 opacity-40" />
-                  <p className="text-sm">يجب تفعيل حسابك لعرض التوقيت</p>
-                </div>
               ) : (
                 <ScheduleView schedule={schedule} />
               )
             )}
 
             {activeTab === 'info' && (
-              <div className="space-y-3">
-                {[
-                  { label: 'اللقب', value: student.last_name },
-                  { label: 'الاسم', value: student.first_name },
-                  { label: 'التخصص', value: student.specialite },
-                  { label: 'رقم البكالوريا', value: student.mat_bac },
-                  { label: 'سنة البكالوريا', value: student.annee_bac?.toString() },
-                  { label: 'رقم التسجيل', value: student.mat_etudiant || '—' },
-                  { label: 'المجموعة', value: student.section ? `م ${student.section}` : '—' },
-                  { label: 'الفوج', value: student.groupe ? `ف ${student.groupe}` : '—' },
-                  { label: 'الهاتف', value: student.phone || '—' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-sm font-medium text-gray-800">{value}</span>
-                    <span className="text-xs text-gray-500">{label}</span>
+              <div>
+                {/* Student level/speciality card */}
+                <div className="rounded-xl p-4 mb-4 text-center" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #1a3a6b 100%)' }}>
+                  <p className="text-white/60 text-xs mb-1">التخصص</p>
+                  <p className="text-white font-bold text-base leading-snug">{student.specialite}</p>
+                  <div className="flex justify-center gap-3 mt-3">
+                    {student.section && (
+                      <span className="bg-white/15 text-white/90 px-3 py-1 rounded-full text-xs font-medium">
+                        المجموعة {student.section}
+                      </span>
+                    )}
+                    {student.groupe && (
+                      <span className="bg-white/15 text-white/90 px-3 py-1 rounded-full text-xs font-medium">
+                        الفوج {student.groupe}
+                      </span>
+                    )}
                   </div>
-                ))}
+                </div>
+
+                {/* Info rows */}
+                <div className="divide-y divide-gray-50">
+                  {[
+                    { label: 'اللقب', value: student.last_name },
+                    { label: 'الاسم', value: student.first_name },
+                    { label: 'رقم البكالوريا', value: student.mat_bac },
+                    { label: 'سنة البكالوريا', value: student.annee_bac?.toString() },
+                    { label: 'رقم التسجيل', value: student.mat_etudiant || '—' },
+                    { label: 'الهاتف', value: student.phone || '—' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-center gap-2 py-3">
+                      <span className="text-xs text-gray-400 w-28 shrink-0 text-left">{label}</span>
+                      <span className="text-sm font-semibold text-gray-800 flex-1 text-right">{value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
