@@ -37,6 +37,8 @@ export default function AdminStudentsTab() {
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 50;
 
@@ -153,6 +155,22 @@ export default function AdminStudentsTab() {
     XLSX.writeFile(wb, `طلبة_${filterSpec || 'كل'}_${new Date().toLocaleDateString('fr')}.xlsx`);
   }
 
+  async function deleteAllStudents() {
+    setDeleting(true);
+    // حذف على دفعات لتفادي timeout
+    let from = 0;
+    while (true) {
+      const { data } = await supabase.from('students').select('id').range(from, from + 999);
+      if (!data || data.length === 0) break;
+      const ids = data.map((s: any) => s.id);
+      await supabase.from('students').delete().in('id', ids);
+      if (data.length < 1000) break;
+    }
+    setStudents([]);
+    setConfirmDelete(false);
+    setDeleting(false);
+  }
+
   async function saveEdit() {
     if (!editStudent) return;
     setSaving(true);
@@ -203,6 +221,10 @@ export default function AdminStudentsTab() {
           <button onClick={loadStudents}
             className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
             <RefreshCw className="w-4 h-4" /> تحديث
+          </button>
+          <button onClick={() => setConfirmDelete(true)}
+            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
+            <X className="w-4 h-4" /> حذف الكل
           </button>
         </div>
       </div>
@@ -276,6 +298,30 @@ export default function AdminStudentsTab() {
           <span className="px-3 py-1.5 text-sm text-gray-500">{page+1} / {totalPages}</span>
           <button onClick={() => setPage(p => Math.min(totalPages-1, p+1))} disabled={page >= totalPages-1}
             className="px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40">التالي</button>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !deleting && setConfirmDelete(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <X className="w-7 h-7 text-red-500" />
+              </div>
+              <h3 className="font-bold text-gray-800 text-lg">حذف جميع الطلبة</h3>
+              <p className="text-gray-500 text-sm mt-1">سيتم حذف <span className="font-bold text-red-500">{students.length}</span> طالب نهائياً. هذا الإجراء لا يمكن التراجع عنه.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={deleteAllStudents} disabled={deleting}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                {deleting ? 'جارٍ الحذف...' : 'تأكيد الحذف'}
+              </button>
+              <button onClick={() => setConfirmDelete(false)} disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl text-sm border border-gray-200 text-gray-600 hover:bg-gray-50">
+                إلغاء
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
