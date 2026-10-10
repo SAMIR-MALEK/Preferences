@@ -41,6 +41,13 @@ export default function AdminStudentsTab() {
   const [page, setPage] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showColumns, setShowColumns] = useState(false);
+
+  const REQUIRED_COLUMNS = [
+    'Mat. BAC', 'Année du bac', 'Mat. Etudiant', 'specialité',
+    'N° de téléphone', 'اللقب', 'الإسم', "Sit. d'ins.",
+    'carte rfid', 'Section', 'Groupe', 'USER', 'PASSWORD', 'MAIL',
+  ];
   const fileRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 50;
 
@@ -215,10 +222,17 @@ export default function AdminStudentsTab() {
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e => { if (e.target.files?.[0]) importExcel(e.target.files[0]); }} />
-          <button onClick={() => fileRef.current?.click()} disabled={importing}
-            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
-            <Upload className="w-4 h-4" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد Excel'}
-          </button>
+          <div className="relative">
+            <button onClick={() => fileRef.current?.click()} disabled={importing}
+              className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
+              <Upload className="w-4 h-4" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد Excel'}
+            </button>
+            <button onClick={() => setShowColumns(v => !v)}
+              title="عرض أعمدة الملف المطلوبة"
+              className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-gray-600 hover:bg-gray-700 text-white rounded-full text-xs font-bold flex items-center justify-center shadow">
+              ?
+            </button>
+          </div>
           <button onClick={exportExcel}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <Download className="w-4 h-4" /> تحميل Excel
