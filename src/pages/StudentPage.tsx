@@ -651,8 +651,8 @@ export default function StudentPage() {
                   { label: 'الهاتف', value: student.phone || '—' },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-xs text-gray-500">{label}</span>
                     <span className="text-sm font-medium text-gray-800">{value}</span>
+                    <span className="text-xs text-gray-500">{label}</span>
                   </div>
                 ))}
               </div>
