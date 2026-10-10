@@ -211,15 +211,24 @@ export default function AdminStudentsTab() {
         <div>
           <h2 className="text-xl font-bold text-gray-900 font-display">إدارة الطلبة</h2>
           <p className="text-gray-500 text-sm">{students.length} طالب مسجّل</p>
-          <p className="text-gray-400 text-xs mt-0.5" dir="ltr">Mat. BAC · Année du bac · Mat. Etudiant · specialité · N° de téléphone · اللقب · الإسم · Sit. d'ins. · carte rfid · Section · Groupe · USER · PASSWORD · MAIL</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e => { if (e.target.files?.[0]) importExcel(e.target.files[0]); }} />
-          <button onClick={() => fileRef.current?.click()} disabled={importing}
-            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
-            <Upload className="w-4 h-4" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد Excel'}
-          </button>
+          <div className="relative group">
+            <button onClick={() => fileRef.current?.click()} disabled={importing}
+              className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
+              <Upload className="w-4 h-4" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد Excel'}
+            </button>
+            <div className="absolute top-full mt-2 right-0 z-50 hidden group-hover:block w-72 bg-gray-900 text-gray-200 text-xs rounded-xl p-3 shadow-xl" dir="ltr">
+              <p className="text-gray-400 mb-2 text-right font-bold" dir="rtl">أعمدة الملف المطلوبة بالترتيب:</p>
+              <div className="flex flex-wrap gap-1">
+                {["Mat. BAC","Année du bac","Mat. Etudiant","specialité","N° de téléphone","اللقب","الإسم","Sit. d'ins.","carte rfid","Section","Groupe","USER","PASSWORD","MAIL"].map((c,i) => (
+                  <span key={c} className="bg-gray-700 rounded px-1.5 py-0.5 font-mono">{i+1}. {c}</span>
+                ))}
+              </div>
+            </div>
+          </div>
           <button onClick={exportExcel}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <Download className="w-4 h-4" /> تحميل Excel
