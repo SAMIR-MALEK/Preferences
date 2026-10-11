@@ -697,11 +697,13 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
     setLoading(true);
     try {
       // جلب الطلبة من قاعدة البيانات مرتّبين أبجديًا
-      const { data: students } = await supabase
+      console.log('🔍 group_number:', assignment.group_number, typeof assignment.group_number);
+      const { data: students, error: studErr } = await supabase
         .from('students')
-        .select('last_name, first_name, registration_number')
+        .select('last_name, first_name, registration_number, groupe')
         .eq('groupe', assignment.group_number)
         .order('last_name', { ascending: true });
+      console.log('👥 students:', students, 'error:', studErr);
 
       const wb = XLSX.utils.book_new();
       const ws: XLSX.WorkSheet = {};
