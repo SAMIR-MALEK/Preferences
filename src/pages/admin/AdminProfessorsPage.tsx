@@ -77,6 +77,12 @@ export default function AdminProfessorsPage() {
     setVacForm(emptyVacForm);
   }
 
+  function startAdd() {
+    resetForm();
+    setNewCredentials(null);
+    setShowForm(true);
+  }
+
   async function handleCreateVacataire() {
     const { nin, last_name_ar, first_name_ar, last_name_fr, first_name_fr, birth_date, phone, email, speciality, highest_degree } = vacForm;
     if (!nin.trim() || nin.length !== 18) { setMessage({ type: 'error', text: 'رقم التعريف الوطني يجب أن يكون 18 رقماً' }); return; }
@@ -314,7 +320,7 @@ export default function AdminProfessorsPage() {
           <p className="text-gray-500 text-sm">{toArabicNum(professors.length)} أستاذ مسجّل</p>
         </div>
         <button
-            onClick={() => { resetForm(); setShowForm(true); }}
+            onClick={startAdd}
             className="flex items-center gap-2 bg-[#1a3a6b] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors">
             <UserPlus className="w-4 h-4" />
             إضافة أستاذ
