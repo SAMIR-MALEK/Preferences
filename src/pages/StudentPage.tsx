@@ -289,8 +289,25 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState('');
   const [requests, setRequests] = useState<GroupChangeRequest[]>([]);
+  const [availableGroupes, setAvailableGroupes] = useState<number[]>([]);
 
-  useEffect(() => { loadRequests(); }, []);
+  useEffect(() => { loadRequests(); loadAvailableGroupes(); }, []);
+
+  async function loadAvailableGroupes() {
+    if (!student.section) return;
+    // جلب الأفواج المتوفرة في نفس المجموعة من جدول students
+    const { data } = await supabase
+      .from('students')
+      .select('groupe')
+      .eq('specialite', student.specialite)
+      .eq('section', student.section)
+      .not('groupe', 'is', null);
+    if (data) {
+      const unique = [...new Set(data.map(d => d.groupe as number))].sort((a, b) => a - b);
+      // استبعاد الفوج الحالي للطالب
+      setAvailableGroupes(unique.filter(g => g !== student.groupe));
+    }
+  }
 
   async function loadRequests() {
     const { data } = await supabase
@@ -300,6 +317,9 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
       .order('created_at', { ascending: false });
     if (data) setRequests(data);
   }
+
+  // الطالب قدّم طلباً من قبل (مهما كانت حالته)
+  const hasExistingRequest = requests.length > 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -345,15 +365,14 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
   }
 
   const statusLabel: Record<string, { label: string; color: string }> = {
-    pending: { label: 'قيد المراجعة', color: 'bg-yellow-50 text-yellow-700' },
-    dept_approved: { label: 'موافقة رئيس القسم — بانتظار الإدارة', color: 'bg-blue-50 text-blue-700' },
-    approved: { label: 'مقبول', color: 'bg-green-50 text-green-700' },
-    rejected: { label: 'مرفوض', color: 'bg-red-50 text-red-600' },
+    pending:  { label: 'قيد المراجعة', color: 'bg-yellow-50 text-yellow-700' },
+    approved: { label: 'مقبول',        color: 'bg-green-50 text-green-700' },
+    rejected: { label: 'مرفوض',        color: 'bg-red-50 text-red-600' },
   };
 
   return (
     <div className="space-y-4">
-      {/* Past requests */}
+      {/* الطلبات السابقة */}
       {requests.length > 0 && (
         <div className="space-y-3">
           {requests.map(r => {
@@ -367,8 +386,7 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.color}`}>{st.label}</span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">{r.reason}</p>
-                {r.dept_head_note && <p className="text-xs text-blue-600 mt-1">رئيس القسم: {r.dept_head_note}</p>}
-                {r.admin_note && <p className="text-xs text-green-600 mt-1">الإدارة: {r.admin_note}</p>}
+                {r.dept_head_note && <p className="text-xs text-blue-600 mt-1">ملاحظة رئيس القسم: {r.dept_head_note}</p>}
                 <p className="text-xs text-gray-400 mt-1">{new Date(r.created_at).toLocaleDateString('ar-DZ')}</p>
               </div>
             );
@@ -376,8 +394,8 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
         </div>
       )}
 
-      {/* New request toggle */}
-      {student.sit_ins === 'Validée' && (
+      {/* زر الطلب الجديد — يظهر فقط إذا لم يسبق له الطلب */}
+      {student.sit_ins === 'Validée' && !hasExistingRequest && (
         <>
           <button
             onClick={() => setOpen(o => !o)}
@@ -390,15 +408,28 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
           {open && (
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">الفوج المطلوب</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={requestedGroupe}
-                  onChange={e => setRequestedGroupe(e.target.value)}
-                  placeholder="رقم الفوج"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30"
-                />
+                <label className="block text-xs font-medium text-gray-600 mb-2">الفوج المطلوب</label>
+                <div className="flex flex-wrap gap-2">
+                  {availableGroupes.length === 0 ? (
+                    <p className="text-xs text-gray-400">لا توجد أفواج متاحة للتغيير</p>
+                  ) : (
+                    availableGroupes.map(g => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setRequestedGroupe(String(g))}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                          requestedGroupe === String(g)
+                            ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-[#1a3a6b]'
+                        }`}
+                      >
+                        الفوج {g}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">المبرر</label>
