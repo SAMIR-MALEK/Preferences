@@ -441,6 +441,7 @@ export default function AdminProfessorsPage() {
 
           {/* نموذج الأستاذ الدائم — الأصلي */}
           {(editingId || profType === 'permanent') && (
+          <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {[
               { label: 'اللقب *', key: 'last_name', placeholder: 'بن علي' },
@@ -504,7 +505,7 @@ export default function AdminProfessorsPage() {
               <X className="w-4 h-4" /> {editingId ? 'إلغاء' : 'رجوع'}
             </button>
           </div>
-          )} {/* end permanent form */}
+          </div>)} {/* end permanent form */}
         </div>
       )}
 
