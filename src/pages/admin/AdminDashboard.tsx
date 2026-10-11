@@ -23,19 +23,20 @@ import AdminVacataireTab      from './AdminVacataireTab';
 import AdminStudentsTab       from './AdminStudentsTab';
 import AdminProfScheduleTab   from './AdminProfScheduleTab';
 import AdminSchedulePage      from './AdminSchedulePage';
+import AdminGroupRequests     from './AdminGroupRequests';
 import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
   const [tab, setTab] = useState<AdminTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
-    profs: 0, locked: 0, modules: 0, wishes: 0, conflicts: 0,
+    profs: 0, locked: 0, modules: 0, wishes: 0, conflicts: 0, groupRequests: 0,
   });
 
   // إغلاق القائمة تلقائياً عند اختيار تبويب (على الهاتف)
@@ -66,13 +67,15 @@ export default function AdminDashboard() {
   useEffect(() => { loadStats(); }, []);
 
   async function loadStats() {
-    const [{ count: p }, { count: l }, { count: m }, { count: w }] = await Promise.all([
+    const [{ count: p }, { count: l }, { count: m }, { count: w }, { count: gr }] = await Promise.all([
       supabase.from('professors').select('*',{count:'exact',head:true}).eq('is_active',true),
       supabase.from('professors').select('*',{count:'exact',head:true}).eq('wishes_locked_s2',true),
       supabase.from('modules').select('*',{count:'exact',head:true}).eq('is_active',true),
       supabase.from('wishes').select('*',{count:'exact',head:true}).eq('academic_year','2026-2027'),
+      supabase.from('group_change_requests').select('*',{count:'exact',head:true})
+        .in('status', isDeptHead ? ['pending'] : ['dept_approved']),
     ]);
-    setStats({ profs: p||0, locked: l||0, modules: m||0, wishes: w||0, conflicts: 0 });
+    setStats({ profs: p||0, locked: l||0, modules: m||0, wishes: w||0, conflicts: 0, groupRequests: gr||0 });
   }
 
   const isDeptHead = user?.admin?.role === 'dept_head';
@@ -94,9 +97,10 @@ export default function AdminDashboard() {
     { id: 'schedule',   label: 'التوقيت',             icon: CalendarDays },
     { id: 'audit',      label: 'سجل التدقيق',         icon: Shield     },
     { id: 'vacataire',  label: 'الأساتذة المؤقتون',     icon: Users      },
-    { id: 'students',   label: 'الطلبة',                icon: GraduationCap },
-    { id: 'profschedule', label: 'برامج الأساتذة',        icon: CalendarDays },
-    { id: 'settings',     label: 'الإعدادات',          icon: Settings   },
+    { id: 'students',      label: 'الطلبة',              icon: GraduationCap },
+    { id: 'grouprequests', label: 'طلبات الأفواج',       icon: ClipboardList, badge: stats.groupRequests },
+    { id: 'profschedule',  label: 'برامج الأساتذة',      icon: CalendarDays },
+    { id: 'settings',      label: 'الإعدادات',           icon: Settings   },
   ];
 
   // رئيس القسم لا يرى تبويبي الإسناد والإعدادات وإرسال البريد (حكر على العميد/نائب العميد)
@@ -224,6 +228,9 @@ export default function AdminDashboard() {
         {!isDeptHead && tab === 'audit'      && <AdminAuditPage />}
         {tab === 'vacataire' && <AdminVacataireTab />}
         {tab === 'students' && <AdminStudentsTab />}
+        {tab === 'grouprequests' && (
+          <AdminGroupRequests role={user?.admin?.role === 'dept_head' ? 'dept_head' : 'super_admin'} />
+        )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
