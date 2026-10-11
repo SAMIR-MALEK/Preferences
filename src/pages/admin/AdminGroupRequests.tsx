@@ -125,22 +125,75 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
 
           {/* Groupe stats — dept_head */}
           {role === 'dept_head' && (
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="space-y-2">
               {statsLoading ? (
-                <div className="col-span-3 py-2 text-xs text-gray-300">جارٍ التحميل...</div>
+                <div className="py-2 text-xs text-gray-300 text-center">جارٍ التحميل...</div>
               ) : stats ? (
                 <>
-                  {[
-                    { label: `ف ${req.current_groupe} — الأصلي`,  value: stats.fromCount, highlight: false },
-                    { label: `ف ${req.requested_groupe} — المطلوب`, value: stats.toCount,   highlight: true  },
-                    { label: 'المتوسط',                             value: stats.avg,        highlight: false },
-                  ].map(({ label, value, highlight }) => (
-                    <div key={label} className={`rounded-xl py-2.5 px-1 ${highlight ? 'bg-amber-50 border border-amber-100' : 'bg-gray-50'}`}>
-                      <p className="text-[10px] text-gray-400 mb-0.5 leading-tight">{label}</p>
-                      <p className={`text-base font-black ${highlight ? 'text-amber-700' : 'text-[#0a1628]'}`}>{value}</p>
-                      <p className="text-[9px] text-gray-300">طالب</p>
-                    </div>
-                  ))}
+                  {/* 3 tiles */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {[
+                      { label: `ف ${req.current_groupe} الأصلي`,   value: stats.fromCount },
+                      { label: `ف ${req.requested_groupe} المطلوب`, value: stats.toCount   },
+                      { label: 'المتوسط',                           value: stats.avg       },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="bg-gray-50 rounded-xl py-2.5 px-1">
+                        <p className="text-[10px] text-gray-400 mb-0.5 leading-tight">{label}</p>
+                        <p className="text-base font-black text-[#0a1628]">{value}</p>
+                        <p className="text-[9px] text-gray-300">طالب</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Recommendation */}
+                  {(() => {
+                    const { fromCount, toCount, avg } = stats;
+                    const THRESHOLD = 3;
+                    const toFull    = toCount >= avg;
+                    const fromOver  = fromCount > avg;
+                    const close     = Math.abs(toCount - avg) <= THRESHOLD && Math.abs(fromCount - avg) <= THRESHOLD;
+
+                    let rec: { icon: string; color: string; title: string; reason: string };
+
+                    if (close) {
+                      rec = {
+                        icon: '🟡', color: 'bg-amber-50 border-amber-200 text-amber-800',
+                        title: 'يحتاج تقدير',
+                        reason: `الفوج المطلوب (${toCount}) والفوج الأصلي (${fromCount}) قريبان من المتوسط (${avg})، القرار يعود لتقديرك.`,
+                      };
+                    } else if (!toFull && fromOver) {
+                      rec = {
+                        icon: '🟢', color: 'bg-green-50 border-green-200 text-green-800',
+                        title: 'يُنصح بالقبول',
+                        reason: `الفوج الأصلي (${fromCount}) مكتظ فوق المتوسط (${avg})، والفوج المطلوب (${toCount}) لديه مجال.`,
+                      };
+                    } else if (toFull && !fromOver) {
+                      rec = {
+                        icon: '🔴', color: 'bg-red-50 border-red-200 text-red-800',
+                        title: 'يُنصح بالرفض',
+                        reason: `الفوج المطلوب (${toCount}) ممتلئ عند المتوسط (${avg})، والفوج الأصلي (${fromCount}) ليس مكتظاً.`,
+                      };
+                    } else if (!toFull && !fromOver) {
+                      rec = {
+                        icon: '🟡', color: 'bg-amber-50 border-amber-200 text-amber-800',
+                        title: 'يحتاج تقدير',
+                        reason: `كلا الفوجين دون المتوسط (${avg})، لا يوجد مبرر موضوعي واضح، راجع سبب الطلب.`,
+                      };
+                    } else {
+                      rec = {
+                        icon: '🔴', color: 'bg-red-50 border-red-200 text-red-800',
+                        title: 'يُنصح بالرفض',
+                        reason: `الفوج المطلوب (${toCount}) فوق المتوسط (${avg})، النقل سيزيد الاكتظاظ.`,
+                      };
+                    }
+
+                    return (
+                      <div className={`rounded-xl border px-3 py-2.5 ${rec.color}`}>
+                        <p className="text-xs font-bold mb-0.5">{rec.icon} {rec.title}</p>
+                        <p className="text-[11px] leading-relaxed opacity-80">{rec.reason}</p>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : null}
             </div>
