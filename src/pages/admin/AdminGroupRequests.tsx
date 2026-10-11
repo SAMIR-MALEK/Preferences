@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, FileText, User, RefreshCw } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
