@@ -906,10 +906,9 @@ function ProfScheduleTab({ prof }: any) {
     async function load() {
       // جلب كل إسنادات الأستاذ
       const { data: assignments } = await supabase.from('assignments')
-        .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level_id, specialite')
+        .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level_id, specialite, status, semester')
         .eq('professor_id', prof?.id)
-        .eq('academic_year', '2026-2027')
-        .eq('semester', 1);
+        .eq('academic_year', '2026-2027');
 
       if (!assignments || assignments.length === 0) { setLoading(false); return; }
 
@@ -931,8 +930,7 @@ function ProfScheduleTab({ prof }: any) {
       const { data: sch } = await supabase.from('schedules')
         .select('id, assignment_id, room_id, time_slot_id, time_slot:time_slots(day, start_time, end_time, slot_number)')
         .in('assignment_id', allIds)
-        .eq('academic_year', '2026-2027')
-        .eq('semester', 1);
+        .eq('academic_year', '2026-2027');
 
       // جلب القاعات
       const roomIds = [...new Set((sch || []).map((s: any) => s.room_id).filter(Boolean))];
