@@ -73,7 +73,7 @@ export default function AdminDashboard() {
       supabase.from('modules').select('*',{count:'exact',head:true}).eq('is_active',true),
       supabase.from('wishes').select('*',{count:'exact',head:true}).eq('academic_year','2026-2027'),
       supabase.from('group_change_requests').select('*',{count:'exact',head:true})
-        .in('status', isDeptHead ? ['pending'] : ['dept_approved']),
+        .eq('status', 'pending'),
     ]);
     setStats({ profs: p||0, locked: l||0, modules: m||0, wishes: w||0, conflicts: 0, groupRequests: gr||0 });
   }

@@ -30,10 +30,9 @@ interface Props {
 }
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pending:       { label: 'قيد الانتظار',      color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  dept_approved: { label: 'موافقة رئيس القسم', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  approved:      { label: 'مقبول',              color: 'bg-green-50 text-green-700 border-green-200' },
-  rejected:      { label: 'مرفوض',              color: 'bg-red-50 text-red-600 border-red-200' },
+  pending:  { label: 'قيد الانتظار', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  approved: { label: 'مقبول',        color: 'bg-green-50 text-green-700 border-green-200' },
+  rejected: { label: 'مرفوض',        color: 'bg-red-50 text-red-600 border-red-200' },
 };
 
 // ─── Single request card ───────────────────────────────────────────────────────
@@ -47,17 +46,9 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
 
   async function decide(action: 'approve' | 'reject') {
     setLoading(true);
-    let update: Record<string, string> = {};
-
-    if (role === 'dept_head') {
-      update = action === 'approve'
-        ? { status: 'dept_approved', dept_head_note: note }
-        : { status: 'rejected',      dept_head_note: note };
-    } else {
-      update = action === 'approve'
-        ? { status: 'approved', admin_note: note }
-        : { status: 'rejected', admin_note: note };
-    }
+    const update: Record<string, string> = action === 'approve'
+      ? { status: 'approved', dept_head_note: note }
+      : { status: 'rejected', dept_head_note: note };
 
     await supabase.from('group_change_requests').update(update).eq('id', req.id);
     setLoading(false);
@@ -65,10 +56,8 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
     onRefresh();
   }
 
-  // What this role can act on
-  const canAct =
-    (role === 'dept_head'   && req.status === 'pending') ||
-    (role === 'super_admin' && req.status === 'dept_approved');
+  // رئيس القسم فقط يتخذ القرار — الإدارة العليا تراقب فقط
+  const canAct = role === 'dept_head' && req.status === 'pending';
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
@@ -167,7 +156,7 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
                   className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2.5 rounded-xl transition-colors disabled:opacity-50"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  {role === 'dept_head' ? 'إحالة للإدارة' : 'قبول نهائي'}
+                  قبول
                 </button>
                 <button
                   onClick={() => decide('reject')}
@@ -212,19 +201,17 @@ export default function AdminGroupRequests({ role }: Props) {
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
 
   const counts = {
-    all:           requests.length,
-    pending:       requests.filter(r => r.status === 'pending').length,
-    dept_approved: requests.filter(r => r.status === 'dept_approved').length,
-    approved:      requests.filter(r => r.status === 'approved').length,
-    rejected:      requests.filter(r => r.status === 'rejected').length,
+    all:      requests.length,
+    pending:  requests.filter(r => r.status === 'pending').length,
+    approved: requests.filter(r => r.status === 'approved').length,
+    rejected: requests.filter(r => r.status === 'rejected').length,
   };
 
   const filters: { key: typeof filter; label: string }[] = [
-    { key: 'all',           label: `الكل (${counts.all})` },
-    { key: 'pending',       label: `انتظار (${counts.pending})` },
-    { key: 'dept_approved', label: `إحالة (${counts.dept_approved})` },
-    { key: 'approved',      label: `مقبول (${counts.approved})` },
-    { key: 'rejected',      label: `مرفوض (${counts.rejected})` },
+    { key: 'all',      label: `الكل (${counts.all})` },
+    { key: 'pending',  label: `انتظار (${counts.pending})` },
+    { key: 'approved', label: `مقبول (${counts.approved})` },
+    { key: 'rejected', label: `مرفوض (${counts.rejected})` },
   ];
 
   return (
