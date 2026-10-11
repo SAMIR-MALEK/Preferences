@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, FileText, User, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, FileText, User, RefreshCw, BarChart2, Users, ArrowLeftRight } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -175,6 +175,152 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
   );
 }
 
+// ─── Stats panel (dept_head only) ─────────────────────────────────────────────
+
+function StatsPanel({ requests }: { requests: GroupRequest[] }) {
+  const stats = useMemo(() => {
+    const total = requests.length;
+
+    // count per current_groupe and per requested_groupe
+    const fromCount: Record<number, number> = {};
+    const toCount:   Record<number, number> = {};
+    for (const r of requests) {
+      fromCount[r.current_groupe]   = (fromCount[r.current_groupe]  || 0) + 1;
+      toCount[r.requested_groupe]   = (toCount[r.requested_groupe]  || 0) + 1;
+    }
+
+    // unique groupes mentioned across both sides
+    const allGroupes = [...new Set([
+      ...Object.keys(fromCount).map(Number),
+      ...Object.keys(toCount).map(Number),
+    ])].sort((a, b) => a - b);
+
+    const maxVal = Math.max(
+      ...Object.values(fromCount),
+      ...Object.values(toCount),
+      1,
+    );
+
+    // average students per current groupe (only groupes that appear)
+    const avgPerGroupe = allGroupes.length > 0
+      ? (total / Object.keys(fromCount).length).toFixed(1)
+      : '—';
+
+    return { total, fromCount, toCount, allGroupes, maxVal, avgPerGroupe };
+  }, [requests]);
+
+  if (requests.length === 0) return null;
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <BarChart2 className="w-4 h-4 text-[#0a1628]" />
+        <h3 className="text-sm font-bold text-gray-800">إحصائيات الأفواج</h3>
+      </div>
+
+      {/* Summary tiles */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="bg-gray-50 rounded-xl py-2.5 px-1">
+          <p className="text-[10px] text-gray-400 mb-0.5">إجمالي الطلبات</p>
+          <p className="text-lg font-black text-[#0a1628]">{stats.total}</p>
+        </div>
+        <div className="bg-gray-50 rounded-xl py-2.5 px-1">
+          <p className="text-[10px] text-gray-400 mb-0.5">أفواج معنية</p>
+          <p className="text-lg font-black text-[#0a1628]">{stats.allGroupes.length}</p>
+        </div>
+        <div className="bg-gray-50 rounded-xl py-2.5 px-1">
+          <p className="text-[10px] text-gray-400 mb-0.5">متوسط / فوج</p>
+          <p className="text-lg font-black text-[#0a1628]">{stats.avgPerGroupe}</p>
+        </div>
+      </div>
+
+      {/* Bar chart: current vs requested per groupe */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] text-gray-400 font-medium">توزيع الطلبات حسب الفوج</p>
+          <div className="flex items-center gap-3 text-[10px] text-gray-400">
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#0a1628] inline-block" />
+              الأصلي
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#c9a227] inline-block" />
+              المطلوب
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+          {stats.allGroupes.map(g => {
+            const from = stats.fromCount[g] || 0;
+            const to   = stats.toCount[g]   || 0;
+            const fromPct = Math.round((from / stats.maxVal) * 100);
+            const toPct   = Math.round((to   / stats.maxVal) * 100);
+            return (
+              <div key={g} className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-500 w-10 text-left shrink-0">ف {g}</span>
+                <div className="flex-1 space-y-0.5">
+                  {/* from bar */}
+                  <div className="flex items-center gap-1">
+                    <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#0a1628] rounded-full transition-all"
+                        style={{ width: `${fromPct}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-400 w-4 text-left">{from || ''}</span>
+                  </div>
+                  {/* to bar */}
+                  <div className="flex items-center gap-1">
+                    <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#c9a227] rounded-full transition-all"
+                        style={{ width: `${toPct}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-400 w-4 text-left">{to || ''}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Flow summary: top requested transfers */}
+      <div>
+        <p className="text-[10px] text-gray-400 font-medium mb-2">أكثر التحويلات تكراراً</p>
+        <div className="space-y-1">
+          {(() => {
+            const flows: Record<string, number> = {};
+            for (const r of requests) {
+              const key = `${r.current_groupe}→${r.requested_groupe}`;
+              flows[key] = (flows[key] || 0) + 1;
+            }
+            return Object.entries(flows)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 4)
+              .map(([key, count]) => {
+                const [from, to] = key.split('→');
+                return (
+                  <div key={key} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-700">
+                      <span className="font-bold">ف {from}</span>
+                      <ArrowLeftRight className="w-3 h-3 text-gray-400" />
+                      <span className="font-bold">ف {to}</span>
+                    </div>
+                    <span className="text-xs font-bold text-[#0a1628]">{count} طالب</span>
+                  </div>
+                );
+              });
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function AdminGroupRequests({ role }: Props) {
@@ -228,6 +374,9 @@ export default function AdminGroupRequests({ role }: Props) {
           تحديث
         </button>
       </div>
+
+      {/* Stats panel — dept_head only */}
+      {role === 'dept_head' && !loading && <StatsPanel requests={requests} />}
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
