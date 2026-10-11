@@ -690,9 +690,8 @@ function AssignmentCard({ prof }: any) {
 // ─────────────────────────────────────────────────────────────────────
 // كشف الغيابات — تحميل Excel لفوج واحد
 function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment: any }) {
-  const [sessions, setSessions] = useState(12);
+  const sessions = 14;
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
 
   async function download() {
     setLoading(true);
@@ -842,53 +841,34 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       XLSX.utils.book_append_sheet(wb, ws, `ف${String(assignment.group_number).padStart(2,'0')}`);
       const levelCode = (assignment.level_name || 'مستوى').replace(/\s+/g, '_');
       const fname = `كشف_ف${String(assignment.group_number).padStart(2,'0')}_${levelCode}_${assignment.module_name?.replace(/\s+/g,'_') || 'مادة'}.xlsx`;
-      XLSX.writeFile(wb, fname);
+
+      // تحميل عبر Blob (يعمل في المتصفح)
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } finally {
       setLoading(false);
-      setOpen(false);
     }
   }
 
   return (
-    <div className="relative">
+    <div>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={download}
+        disabled={loading}
         className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
-        style={{ background: 'rgba(201,162,39,0.12)', color: '#92400e', border: '1px solid rgba(201,162,39,0.3)' }}
+        style={{ background: loading ? 'rgba(148,163,184,0.2)' : 'rgba(201,162,39,0.12)', color: loading ? '#94a3b8' : '#92400e', border: `1px solid ${loading ? 'rgba(148,163,184,0.3)' : 'rgba(201,162,39,0.3)'}` }}
       >
         <Download className="w-3 h-3" />
-        كشف الغيابات
+        {loading ? 'جارٍ...' : 'تحميل القائمة'}
       </button>
-
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-52">
-          <p className="text-xs font-bold text-gray-700 mb-2">عدد الحصص</p>
-          <div className="flex flex-wrap gap-1 mb-3">
-            {[10, 11, 12, 13, 14].map(n => (
-              <button
-                key={n}
-                onClick={() => setSessions(n)}
-                className="w-9 h-8 rounded-lg text-xs font-bold transition-all"
-                style={{
-                  background: sessions === n ? '#0a1628' : '#f1f4f9',
-                  color: sessions === n ? '#c9a227' : '#64748b',
-                }}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={download}
-            disabled={loading}
-            className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2"
-            style={{ background: loading ? '#94a3b8' : 'linear-gradient(135deg,#c9a227,#a07820)' }}
-          >
-            <Download className="w-3.5 h-3.5" />
-            {loading ? 'جارٍ التحميل...' : `تحميل Excel (${sessions} حصص)`}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
