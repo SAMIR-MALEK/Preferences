@@ -116,12 +116,10 @@ export default function AdminProfessorsPage() {
         highest_degree,
         rank: 'أستاذ مؤقت',
         professional_experience: 0,
-        is_vacataire: true,
-        username_override: username,
-        password,
+        custom_username: username,
+        custom_password: password,
       });
 
-      // الـ edge function قد تعيد username مختلفاً — نستخدم ما أرسلناه إن كان result.username undefined
       setNewCredentials({ username: result.username ?? username, password: result.password ?? password });
       setMessage({ type: 'success', text: `تم إضافة الأستاذ المؤقت ${last_name_ar} ${first_name_ar} بنجاح` });
       setVacForm(emptyVacForm);
@@ -172,7 +170,7 @@ export default function AdminProfessorsPage() {
         last_name: form.last_name.trim(),
         first_name: form.first_name.trim(),
         username_index: maxNum + 1,
-        ...(form.password ? { password: form.password } : {}),
+        ...(form.password ? { custom_password: form.password } : {}),
       });
 
       setNewCredentials({ username: result.username, password: result.password });
