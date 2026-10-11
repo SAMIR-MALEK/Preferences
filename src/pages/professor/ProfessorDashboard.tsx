@@ -697,147 +697,104 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
     setLoading(true);
     try {
       // جلب الطلبة من قاعدة البيانات مرتّبين أبجديًا
-      const { data: students } = await supabase
+      // جلب specialite من assignments لفلترة الطلبة بدقة
+      const { data: asgData } = await supabase
+        .from('assignments')
+        .select('specialite')
+        .eq('id', assignment.assignment_id)
+        .single();
+      const specialite = asgData?.specialite || null;
+
+      let studQuery = supabase
         .from('students')
         .select('last_name, first_name, mat_etudiant')
         .eq('groupe', assignment.group_number)
         .order('last_name', { ascending: true });
+      if (specialite) studQuery = studQuery.eq('specialite', specialite);
+      const { data: students } = await studQuery;
 
-      const wb = XLSX.utils.book_new();
-      const ws: XLSX.WorkSheet = {};
+      // ── بناء HTML Table وتحويله لـ worksheet (يضمن الحدود) ──
+      const totalCols = sessions + 3;
+      const sessionHeaders = Array.from({ length: sessions }, (_, i) => `حص${i + 1}`);
+      const border = 'border:1px solid #000;';
+      const center = 'text-align:center;vertical-align:middle;';
+      const right = 'text-align:right;vertical-align:middle;';
+      const bold = 'font-weight:bold;';
+      const font = 'font-family:Times New Roman;font-size:11pt;';
+
+      let html = `<table dir="rtl" style="${font}border-collapse:collapse;width:100%">`;
+
+      // رأس المؤسسة
+      const headerRows = [
+        'الجمهورية الجزائرية الديمقراطية الشعبية',
+        'وزارة التعليم العالي والبحث العلمي',
+        'جامعة محمد البشير الإبراهيمي — برج بوعريريج',
+        'كلية الحقوق والعلوم السياسية',
+      ];
+      headerRows.forEach(t => {
+        html += `<tr><td colspan="${totalCols}" style="${center}${bold}${font}padding:4px;">${t}</td></tr>`;
+      });
+
+      // سطر فراغ
+      html += `<tr><td colspan="${totalCols}" style="height:8px;"></td></tr>`;
+
+      // معلومات الكشف
+      html += `<tr>
+        <td colspan="3" style="${right}${bold}${font}${border}padding:4px;">المستوى: ${assignment.level_name || ''}</td>
+        <td colspan="3" style="${right}${bold}${font}${border}padding:4px;">الفوج: ${String(assignment.group_number || '').padStart(2, '0')}</td>
+        <td colspan="4" style="${right}${bold}${font}${border}padding:4px;">المادة: ${assignment.module_name || ''}</td>
+        <td colspan="${totalCols - 10}" style="${right}${bold}${font}${border}padding:4px;">الأستاذ: ${prof?.last_name || ''} ${prof?.first_name || ''}</td>
+      </tr>`;
+      html += `<tr>
+        <td colspan="3" style="${right}${bold}${font}${border}padding:4px;">النوع: ${assignment.teaching_type || ''}</td>
+        <td colspan="${totalCols - 3}" style="${right}${bold}${font}${border}padding:4px;">الموسم: 2026/2027</td>
+      </tr>`;
+
+      // فراغ
+      html += `<tr><td colspan="${totalCols}" style="height:8px;"></td></tr>`;
+
+      // رؤوس الأعمدة
+      html += `<tr style="background:#0a1628;color:#c9a227;">
+        <th style="${center}${bold}${font}${border}padding:5px;width:40px;">الرقم</th>
+        <th style="${right}${bold}${font}${border}padding:5px;">اللقب والاسم</th>
+        ${sessionHeaders.map(h => `<th style="${center}${bold}${font}${border}padding:3px;width:28px;">${h}</th>`).join('')}
+        <th style="${center}${bold}${font}${border}padding:3px;width:36px;">ح/ت</th>
+      </tr>`;
+
+      // صفوف الطلبة
+      (students || []).forEach((s, i) => {
+        const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
+        const bg = i % 2 === 0 ? '#ffffff' : '#f8f9fa';
+        html += `<tr style="background:${bg};">
+          <td style="${center}${font}${border}padding:4px;">${i + 1}</td>
+          <td style="${right}${font}${border}padding:4px;">${fullName}</td>
+          ${Array(sessions).fill(`<td style="${center}${font}${border}padding:4px;"></td>`).join('')}
+          <td style="${center}${font}${border}padding:4px;"></td>
+        </tr>`;
+      });
+
+      html += '</table>';
+
+      // تحويل HTML إلى worksheet
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const table = doc.querySelector('table')!;
+      const ws = XLSX.utils.table_to_sheet(table, { raw: true });
 
       // ── إعدادات الصفحة A4 ──
       ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws['!margins'] = { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
       ws['!rightToLeft'] = true;
 
-      const rows: any[][] = [];
-
-      // ── رأس الجدول ──
-      rows.push(['الجمهورية الجزائرية الديمقراطية الشعبية', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-      rows.push(['وزارة التعليم العالي والبحث العلمي', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-      rows.push(['جامعة محمد البشير الإبراهيمي — برج بوعريريج', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-      rows.push(['كلية الحقوق والعلوم السياسية', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-      rows.push([]);
-      rows.push([`المستوى: ${assignment.level_name || ''}`, '', '', `الفوج: ${String(assignment.group_number || '').padStart(2, '0')}`, '', '', `المادة: ${assignment.module_name || ''}`, '', '', '', `الأستاذ: ${prof?.last_name || ''} ${prof?.first_name || ''}`, '', '', '']);
-      rows.push([`النوع: ${assignment.teaching_type || ''}`, '', '', `الموسم: 2026/2027`, '', '', '', '', '', '', '', '', '', '']);
-      rows.push([]);
-
-      // ── رؤوس الأعمدة ──
-      const sessionHeaders = Array.from({ length: sessions }, (_, i) => `حص${i + 1}`);
-      rows.push(['الرقم', 'اللقب والاسم', ...sessionHeaders, 'ح/ت']);
-
-      // ── بيانات الطلبة ──
-      (students || []).forEach((s, i) => {
-        const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
-        rows.push([i + 1, fullName, ...Array(sessions).fill(''), '']);
-      });
-
-      // ── إدراج البيانات ──
-      XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A1' });
-
-      // ── دمج خلايا الرأس ──
-      const totalCols = sessions + 3; // رقم + اسم + حصص + ح/ت
-      const lastCol = XLSX.utils.encode_col(totalCols - 1);
-      ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: totalCols - 1 } },
-        { s: { r: 3, c: 0 }, e: { r: 3, c: totalCols - 1 } },
-        // سطر المعلومات
-        { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
-        { s: { r: 5, c: 3 }, e: { r: 5, c: 5 } },
-        { s: { r: 5, c: 6 }, e: { r: 5, c: 9 } },
-        { s: { r: 5, c: 10 }, e: { r: 5, c: totalCols - 1 } },
-        { s: { r: 6, c: 0 }, e: { r: 6, c: 2 } },
-        { s: { r: 6, c: 3 }, e: { r: 6, c: totalCols - 1 } },
-      ];
-
       // ── عرض الأعمدة ──
       ws['!cols'] = [
-        { wch: 6 },   // رقم
-        { wch: 32 },  // الاسم
-        ...Array(sessions).fill({ wch: 5 }),  // حصص
-        { wch: 6 },   // ح/ت
+        { wch: 6 },
+        { wch: 35 },
+        ...Array(sessions).fill({ wch: 5 }),
+        { wch: 6 },
       ];
 
-      // ── ارتفاع الصفوف ──
-      ws['!rows'] = [
-        { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
-        { hpt: 8 },
-        { hpt: 20 }, { hpt: 20 },
-        { hpt: 8 },
-        { hpt: 22 }, // رؤوس الأعمدة
-        ...(students || []).map(() => ({ hpt: 20 })),
-      ];
-
-      // ── تنسيق الخلايا ──
-      const headerStyle = {
-        font: { name: 'Times New Roman', bold: true, sz: 12 },
-        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
-        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
-      };
-      const colHeaderStyle = {
-        font: { name: 'Times New Roman', bold: true, sz: 10 },
-        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
-        fill: { fgColor: { rgb: '0A1628' }, patternType: 'solid' },
-        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
-      };
-      const cellStyle = {
-        font: { name: 'Times New Roman', sz: 10 },
-        alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 },
-        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
-      };
-      const centerStyle = {
-        font: { name: 'Times New Roman', sz: 10 },
-        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
-        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
-      };
-
-      // تطبيق تنسيق رأس الصفحة (صفوف 0-3)
-      for (let r = 0; r <= 3; r++) {
-        const cellRef = XLSX.utils.encode_cell({ r, c: 0 });
-        if (!ws[cellRef]) ws[cellRef] = { v: '' };
-        ws[cellRef].s = { ...headerStyle, font: { ...headerStyle.font, sz: r === 2 ? 13 : 11 } };
-      }
-
-      // تنسيق سطور المعلومات (5، 6)
-      for (let r = 5; r <= 6; r++) {
-        for (let c = 0; c < totalCols; c++) {
-          const ref = XLSX.utils.encode_cell({ r, c });
-          if (!ws[ref]) ws[ref] = { v: '' };
-          ws[ref].s = { font: { name: 'Times New Roman', bold: true, sz: 10 }, alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 } };
-        }
-      }
-
-      // تنسيق رؤوس الأعمدة (صف 8)
-      for (let c = 0; c < totalCols; c++) {
-        const ref = XLSX.utils.encode_cell({ r: 8, c });
-        if (!ws[ref]) ws[ref] = { v: '' };
-        ws[ref].s = { ...colHeaderStyle, font: { ...colHeaderStyle.font, color: { rgb: 'C9A227' } } };
-      }
-
-      // تنسيق صفوف الطلبة
-      const startRow = 9;
-      (students || []).forEach((_, i) => {
-        const r = startRow + i;
-        const bg = i % 2 === 0 ? 'FFFFFF' : 'F8F9FA';
-        // رقم
-        const numRef = XLSX.utils.encode_cell({ r, c: 0 });
-        if (!ws[numRef]) ws[numRef] = { v: '' };
-        ws[numRef].s = { ...centerStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
-        // اسم
-        const nameRef = XLSX.utils.encode_cell({ r, c: 1 });
-        if (!ws[nameRef]) ws[nameRef] = { v: '' };
-        ws[nameRef].s = { ...cellStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
-        // حصص + ح/ت
-        for (let c = 2; c < totalCols; c++) {
-          const ref = XLSX.utils.encode_cell({ r, c });
-          if (!ws[ref]) ws[ref] = { v: '' };
-          ws[ref].s = { ...centerStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
-        }
-      });
-
+      const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `ف${String(assignment.group_number).padStart(2,'0')}`);
       const levelCode = (assignment.level_name || 'مستوى').replace(/\s+/g, '_');
       const fname = `كشف_ف${String(assignment.group_number).padStart(2,'0')}_${levelCode}_${assignment.module_name?.replace(/\s+/g,'_') || 'مادة'}.xlsx`;
