@@ -438,12 +438,10 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
                 {availableGroupes.length === 0 ? (
                   <p className="text-xs text-gray-400">لا توجد أفواج متاحة للتغيير</p>
                 ) : (() => {
-                  // تجميع الأفواج حسب المجموعة (groupsPerSection = عدد الأفواج في كل مجموعة)
-                  const allGroupes = [...availableGroupes, student.groupe ?? 0].sort((a, b) => a - b);
-                  const maxGroupe = Math.max(...allGroupes);
-                  const totalGroupes = availableGroupes.length + 1; // +1 للفوج الحالي
-                  // تحديد عدد الأفواج في كل مجموعة (5 افتراضي)
-                  const gpSection = maxGroupe <= 5 ? maxGroupe : 5;
+                  // تجميع الأفواج حسب المجموعة
+                  // gpSection = num_groups من level_semesters (مثلاً 5 لأولى ليسانس، 8 لماستر 2 جنائي)
+                  const maxGroupe = Math.max(...availableGroupes, student.groupe ?? 0);
+                  const gpSection = groupsPerSection > 0 ? groupsPerSection : maxGroupe;
                   const numSections = Math.ceil(maxGroupe / gpSection);
                   const sections: number[][] = [];
                   for (let s = 0; s < numSections; s++) {
