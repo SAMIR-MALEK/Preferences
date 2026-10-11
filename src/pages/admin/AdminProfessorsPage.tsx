@@ -22,6 +22,19 @@ const emptyForm = {
   password: '',
 };
 
+const emptyVacForm = {
+  nin: '',
+  last_name_ar: '',
+  first_name_ar: '',
+  last_name_fr: '',
+  first_name_fr: '',
+  birth_date: '',
+  phone: '',
+  email: '',
+  speciality: '',
+  highest_degree: 'دكتوراه',
+};
+
 export default function AdminProfessorsPage() {
   const { user } = useAuth();
   const isDeptHead = user?.admin?.role === 'dept_head';
@@ -35,6 +48,11 @@ export default function AdminProfessorsPage() {
   const [newCredentials, setNewCredentials] = useState<{ username: string; password: string } | null>(null);
 
   const [form, setForm] = useState(emptyForm);
+
+  // نموذج الأستاذ المؤقت
+  const [profType, setProfType] = useState<'permanent' | 'vacataire' | null>(null);
+  const [vacForm, setVacForm] = useState(emptyVacForm);
+  const [vacSaving, setVacSaving] = useState(false);
 
   // تحديد متعدد
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -55,6 +73,54 @@ export default function AdminProfessorsPage() {
     setShowForm(false);
     setEditingId(null);
     setNewCredentials(null);
+    setProfType(null);
+    setVacForm(emptyVacForm);
+  }
+
+  async function handleCreateVacataire() {
+    const { nin, last_name_ar, first_name_ar, last_name_fr, first_name_fr, birth_date, phone, email, speciality, highest_degree } = vacForm;
+    if (!nin.trim() || nin.length !== 18) { setMessage({ type: 'error', text: 'رقم التعريف الوطني يجب أن يكون 18 رقماً' }); return; }
+    if (!last_name_ar.trim() || !first_name_ar.trim()) { setMessage({ type: 'error', text: 'اللقب والاسم بالعربية مطلوبان' }); return; }
+    if (!last_name_fr.trim() || !first_name_fr.trim()) { setMessage({ type: 'error', text: 'اللقب والاسم بالفرنسية مطلوبان' }); return; }
+    if (!birth_date) { setMessage({ type: 'error', text: 'تاريخ الميلاد مطلوب' }); return; }
+    if (!phone.trim()) { setMessage({ type: 'error', text: 'رقم الهاتف مطلوب' }); return; }
+    if (!speciality.trim()) { setMessage({ type: 'error', text: 'التخصص مطلوب' }); return; }
+
+    setVacSaving(true);
+    try {
+      // توليد username: V + رقم تسلسلي
+      const vacProfs = professors.filter(p => String(p.username || '').startsWith('V'));
+      const vacNums = vacProfs.map(p => parseInt(String(p.username).slice(1))).filter(n => !isNaN(n));
+      const nextNum = vacNums.length > 0 ? Math.max(...vacNums) + 1 : 1;
+      const username = `V${String(nextNum).padStart(3, '0')}`;
+
+      const result = await callEdgeFunction('create-professor', {
+        last_name: last_name_ar.trim(),
+        first_name: first_name_ar.trim(),
+        last_name_fr: last_name_fr.trim(),
+        first_name_fr: first_name_fr.trim(),
+        nin: nin.trim(),
+        birth_date,
+        phone: phone.trim(),
+        email: email.trim(),
+        degree_speciality: speciality.trim(),
+        highest_degree,
+        rank: 'أستاذ مؤقت',
+        professional_experience: 0,
+        is_vacataire: true,
+        username_override: username,
+      });
+
+      setNewCredentials({ username: result.username, password: result.password });
+      setMessage({ type: 'success', text: `تم إضافة الأستاذ المؤقت ${last_name_ar} ${first_name_ar} بنجاح` });
+      setVacForm(emptyVacForm);
+      setProfType(null);
+      setShowForm(false);
+      await loadProfessors();
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e.message || 'حدث خطأ أثناء الإضافة' });
+    }
+    setVacSaving(false);
   }
 
   function startEdit(prof: Professor) {
@@ -248,6 +314,7 @@ export default function AdminProfessorsPage() {
             <UserPlus className="w-4 h-4" />
             إضافة أستاذ
           </button>
+
       </div>
 
       {message && (
@@ -289,6 +356,91 @@ export default function AdminProfessorsPage() {
             {editingId ? <Pencil className="w-5 h-5 text-[#1a3a6b]" /> : <UserPlus className="w-5 h-5 text-[#1a3a6b]" />}
             {editingId ? 'تعديل بيانات أستاذ' : 'إضافة أستاذ جديد'}
           </h3>
+
+          {/* اختيار النوع — يظهر فقط عند الإضافة */}
+          {!editingId && !profType && (
+            <>
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              {[
+                { key: 'permanent', label: 'أستاذ دائم', desc: 'عضو هيئة التدريس الرسمي', icon: '🎓' },
+                { key: 'vacataire', label: 'أستاذ مؤقت', desc: 'متعاقد — يبدأ بـ V', icon: '📋' },
+              ].map(({ key, label, desc, icon }) => (
+                <button key={key} type="button"
+                  onClick={() => setProfType(key as 'permanent' | 'vacataire')}
+                  className="border-2 border-gray-200 hover:border-[#1a3a6b] rounded-2xl p-4 text-right transition-colors group">
+                  <p className="text-2xl mb-1">{icon}</p>
+                  <p className="font-bold text-gray-800 text-sm group-hover:text-[#1a3a6b]">{label}</p>
+                  <p className="text-xs text-gray-400">{desc}</p>
+                </button>
+              ))}
+            </div>
+            <button onClick={resetForm}
+              className="flex items-center gap-2 bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors mt-1">
+              <X className="w-4 h-4" /> إلغاء
+            </button>
+            </>
+          )}
+
+          {/* نموذج الأستاذ المؤقت */}
+          {!editingId && profType === 'vacataire' && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">رقم التعريف الوطني (NIN) * <span className="text-gray-400 text-xs">18 رقم</span></label>
+                <input type="text" inputMode="numeric" maxLength={18} value={vacForm.nin}
+                  onChange={e => setVacForm({ ...vacForm, nin: e.target.value.replace(/\D/g, '') })}
+                  placeholder="000000000000000000"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50 font-mono" dir="ltr" />
+                <p className="text-xs text-gray-400 mt-0.5 text-left">{vacForm.nin.length}/18</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { label: 'اللقب (عربي) *', key: 'last_name_ar',  placeholder: 'بن علي',   dir: 'rtl'  },
+                  { label: 'الاسم (عربي) *',  key: 'first_name_ar', placeholder: 'محمد',     dir: 'rtl'  },
+                  { label: 'Nom (français) *', key: 'last_name_fr',  placeholder: 'Ben Ali',  dir: 'ltr'  },
+                  { label: 'Prénom (français) *', key: 'first_name_fr', placeholder: 'Mohamed', dir: 'ltr' },
+                  { label: 'رقم الهاتف *', key: 'phone', placeholder: '0550000000', dir: 'ltr' },
+                  { label: 'البريد الإلكتروني *', key: 'email', placeholder: 'exemple@mail.com', dir: 'ltr' },
+                  { label: 'التخصص *', key: 'speciality', placeholder: 'قانون جنائي', dir: 'rtl' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <label className="text-sm text-gray-600 mb-1 block">{f.label}</label>
+                    <input type="text" value={(vacForm as any)[f.key]}
+                      onChange={e => setVacForm({ ...vacForm, [f.key]: e.target.value })}
+                      placeholder={f.placeholder} dir={f.dir}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50" />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-sm text-gray-600 mb-1 block">تاريخ الميلاد *</label>
+                  <input type="date" value={vacForm.birth_date}
+                    onChange={e => setVacForm({ ...vacForm, birth_date: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50" dir="ltr" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">آخر شهادة *</label>
+                <select value={vacForm.highest_degree}
+                  onChange={e => setVacForm({ ...vacForm, highest_degree: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
+                  {HIGHEST_DEGREES.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button onClick={handleCreateVacataire} disabled={vacSaving}
+                  className="flex items-center gap-2 bg-[#1a3a6b] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors disabled:opacity-50">
+                  <Save className="w-4 h-4" />
+                  {vacSaving ? 'جارٍ الحفظ...' : 'إضافة الأستاذ المؤقت'}
+                </button>
+                <button onClick={() => setProfType(null)}
+                  className="flex items-center gap-2 bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
+                  <X className="w-4 h-4" /> رجوع
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* نموذج الأستاذ الدائم — الأصلي */}
+          {(editingId || profType === 'permanent') && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {[
               { label: 'اللقب *', key: 'last_name', placeholder: 'بن علي' },
@@ -347,11 +499,12 @@ export default function AdminProfessorsPage() {
               <Save className="w-4 h-4" />
               {saving ? 'جارٍ الحفظ...' : editingId ? 'حفظ التعديلات' : 'إنشاء الحساب'}
             </button>
-            <button onClick={resetForm}
+            <button onClick={editingId ? resetForm : () => setProfType(null)}
               className="flex items-center gap-2 bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
-              <X className="w-4 h-4" /> إلغاء
+              <X className="w-4 h-4" /> {editingId ? 'إلغاء' : 'رجوع'}
             </button>
           </div>
+          )} {/* end permanent form */}
         </div>
       )}
 
