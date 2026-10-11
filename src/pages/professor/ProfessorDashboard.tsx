@@ -10,6 +10,7 @@ import type { Wish } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 
 type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule';
 
@@ -686,6 +687,214 @@ function AssignmentCard({ prof }: any) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// كشف الغيابات — تحميل Excel لفوج واحد
+function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment: any }) {
+  const [sessions, setSessions] = useState(12);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  async function download() {
+    setLoading(true);
+    try {
+      // جلب الطلبة من قاعدة البيانات مرتّبين أبجديًا
+      const { data: students } = await supabase
+        .from('students')
+        .select('last_name, first_name, registration_number')
+        .eq('specialite', assignment.specialite || '')
+        .eq('groupe', assignment.group_number)
+        .order('last_name', { ascending: true });
+
+      const wb = XLSX.utils.book_new();
+      const ws: XLSX.WorkSheet = {};
+
+      // ── إعدادات الصفحة A4 ──
+      ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+      ws['!margins'] = { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
+      ws['!rightToLeft'] = true;
+
+      const rows: any[][] = [];
+
+      // ── رأس الجدول ──
+      rows.push(['الجمهورية الجزائرية الديمقراطية الشعبية', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push(['وزارة التعليم العالي والبحث العلمي', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push(['جامعة محمد البشير الإبراهيمي — برج بوعريريج', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push(['كلية الحقوق والعلوم السياسية', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push([]);
+      rows.push([`المستوى: ${assignment.level_name || ''}`, '', '', `الفوج: ${String(assignment.group_number || '').padStart(2, '0')}`, '', '', `المادة: ${assignment.module_name || ''}`, '', '', '', `الأستاذ: ${prof?.last_name || ''} ${prof?.first_name || ''}`, '', '', '']);
+      rows.push([`النوع: ${assignment.teaching_type || ''}`, '', '', `الموسم: 2026/2027`, '', '', '', '', '', '', '', '', '', '']);
+      rows.push([]);
+
+      // ── رؤوس الأعمدة ──
+      const sessionHeaders = Array.from({ length: sessions }, (_, i) => `حص${i + 1}`);
+      rows.push(['الرقم', 'اللقب والاسم', ...sessionHeaders, 'ح/ت']);
+
+      // ── بيانات الطلبة ──
+      (students || []).forEach((s, i) => {
+        const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
+        rows.push([i + 1, fullName, ...Array(sessions).fill(''), '']);
+      });
+
+      // ── إدراج البيانات ──
+      XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A1' });
+
+      // ── دمج خلايا الرأس ──
+      const totalCols = sessions + 3; // رقم + اسم + حصص + ح/ت
+      const lastCol = XLSX.utils.encode_col(totalCols - 1);
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: totalCols - 1 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: totalCols - 1 } },
+        // سطر المعلومات
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
+        { s: { r: 5, c: 3 }, e: { r: 5, c: 5 } },
+        { s: { r: 5, c: 6 }, e: { r: 5, c: 9 } },
+        { s: { r: 5, c: 10 }, e: { r: 5, c: totalCols - 1 } },
+        { s: { r: 6, c: 0 }, e: { r: 6, c: 2 } },
+        { s: { r: 6, c: 3 }, e: { r: 6, c: totalCols - 1 } },
+      ];
+
+      // ── عرض الأعمدة ──
+      ws['!cols'] = [
+        { wch: 6 },   // رقم
+        { wch: 32 },  // الاسم
+        ...Array(sessions).fill({ wch: 5 }),  // حصص
+        { wch: 6 },   // ح/ت
+      ];
+
+      // ── ارتفاع الصفوف ──
+      ws['!rows'] = [
+        { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
+        { hpt: 8 },
+        { hpt: 20 }, { hpt: 20 },
+        { hpt: 8 },
+        { hpt: 22 }, // رؤوس الأعمدة
+        ...(students || []).map(() => ({ hpt: 20 })),
+      ];
+
+      // ── تنسيق الخلايا ──
+      const headerStyle = {
+        font: { name: 'Times New Roman', bold: true, sz: 12 },
+        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+      const colHeaderStyle = {
+        font: { name: 'Times New Roman', bold: true, sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+        fill: { fgColor: { rgb: '0A1628' }, patternType: 'solid' },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+      const cellStyle = {
+        font: { name: 'Times New Roman', sz: 10 },
+        alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+      const centerStyle = {
+        font: { name: 'Times New Roman', sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+
+      // تطبيق تنسيق رأس الصفحة (صفوف 0-3)
+      for (let r = 0; r <= 3; r++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c: 0 });
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        ws[cellRef].s = { ...headerStyle, font: { ...headerStyle.font, sz: r === 2 ? 13 : 11 } };
+      }
+
+      // تنسيق سطور المعلومات (5، 6)
+      for (let r = 5; r <= 6; r++) {
+        for (let c = 0; c < totalCols; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (!ws[ref]) ws[ref] = { v: '' };
+          ws[ref].s = { font: { name: 'Times New Roman', bold: true, sz: 10 }, alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 } };
+        }
+      }
+
+      // تنسيق رؤوس الأعمدة (صف 8)
+      for (let c = 0; c < totalCols; c++) {
+        const ref = XLSX.utils.encode_cell({ r: 8, c });
+        if (!ws[ref]) ws[ref] = { v: '' };
+        ws[ref].s = { ...colHeaderStyle, font: { ...colHeaderStyle.font, color: { rgb: 'C9A227' } } };
+      }
+
+      // تنسيق صفوف الطلبة
+      const startRow = 9;
+      (students || []).forEach((_, i) => {
+        const r = startRow + i;
+        const bg = i % 2 === 0 ? 'FFFFFF' : 'F8F9FA';
+        // رقم
+        const numRef = XLSX.utils.encode_cell({ r, c: 0 });
+        if (!ws[numRef]) ws[numRef] = { v: '' };
+        ws[numRef].s = { ...centerStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
+        // اسم
+        const nameRef = XLSX.utils.encode_cell({ r, c: 1 });
+        if (!ws[nameRef]) ws[nameRef] = { v: '' };
+        ws[nameRef].s = { ...cellStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
+        // حصص + ح/ت
+        for (let c = 2; c < totalCols; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (!ws[ref]) ws[ref] = { v: '' };
+          ws[ref].s = { ...centerStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
+        }
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws, `ف${String(assignment.group_number).padStart(2,'0')}`);
+      const levelCode = (assignment.level_name || 'مستوى').replace(/\s+/g, '_');
+      const fname = `كشف_ف${String(assignment.group_number).padStart(2,'0')}_${levelCode}_${assignment.module_name?.replace(/\s+/g,'_') || 'مادة'}.xlsx`;
+      XLSX.writeFile(wb, fname);
+    } finally {
+      setLoading(false);
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
+        style={{ background: 'rgba(201,162,39,0.12)', color: '#92400e', border: '1px solid rgba(201,162,39,0.3)' }}
+      >
+        <Download className="w-3 h-3" />
+        كشف الغيابات
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-52">
+          <p className="text-xs font-bold text-gray-700 mb-2">عدد الحصص</p>
+          <div className="flex flex-wrap gap-1 mb-3">
+            {[10, 11, 12, 13, 14].map(n => (
+              <button
+                key={n}
+                onClick={() => setSessions(n)}
+                className="w-9 h-8 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  background: sessions === n ? '#0a1628' : '#f1f4f9',
+                  color: sessions === n ? '#c9a227' : '#64748b',
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={download}
+            disabled={loading}
+            className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2"
+            style={{ background: loading ? '#94a3b8' : 'linear-gradient(135deg,#c9a227,#a07820)' }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            {loading ? 'جارٍ التحميل...' : `تحميل Excel (${sessions} حصص)`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 function ProfScheduleTab({ prof }: any) {
   const [scheduled, setScheduled] = useState<any[]>([]);
   const [unscheduled, setUnscheduled] = useState<any[]>([]);
@@ -697,7 +906,7 @@ function ProfScheduleTab({ prof }: any) {
     async function load() {
       // جلب كل إسنادات الأستاذ
       const { data: assignments } = await supabase.from('assignments')
-        .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level_id')
+        .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level_id, specialite')
         .eq('professor_id', prof?.id)
         .eq('academic_year', '2026-2027')
         .eq('semester', 1);
@@ -744,12 +953,14 @@ function ProfScheduleTab({ prof }: any) {
           teaching_type: a?.teaching_type || 'محاضرة',
           section: a?.section_number,
           group: a?.group_number,
+          group_number: a?.group_number,
           weekly_hours: a?.teaching_type === 'محاضرة' ? 2.25 : 1.5,
           room: rMap.get(s.room_id) || '—',
           day: s.time_slot?.day,
           start_time: s.time_slot?.start_time?.slice(0, 5),
           end_time: s.time_slot?.end_time?.slice(0, 5),
           slot_number: s.time_slot?.slot_number,
+          specialite: a?.specialite || '',
         };
       }).filter((s: any) => s.day);
 
@@ -831,11 +1042,14 @@ function ProfScheduleTab({ prof }: any) {
                         {s.room}
                       </p>
                     </div>
-                    <div className="text-left">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium block mb-1 ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
                         {s.teaching_type}
                       </span>
-                      <span className="text-[10px] text-gray-400 block text-center">{s.weekly_hours?.toFixed(2)}س</span>
+                      <span className="text-[10px] text-gray-400">{s.weekly_hours?.toFixed(2)}س</span>
+                      {s.teaching_type !== 'محاضرة' && (
+                        <AttendanceDownloadButton prof={prof} assignment={s} />
+                      )}
                     </div>
                   </div>
                 ))}
