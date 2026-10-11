@@ -296,7 +296,7 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
   async function loadAvailableGroupes() {
     if (!student.section) return;
 
-    // 1. جلب level_id من التخصص
+    // 1. جلب level_id
     const { data: levelData } = await supabase
       .from('levels')
       .select('id')
@@ -304,41 +304,28 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
       .maybeSingle();
 
     if (levelData) {
-      // 2. جلب الأفواج من جدول التكوين (sections أو level_sections)
-      const { data: secData } = await supabase
-        .from('sections')
-        .select('group_number')
+      // 2. جلب عدد الأفواج من level_semesters
+      const { data: semData } = await supabase
+        .from('level_semesters')
+        .select('num_sections, num_groups')
         .eq('level_id', levelData.id)
-        .eq('section_number', student.section)
-        .not('group_number', 'is', null);
-
-      if (secData && secData.length > 0) {
-        const unique = [...new Set(secData.map(d => d.group_number as number))].sort((a, b) => a - b);
-        setAvailableGroupes(unique.filter(g => g !== student.groupe));
-        return;
-      }
-
-      // 3. fallback: جلب عدد الأفواج من level وإنشاء قائمة
-      const { data: lvlFull } = await supabase
-        .from('levels')
-        .select('groups_per_section, total_groups')
-        .eq('id', levelData.id)
+        .limit(1)
         .maybeSingle();
 
-      const total = lvlFull?.groups_per_section || lvlFull?.total_groups || 0;
-      if (total > 0) {
+      if (semData?.num_sections && semData?.num_groups) {
+        // الأفواج تُرقَّم 1..N عالمياً: 4 مجموعات × 5 أفواج = 20 فوج
+        const total = semData.num_sections * semData.num_groups;
         const all = Array.from({ length: total }, (_, i) => i + 1);
         setAvailableGroupes(all.filter(g => g !== student.groupe));
         return;
       }
     }
 
-    // 4. آخر fallback: الأفواج الموجودة في جدول students
+    // fallback: الأفواج الموجودة في جدول students على مستوى التخصص كله
     const { data } = await supabase
       .from('students')
       .select('groupe')
       .eq('specialite', student.specialite)
-      .eq('section', student.section)
       .not('groupe', 'is', null);
     if (data) {
       const unique = [...new Set(data.map(d => d.groupe as number))].sort((a, b) => a - b);
