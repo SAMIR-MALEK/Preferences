@@ -94,6 +94,9 @@ export default function AdminProfessorsPage() {
       const nextNum = vacNums.length > 0 ? Math.max(...vacNums) + 1 : 1;
       const username = `V${String(nextNum).padStart(3, '0')}`;
 
+      // كلمة مرور 6 أرقام عشوائية
+      const password = String(Math.floor(100000 + Math.random() * 900000));
+
       const result = await callEdgeFunction('create-professor', {
         last_name: last_name_ar.trim(),
         first_name: first_name_ar.trim(),
@@ -109,9 +112,11 @@ export default function AdminProfessorsPage() {
         professional_experience: 0,
         is_vacataire: true,
         username_override: username,
+        password,
       });
 
-      setNewCredentials({ username: result.username, password: result.password });
+      // الـ edge function قد تعيد username مختلفاً — نستخدم ما أرسلناه إن كان result.username undefined
+      setNewCredentials({ username: result.username ?? username, password: result.password ?? password });
       setMessage({ type: 'success', text: `تم إضافة الأستاذ المؤقت ${last_name_ar} ${first_name_ar} بنجاح` });
       setVacForm(emptyVacForm);
       setProfType(null);
