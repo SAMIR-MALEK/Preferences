@@ -290,6 +290,7 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
   const [msg, setMsg] = useState('');
   const [requests, setRequests] = useState<GroupChangeRequest[]>([]);
   const [availableGroupes, setAvailableGroupes] = useState<number[]>([]);
+  const [groupsPerSection, setGroupsPerSection] = useState<number>(5);
 
   useEffect(() => { loadRequests(); loadAvailableGroupes(); }, []);
 
@@ -316,6 +317,7 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
         // الأفواج تُرقَّم 1..N عالمياً: 4 مجموعات × 5 أفواج = 20 فوج
         const total = semData.num_sections * semData.num_groups;
         const all = Array.from({ length: total }, (_, i) => i + 1);
+        setGroupsPerSection(semData.num_groups);
         setAvailableGroupes(all.filter(g => g !== student.groupe));
         return;
       }
@@ -433,26 +435,53 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-2">الفوج المطلوب</label>
-                <div className="flex flex-wrap gap-2">
-                  {availableGroupes.length === 0 ? (
-                    <p className="text-xs text-gray-400">لا توجد أفواج متاحة للتغيير</p>
-                  ) : (
-                    availableGroupes.map(g => (
-                      <button
-                        key={g}
-                        type="button"
-                        onClick={() => setRequestedGroupe(String(g))}
-                        className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
-                          requestedGroupe === String(g)
-                            ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-[#1a3a6b]'
-                        }`}
-                      >
-                        الفوج {g}
-                      </button>
-                    ))
-                  )}
-                </div>
+                {availableGroupes.length === 0 ? (
+                  <p className="text-xs text-gray-400">لا توجد أفواج متاحة للتغيير</p>
+                ) : (() => {
+                  // تجميع الأفواج حسب المجموعة (groupsPerSection = عدد الأفواج في كل مجموعة)
+                  const allGroupes = [...availableGroupes, student.groupe ?? 0].sort((a, b) => a - b);
+                  const maxGroupe = Math.max(...allGroupes);
+                  const totalGroupes = availableGroupes.length + 1; // +1 للفوج الحالي
+                  // تحديد عدد الأفواج في كل مجموعة (5 افتراضي)
+                  const gpSection = maxGroupe <= 5 ? maxGroupe : 5;
+                  const numSections = Math.ceil(maxGroupe / gpSection);
+                  const sections: number[][] = [];
+                  for (let s = 0; s < numSections; s++) {
+                    const groupesInSection = [];
+                    for (let g = s * gpSection + 1; g <= (s + 1) * gpSection && g <= maxGroupe; g++) {
+                      if (availableGroupes.includes(g)) groupesInSection.push(g);
+                    }
+                    if (groupesInSection.length > 0) sections.push(groupesInSection);
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {sections.map((groupes, idx) => {
+                        const sectionNum = Math.ceil(groupes[0] / gpSection);
+                        return (
+                          <div key={idx}>
+                            <p className="text-[10px] text-gray-400 mb-1.5">المجموعة {sectionNum}</p>
+                            <div className="flex flex-wrap gap-2">
+                              {groupes.map(g => (
+                                <button
+                                  key={g}
+                                  type="button"
+                                  onClick={() => setRequestedGroupe(String(g))}
+                                  className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${
+                                    requestedGroupe === String(g)
+                                      ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
+                                      : 'bg-white text-gray-700 border-gray-200 hover:border-[#1a3a6b]'
+                                  }`}
+                                >
+                                  ف {g}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">المبرر</label>
