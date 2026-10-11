@@ -37,12 +37,48 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 
 // ─── Single request card ───────────────────────────────────────────────────────
 
+interface GroupStats {
+  fromCount: number;
+  toCount:   number;
+  avg:       number;
+}
+
 function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string; onRefresh: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<GroupStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   const st = STATUS_LABEL[req.status] ?? STATUS_LABEL.pending;
+
+  async function loadStats() {
+    if (stats || statsLoading || !req.student?.specialite) return;
+    setStatsLoading(true);
+    const { data } = await supabase
+      .from('students')
+      .select('groupe')
+      .eq('specialite', req.student.specialite)
+      .not('groupe', 'is', null);
+
+    if (data && data.length > 0) {
+      const counts: Record<number, number> = {};
+      for (const s of data) counts[s.groupe] = (counts[s.groupe] || 0) + 1;
+      const vals = Object.values(counts);
+      const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+      setStats({
+        fromCount: counts[req.current_groupe]   ?? 0,
+        toCount:   counts[req.requested_groupe] ?? 0,
+        avg,
+      });
+    }
+    setStatsLoading(false);
+  }
+
+  function handleExpand() {
+    setExpanded(v => !v);
+    if (!expanded) loadStats();
+  }
 
   async function decide(action: 'approve' | 'reject') {
     setLoading(true);
@@ -64,7 +100,7 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
       {/* Header row */}
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
-        onClick={() => setExpanded(v => !v)}
+        onClick={handleExpand}
       >
         <div className="w-9 h-9 rounded-full bg-[#0a1628] flex items-center justify-center text-white font-bold text-sm shrink-0">
           {req.student?.last_name?.[0] ?? '؟'}
@@ -86,6 +122,29 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
       {/* Expanded body */}
       {expanded && (
         <div className="border-t border-gray-50 px-4 pb-4 pt-3 space-y-3">
+
+          {/* Groupe stats — dept_head */}
+          {role === 'dept_head' && (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {statsLoading ? (
+                <div className="col-span-3 py-2 text-xs text-gray-300">جارٍ التحميل...</div>
+              ) : stats ? (
+                <>
+                  {[
+                    { label: `ف ${req.current_groupe} — الأصلي`,  value: stats.fromCount, highlight: false },
+                    { label: `ف ${req.requested_groupe} — المطلوب`, value: stats.toCount,   highlight: true  },
+                    { label: 'المتوسط',                             value: stats.avg,        highlight: false },
+                  ].map(({ label, value, highlight }) => (
+                    <div key={label} className={`rounded-xl py-2.5 px-1 ${highlight ? 'bg-amber-50 border border-amber-100' : 'bg-gray-50'}`}>
+                      <p className="text-[10px] text-gray-400 mb-0.5 leading-tight">{label}</p>
+                      <p className={`text-base font-black ${highlight ? 'text-amber-700' : 'text-[#0a1628]'}`}>{value}</p>
+                      <p className="text-[9px] text-gray-300">طالب</p>
+                    </div>
+                  ))}
+                </>
+              ) : null}
+            </div>
+          )}
 
           {/* Quick info */}
           <div className="grid grid-cols-3 gap-2 text-center">
