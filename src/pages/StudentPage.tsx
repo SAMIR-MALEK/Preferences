@@ -295,7 +295,45 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
 
   async function loadAvailableGroupes() {
     if (!student.section) return;
-    // جلب الأفواج المتوفرة في نفس المجموعة من جدول students
+
+    // 1. جلب level_id من التخصص
+    const { data: levelData } = await supabase
+      .from('levels')
+      .select('id')
+      .eq('name_ar', student.specialite)
+      .maybeSingle();
+
+    if (levelData) {
+      // 2. جلب الأفواج من جدول التكوين (sections أو level_sections)
+      const { data: secData } = await supabase
+        .from('sections')
+        .select('group_number')
+        .eq('level_id', levelData.id)
+        .eq('section_number', student.section)
+        .not('group_number', 'is', null);
+
+      if (secData && secData.length > 0) {
+        const unique = [...new Set(secData.map(d => d.group_number as number))].sort((a, b) => a - b);
+        setAvailableGroupes(unique.filter(g => g !== student.groupe));
+        return;
+      }
+
+      // 3. fallback: جلب عدد الأفواج من level وإنشاء قائمة
+      const { data: lvlFull } = await supabase
+        .from('levels')
+        .select('groups_per_section, total_groups')
+        .eq('id', levelData.id)
+        .maybeSingle();
+
+      const total = lvlFull?.groups_per_section || lvlFull?.total_groups || 0;
+      if (total > 0) {
+        const all = Array.from({ length: total }, (_, i) => i + 1);
+        setAvailableGroupes(all.filter(g => g !== student.groupe));
+        return;
+      }
+    }
+
+    // 4. آخر fallback: الأفواج الموجودة في جدول students
     const { data } = await supabase
       .from('students')
       .select('groupe')
@@ -304,7 +342,6 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
       .not('groupe', 'is', null);
     if (data) {
       const unique = [...new Set(data.map(d => d.groupe as number))].sort((a, b) => a - b);
-      // استبعاد الفوج الحالي للطالب
       setAvailableGroupes(unique.filter(g => g !== student.groupe));
     }
   }
@@ -470,10 +507,25 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
 // ─── Main Student Page ────────────────────────────────────────────────────────
 
 export default function StudentPage() {
-  const [student, setStudent] = useState<Student | null>(null);
+  const [student, setStudent] = useState<Student | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('student_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
   const [activeTab, setActiveTab] = useState<'schedule' | 'info' | 'requests'>('schedule');
+
+  function handleLogin(s: Student) {
+    try { sessionStorage.setItem('student_session', JSON.stringify(s)); } catch {}
+    setStudent(s);
+  }
+
+  function handleLogout() {
+    try { sessionStorage.removeItem('student_session'); } catch {}
+    setStudent(null);
+  }
 
   useEffect(() => {
     if (student) loadSchedule();
@@ -562,7 +614,7 @@ export default function StudentPage() {
     setLoadingSchedule(false);
   }
 
-  if (!student) return <LoginScreen onLogin={setStudent} />;
+  if (!student) return <LoginScreen onLogin={handleLogin} />;
 
   const isActive = student.sit_ins === 'Validée';
 
@@ -590,7 +642,7 @@ export default function StudentPage() {
               <p className="text-white/70 text-sm mt-0.5">{student.specialite}</p>
             </div>
             <button
-              onClick={() => setStudent(null)}
+              onClick={handleLogout}
               className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-xs transition-colors"
             >
               <LogOut className="w-4 h-4" />
@@ -616,7 +668,7 @@ export default function StudentPage() {
                 student.sit_ins === 'Générée' ? 'bg-amber-400/20 text-amber-200' :
                 'bg-red-400/20 text-red-200'
               }`}>
-                {student.sit_ins}
+                {student.sit_ins === 'Validée' ? 'مسجّل' : student.sit_ins === 'Générée' ? 'معلّق' : 'غير مسجّل'}
               </span>
             )}
           </div>
@@ -699,7 +751,7 @@ export default function StudentPage() {
                             student.sit_ins === 'Validée' ? 'bg-green-400/25 text-green-200' :
                             student.sit_ins === 'Générée' ? 'bg-amber-400/25 text-amber-200' :
                             'bg-red-400/25 text-red-200'
-                          }`}>{student.sit_ins}</span>
+                          }`}>{student.sit_ins === 'Validée' ? 'مسجّل' : student.sit_ins === 'Générée' ? 'معلّق' : 'غير مسجّل'}</span>
                         )}
                       </div>
                     </div>
