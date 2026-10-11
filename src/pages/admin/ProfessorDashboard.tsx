@@ -1,0 +1,1088 @@
+import { useState, useEffect, useRef } from 'react';
+import AssignmentResults from './AssignmentResults';
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
+import { toArabicNum, toArabicFixed } from '../../lib/utils';
+import { Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight } from 'lucide-react';
+import WishesFormPage from './WishesFormPage';
+import ProfessorProfilePage from './ProfessorProfilePage';
+import type { Wish } from '../../types';
+import { HOURS_LECTURE, HOURS_TD } from '../../types';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
+
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule';
+
+function isProfileComplete(p: any): boolean {
+  if (!p) return false;
+  return Boolean(
+    p.degree_speciality?.trim() &&
+    p.degree_title?.trim() &&
+    p.email?.trim() &&
+    p.phone?.trim()
+  );
+}
+
+export default function ProfessorDashboard() {
+  const { user, signOut } = useAuth();
+  const prof = user?.professor;
+  const isVacataire = ((prof as any)?.username as string || '').startsWith('V');
+
+  // Reload prof data after changes
+  const [profData, setProfData] = useState(prof);
+  const [hasResults, setHasResults] = useState(false);
+  const [resultsPublished, setResultsPublished] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
+  useEffect(() => { setProfData(prof); }, [prof]);
+
+  const profileComplete = isProfileComplete(profData);
+  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'schedule' : 'profile'); // سيُحدَّث بعد جلب resultsPublished
+
+  // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
+  useEffect(() => {
+    // جلب إعداد النشر
+    supabase.from('academic_settings')
+      .select('*')
+      .eq('academic_year', '2026-2027')
+      .single()
+      .then(({ data }) => { if(data) { setSettings(data); const pub = data.results_published === true; setResultsPublished(pub); setRegistrationOpen(data.registration_s1_open === true); } });
+
+    // فحص وجود نتائج إسناد أولية
+    if (!prof?.id) return;
+    supabase.from('assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('professor_id', prof.id)
+      .eq('academic_year', '2026-2027')
+      .eq('semester', 1)
+      .eq('status', 'نهائي')
+      .then(({ count }) => setHasResults((count || 0) > 0));
+  }, [prof?.id]);
+
+  useEffect(() => {
+    if (!profileComplete && tab !== 'profile') {
+      setTab('profile');
+    }
+  }, [profileComplete, tab]);
+
+  async function reloadProf() {
+    const { data } = await supabase.from('professors').select('*').eq('id', prof?.id).single();
+    if (data) setProfData(data);
+  }
+
+  const s1Locked = profData?.wishes_locked_s1 || false;
+  const s2Locked = profData?.wishes_locked_s2 || false;
+  const s2Unlocked = true; // حرية تنقّل كاملة بين السداسيين — لا إلزام بتأكيد الأول قبل الوصول للثاني
+
+  const tabs = [
+    { id: 'schedule' as ProfTab, label: 'التكليف البيداغوجي', icon: Clock, disabled: !profileComplete, highlighted: true },
+    ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, small: true }] : []),
+    { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User, small: true },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#f1f4f9] font-arabic" dir="rtl">
+      {/* Navbar */}
+      <nav className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="flex items-center justify-between h-14">
+            {/* Logo */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#c9a227] flex items-center justify-center">
+                <GraduationCap className="w-4 h-4 text-white" />
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-white font-bold text-xs font-display">المنصة البيداغوجية</p>
+                <p className="text-[#c9a227] text-[10px]">كلية الحقوق — برج بوعريريج</p>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1">
+              {tabs.map(t => {
+                const Icon = t.icon;
+                const isActive = tab === t.id;
+                return (
+                  <button key={t.id}
+                    onClick={() => !t.disabled && setTab(t.id)}
+                    disabled={t.disabled}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: isActive ? (t.id === 'results' ? '#c9a227' : '#c9a227') : (t.id === 'results' ? 'rgba(201,162,39,0.25)' : 'transparent'),
+                      color: isActive ? 'white' : t.disabled ? 'rgba(255,255,255,.25)' : (t.id === 'results' ? '#fde68a' : 'rgba(255,255,255,.65)'),
+                      cursor: t.disabled ? 'not-allowed' : 'pointer',
+                      fontWeight: t.id === 'results' ? 'bold' : 'normal',
+                      fontSize: t.id === 'results' ? '13px' : ((t as any).small ? '10px' : '11px'),
+                      opacity: (t as any).small ? 0.75 : 1,
+                      border: t.id === 'results' && !isActive ? '1px solid rgba(201,162,39,0.5)' : 'none',
+                    }}>
+                    <Icon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{t.label}</span>
+                    {/* Status dots */}
+                    {t.id === 's1' && s1Locked && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                    )}
+                    {t.id === 's2' && s2Locked && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* User */}
+            <div className="flex items-center gap-2">
+              {isVacataire && (profData as any)?.photo_url ? (
+                <a href={(profData as any).photo_url} download={`صورة_${profData?.last_name}`} target="_blank" rel="noopener noreferrer"
+                  title="تحميل الصورة الشخصية">
+                  <img src={(profData as any).photo_url} alt="صورة شخصية"
+                    className="w-8 h-8 rounded-full object-cover border-2 border-[#c9a227] hover:opacity-80 transition-opacity cursor-pointer" />
+                </a>
+              ) : null}
+              <div className="hidden sm:block text-left">
+                <p className="text-white text-xs font-medium">{profData?.last_name} {profData?.first_name}</p>
+                <p className="text-[#c9a227] text-[10px]">{isVacataire ? 'أستاذ مؤقت' : profData?.rank}</p>
+              </div>
+              <button onClick={signOut} className="text-gray-400 hover:text-red-400 transition-colors p-1">
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Content */}
+      <div className="max-w-5xl mx-auto px-4 py-5">
+        {!resultsPublished && profileComplete && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">⏳</span>
+            <div>
+              <p className="font-bold text-amber-800 text-sm">النتائج النهائية قيد التدقيق</p>
+              <p className="text-amber-600 text-xs mt-0.5">سيتم نشر نتائج الإسناد النهائية للسداسي الأول بعد التدقيق.</p>
+            </div>
+          </div>
+        )}
+        {tab === 'home' && hasResults && resultsPublished && (
+          <div
+            onClick={() => setTab('results')}
+            className="cursor-pointer bg-gradient-to-l from-[#1a3a6b] to-[#0d2040] text-white rounded-2xl p-5 flex items-center gap-4 shadow-lg hover:shadow-xl transition-all mb-2 animate-fade-in">
+            <div className="w-12 h-12 bg-[#c9a227] rounded-xl flex items-center justify-center flex-shrink-0">
+              <Award className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-lg">صدرت نتائج الإسناد النهائية للسداسي الأول</p>
+              <p className="text-white/70 text-sm mt-0.5">اضغط هنا للاطلاع على المقاييس المُسنَدة إليك</p>
+            </div>
+            <div className="text-white/50 text-2xl">←</div>
+          </div>
+        )}
+        {tab === 'home' && (
+          <ProfHome
+            prof={profData}
+            registrationOpen={registrationOpen}
+            s1Locked={s1Locked}
+            s2Locked={s2Locked}
+            s2Unlocked={s2Unlocked}
+            profileComplete={profileComplete}
+            setTab={setTab}
+          />
+        )}
+        {tab === 'profile' && (
+          <ProfessorProfilePage
+            forceComplete={!profileComplete}
+            onSaved={async () => { await reloadProf(); }}
+            onGoToWishes={!isVacataire ? () => setTab('s1') : undefined}
+          />
+        )}
+        {tab === 's1' && (
+          <WishesFormPage
+            semester={1}
+            onConfirmed={async () => { await reloadProf(); setTab('s2'); }}
+          />
+        )}
+        {tab === 's2' && (
+          <WishesFormPage
+            semester={2}
+            onConfirmed={async () => { await reloadProf(); setTab('card'); }}
+          />
+        )}
+        {tab === 'card' && <WishCard prof={profData} />}
+        {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
+        {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTab, registrationOpen }: any) {
+  const steps = [
+    { n: '1', t: 'أكمل معلوماتك الشخصية', done: profileComplete, c: '#dbeafe', tc: '#1d4ed8', tab: 'profile' },
+    { n: '2', t: 'سجّل رغبات السداسي الأول', done: s1Locked, c: 'rgba(26,58,107,.1)', tc: '#1a3a6b', tab: 's1' },
+    { n: '3', t: 'سجّل رغبات السداسي الثاني (متاح في أي وقت)', done: s2Locked, c: 'rgba(201,162,39,.15)', tc: '#92400e', tab: 's2' },
+    { n: '4', t: 'تأكيد واحد يُقفل السداسيين معاً', done: s2Locked, c: '#dcfce7', tc: '#15803d' },
+    { n: '5', t: 'اطبع بطاقتك الموحّدة', done: false, c: '#fee2e2', tc: '#991b1b', tab: 'card', locked: !s1Locked },
+  ];
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      {/* Banner */}
+      <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'radial-gradient(#c9a227 1px,transparent 1px)', backgroundSize: '18px 18px' }} />
+        <div className="relative flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[#c9a227] text-xs mb-1">أهلاً وسهلاً</p>
+            <h2 className="font-display text-xl font-bold mb-2">{prof?.last_name} {prof?.first_name}</h2>
+            <div className="flex items-center gap-2 text-gray-300 text-sm">
+              <Award className="w-4 h-4 text-[#c9a227]" />
+              {prof?.rank}
+            </div>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-[#c9a227]/20 border border-[#c9a227]/30 flex items-center justify-center flex-shrink-0">
+            <GraduationCap className="w-6 h-6 text-[#c9a227]" />
+          </div>
+        </div>
+        <div className="relative mt-4 pt-4 border-t border-white/10 flex items-center gap-2">
+          <Bell className="w-4 h-4 text-[#c9a227]" />
+          <span className="text-xs text-gray-300">
+            باب التسجيل <span className={registrationOpen ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{registrationOpen ? 'مفتوح' : 'مغلق'}</span> — الموسم الجامعي 2026/2027
+          </span>
+        </div>
+      </div>
+
+      {/* Steps */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <h3 className="font-display font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-[#1a3a6b] text-white text-[10px] flex items-center justify-center">!</span>
+          مسار التسجيل
+        </h3>
+        <div className="relative">
+          <div className="absolute right-3 top-3 bottom-3 w-0.5 bg-gray-100 z-0" />
+          {steps.map((s, i) => (
+            <div key={i} className="flex items-start gap-3 mb-3 relative z-10">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                style={{
+                  background: s.done ? '#1a3a6b' : s.c,
+                  border: `2px solid ${s.done ? '#1a3a6b' : s.tc}`,
+                  color: s.done ? 'white' : s.tc,
+                }}>
+                {s.done ? '✓' : s.n}
+              </div>
+              <div className="flex-1 pt-0.5">
+                <span className="text-sm" style={{ color: s.done ? '#15803d' : s.locked ? '#94a3b8' : '#475569' }}>
+                  {s.t}
+                  {s.done && <span className="text-green-500 text-xs mr-2">✓ مكتمل</span>}
+                  {s.locked && <span className="text-gray-400 text-xs mr-2">🔒 مقفل</span>}
+                </span>
+              </div>
+              {s.tab && !s.locked && !s.done && (
+                <button onClick={() => setTab(s.tab)}
+                  className="flex items-center gap-1 text-xs font-medium transition-colors flex-shrink-0"
+                  style={{ color: s.tc }}>
+                  ابدأ <ChevronRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Semester cards */}
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { sem: 1, tab: 's1', color: '#1a3a6b', bg: 'rgba(26,58,107,.07)', locked: s1Locked },
+          { sem: 2, tab: 's2', color: '#c9a227', bg: 'rgba(201,162,39,.1)', locked: s2Locked },
+        ].map(s => (
+          <div key={s.sem}
+            className="bg-white rounded-2xl p-4 border-2 shadow-sm transition-all"
+            style={{
+              borderColor: s.locked ? '#bbf7d0' : `${s.color}33`,
+            }}>
+            <div className="flex justify-between items-start mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: s.bg }}>
+                <Clock className="w-5 h-5" style={{ color: s.color }} />
+              </div>
+              {s.locked
+                ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> مكتمل
+                  </span>
+                : <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full animate-pulse">● جارٍ</span>
+              }
+            </div>
+            <h3 className="font-display font-bold text-gray-800 text-sm mb-1">
+              السداسي {s.sem === 1 ? 'الأول' : 'الثاني'}
+            </h3>
+            <p className="text-gray-400 text-xs mb-3">خمس رغبات إجبارية — متاح في أي وقت</p>
+            <button
+              onClick={() => setTab(s.tab)}
+              className="w-full py-2 rounded-xl text-xs font-medium transition-all"
+              style={{
+                background: s.locked ? 'rgba(26,58,107,.08)' : `linear-gradient(135deg,${s.color},${s.sem === 1 ? '#0d2040' : '#a07820'})`,
+                color: s.locked ? s.color : 'white',
+              }}>
+              {s.locked ? 'مراجعة' : 'ابدأ التسجيل'}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {s1Locked && !s2Locked && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-800">
+          <Bell className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          التأكيد في السداسي الثاني سيُقفل <strong>السداسيين معاً</strong> نهائياً بقفلة واحدة.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+function WishCard({ prof }: any) {
+  const [wishes, setWishes] = useState<Wish[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.from('wishes')
+      .select('*, module:modules(*, level:levels(*))')
+      .eq('professor_id', prof?.id)
+      .eq('academic_year', '2026-2027')
+      .order('semester').order('wish_order')
+      .then(({ data }) => { if (data) setWishes(data); setLoading(false); });
+  }, []);
+
+  async function downloadPDF() {
+    if (!cardRef.current) return;
+    setGenerating(true);
+    const canvas = await html2canvas(cardRef.current, { scale: 2, backgroundColor: '#fff', logging: false });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const w = pdf.internal.pageSize.getWidth() - 20;
+    const h = (canvas.height * w) / canvas.width;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, w, Math.min(h, 270));
+    pdf.save(`بطاقة_الرغبات_${prof?.last_name}_2026-2027.pdf`);
+    setGenerating(false);
+  }
+
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
+
+  const s1Wishes = wishes.filter(w => w.semester === 1);
+  const s2Wishes = wishes.filter(w => w.semester === 2);
+  const wLabels = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+
+  const SemSection = ({ sem, list, color }: { sem: number; list: Wish[]; color: string }) => (
+    <div className="mb-5">
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+        <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${color}1a` }}>
+          <Clock className="w-3.5 h-3.5" style={{ color }} />
+        </div>
+        <span className="font-display font-bold text-sm text-gray-800">
+          السداسي {sem === 1 ? 'الأول' : 'الثاني'}
+        </span>
+        <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${color}1a`, color }}>
+          {toArabicNum(list.length)} رغبات
+        </span>
+      </div>
+      {list.map((w, i) => (
+        <div key={w.id}
+          className="flex gap-3 items-center p-3 rounded-xl mb-2"
+          style={{
+            border: `1.5px solid ${i === 0 ? color + '55' : i === 1 ? color + '30' : '#e5e7eb'}`,
+            background: i === 0 ? `${color}06` : '#fafafa'
+          }}>
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 font-display"
+            style={{ background: i < 2 ? color : '#e5e7eb', color: i < 2 ? 'white' : '#475569' }}>
+            {w.wish_order}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-gray-800 text-sm">الرغبة {wLabels[i]}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full"
+                style={{
+                  background: w.teaching_type === 'محاضرة' ? 'rgba(26,58,107,.1)' : 'rgba(201,162,39,.1)',
+                  color: w.teaching_type === 'محاضرة' ? '#1a3a6b' : '#92400e'
+                }}>
+                {w.teaching_type}
+              </span>
+              <span className="text-xs text-gray-400">
+                {w.teaching_type === 'محاضرة' ? `${HOURS_LECTURE}س` : `${HOURS_TD}س`}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {(w as any).module?.level?.name_ar} — {(w as any).module?.name_ar}
+            </p>
+          </div>
+          <div className="text-left flex-shrink-0">
+            {w.taught_before
+              ? <div><p className="text-xs text-green-600 font-semibold">✓ سابقاً</p>
+                  <p className="text-xs text-gray-400">{w.previous_years?.join(' | ')}</p></div>
+              : <span className="text-xs text-gray-400">—</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-display font-bold text-gray-900 text-lg">بطاقة الرغبات النهائية</h2>
+          <span className="inline-flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 px-3 py-1 rounded-full border border-amber-200 mt-1">
+            <Lock className="w-3 h-3" /> السداسيان مؤكدان ومقفلان
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={downloadPDF} disabled={generating}
+            className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            style={{ background: 'linear-gradient(135deg,#c9a227,#a07820)' }}>
+            <Download className="w-4 h-4" />
+            {generating ? 'جارٍ...' : 'PDF'}
+          </button>
+          <button onClick={() => window.print()}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-sm transition-colors hover:bg-gray-200">
+            <Printer className="w-4 h-4" />
+            طباعة
+          </button>
+        </div>
+      </div>
+
+      {/* The printable card */}
+      <div ref={cardRef}
+        className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+        {/* Card header */}
+        <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] p-5 text-white">
+          <div className="flex justify-between items-start gap-3">
+            <div>
+              <p className="text-[#c9a227] text-[10px]">الجمهورية الجزائرية الديمقراطية الشعبية — وزارة التعليم العالي</p>
+              <p className="font-bold text-sm mt-1">جامعة محمد البشير الإبراهيمي — برج بوعريريج</p>
+              <p className="text-[#c9a227] font-bold text-sm">كلية الحقوق والعلوم السياسية</p>
+              <p className="text-gray-400 text-xs mt-0.5">نيابة العمادة المكلفة بالبيداغوجيا</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-[#c9a227]/20 border border-[#c9a227]/30 flex items-center justify-center flex-shrink-0">
+              <GraduationCap className="w-6 h-6 text-[#c9a227]" />
+            </div>
+          </div>
+          <div className="text-center mt-4 pt-4 border-t border-white/15">
+            <h2 className="font-display font-bold text-base">بطاقة تسجيل الرغبات البيداغوجية</h2>
+            <p className="text-[#c9a227] text-xs font-semibold mt-1">الموسم الجامعي 2026 / 2027</p>
+          </div>
+        </div>
+
+        {/* Prof info */}
+        <div className="p-4 border-b border-gray-100 bg-gray-50">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['اللقب والاسم', `${prof?.last_name} ${prof?.first_name}`],
+              ['الرتبة', prof?.rank],
+              ['الخبرة', `${prof?.professional_experience} سنة`],
+              ['آخر شهادة', prof?.highest_degree],
+              ['التخصص', prof?.degree_speciality || '—'],
+              ['تاريخ التسجيل', new Date().toLocaleDateString('ar-DZ')],
+            ].map(([k, v]) => (
+              <div key={k as string}>
+                <p className="text-[10px] text-gray-400 mb-0.5">{k}</p>
+                <p className="text-xs font-semibold text-gray-800">{v as string}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Wishes */}
+        <div className="p-4">
+          <SemSection sem={1} list={s1Wishes} color="#1a3a6b" />
+          <SemSection sem={2} list={s2Wishes} color="#c9a227" />
+        </div>
+
+        {/* Signatures */}
+        <div className="px-4 pb-5">
+          <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <div className="grid grid-cols-2 gap-8 mt-5">
+              {['توقيع الأستاذ', 'إمضاء نائب العميد المكلف بالبيداغوجيا'].map(s => (
+                <div key={s} className="border-t-2 border-dashed border-gray-300 pt-2 text-center">
+                  <p className="text-xs text-gray-400">{s}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssignmentCard({ prof }: any) {
+  const [assigned, setAssigned] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.from('assignments')
+      .select('teaching_type, weekly_hours, section_number, group_number, module:modules(name_ar), level:levels(name_ar)')
+      .eq('professor_id', prof?.id)
+      .eq('academic_year', '2026-2027')
+      .eq('semester', 1)
+      .in('status', ['نهائي', 'مؤقت'])
+      .then(({ data }) => { if (data) setAssigned(data); setLoading(false); });
+  }, []);
+
+  async function downloadPDF() {
+    if (!cardRef.current) return;
+    setGenerating(true);
+    const canvas = await html2canvas(cardRef.current, { scale: 2, backgroundColor: '#fff', logging: false });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const w = pdf.internal.pageSize.getWidth() - 20;
+    const h = (canvas.height * w) / canvas.width;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, w, Math.min(h, 270));
+    pdf.save(`إسناد_${prof?.last_name}_2026-2027.pdf`);
+    setGenerating(false);
+  }
+
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
+
+  // تجميع الإسنادات
+  const lectures: any[] = [];
+  const tds: any[] = [];
+  assigned.forEach(a => {
+    const modName = (a as any).module?.name_ar || '—';
+    const levelName = (a as any).level?.name_ar || '—';
+    if (a.teaching_type === 'محاضرة') {
+      const ex = lectures.find(l => l.module_name === modName && l.level_name === levelName);
+      if (ex) ex.weekly_hours += a.weekly_hours;
+      else lectures.push({ module_name: modName, level_name: levelName, weekly_hours: a.weekly_hours });
+    } else {
+      const ex = tds.find(t => t.module_name === modName && t.level_name === levelName);
+      if (ex) { ex.group_count++; ex.weekly_hours += a.weekly_hours; }
+      else tds.push({ module_name: modName, level_name: levelName, group_count: 1, weekly_hours: a.weekly_hours });
+    }
+  });
+  const totalHours = assigned.reduce((s, a) => s + a.weekly_hours, 0);
+
+  return (
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-display font-bold text-gray-900 text-lg">بطاقة الإسناد النهائي</h2>
+          <span className="inline-flex items-center gap-1.5 text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 mt-1">
+            <CheckCircle className="w-3 h-3" /> الإسناد النهائي للسداسي الأول 2026/2027
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={downloadPDF} disabled={generating}
+            className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            style={{ background: 'linear-gradient(135deg,#c9a227,#a07820)' }}>
+            <Download className="w-4 h-4" />
+            {generating ? 'جارٍ...' : 'PDF'}
+          </button>
+          <button onClick={() => window.print()}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-sm transition-colors hover:bg-gray-200">
+            <Printer className="w-4 h-4" />
+            طباعة
+          </button>
+        </div>
+      </div>
+
+      <div ref={cardRef} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+        {/* Header */}
+        <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] p-5 text-white">
+          <div className="flex justify-between items-start gap-3">
+            <div>
+              <p className="text-[#c9a227] text-[10px]">الجمهورية الجزائرية الديمقراطية الشعبية — وزارة التعليم العالي</p>
+              <p className="font-bold text-sm mt-1">جامعة محمد البشير الإبراهيمي — برج بوعريريج</p>
+              <p className="text-[#c9a227] font-bold text-sm">كلية الحقوق والعلوم السياسية</p>
+              <p className="text-gray-400 text-xs mt-0.5">نيابة العمادة المكلفة بالبيداغوجيا</p>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-[#c9a227]/20 border border-[#c9a227]/30 flex items-center justify-center flex-shrink-0">
+              <Award className="w-6 h-6 text-[#c9a227]" />
+            </div>
+          </div>
+          <div className="text-center mt-4 pt-4 border-t border-white/15">
+            <h2 className="font-display font-bold text-base">بطاقة الإسناد البيداغوجي النهائي</h2>
+            <p className="text-[#c9a227] text-xs font-semibold mt-1">الموسم الجامعي 2026 / 2027 — السداسي الأول</p>
+          </div>
+        </div>
+
+        {/* Prof info */}
+        <div className="p-4 border-b border-gray-100 bg-gray-50">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['اللقب والاسم', `${prof?.last_name} ${prof?.first_name}`],
+              ['الرتبة', prof?.rank],
+              ['الخبرة', `${prof?.professional_experience} سنة`],
+              ['آخر شهادة', prof?.highest_degree],
+              ['التخصص', prof?.degree_speciality || '—'],
+              ['تاريخ الإصدار', new Date().toLocaleDateString('ar-DZ')],
+            ].map(([k, v]) => (
+              <div key={k as string}>
+                <p className="text-[10px] text-gray-400 mb-0.5">{k}</p>
+                <p className="text-xs font-semibold text-gray-800">{v as string}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Assignments */}
+        <div className="p-4 space-y-4">
+          {lectures.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <BookOpen className="w-3.5 h-3.5 text-[#1a3a6b]" />
+                </div>
+                <span className="font-display font-bold text-sm text-gray-800">المحاضرات</span>
+              </div>
+              {lectures.map((l, i) => (
+                <div key={i} className="flex gap-3 items-center p-3 rounded-xl mb-2 border border-blue-100 bg-blue-50/30">
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-800 text-sm">{l.module_name}</p>
+                    <p className="text-xs text-gray-500">{l.level_name}</p>
+                  </div>
+                  <span className="text-xs font-bold text-[#1a3a6b]">{l.weekly_hours.toFixed(2)}س/أسبوع</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {tds.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                <div className="w-6 h-6 rounded-lg bg-teal-50 flex items-center justify-center">
+                  <Users className="w-3.5 h-3.5 text-teal-600" />
+                </div>
+                <span className="font-display font-bold text-sm text-gray-800">الأعمال الموجهة</span>
+              </div>
+              {tds.map((t, i) => (
+                <div key={i} className="flex gap-3 items-center p-3 rounded-xl mb-2 border border-teal-100 bg-teal-50/30">
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-800 text-sm">{t.module_name}</p>
+                    <p className="text-xs text-gray-500">{t.level_name} — {t.group_count === 1 ? 'فوج واحد' : t.group_count === 2 ? 'فوجان' : t.group_count + ' أفواج'}</p>
+                  </div>
+                  <span className="text-xs font-bold text-teal-700">{t.weekly_hours.toFixed(2)}س/أسبوع</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="bg-[#1a3a6b] text-white rounded-xl p-3 text-center">
+            <p className="text-xs text-blue-200">الحجم الساعي الأسبوعي الإجمالي</p>
+            <p className="font-display font-bold text-lg">{totalHours.toFixed(2)} ساعة</p>
+          </div>
+        </div>
+
+        {/* Signatures */}
+        <div className="px-4 pb-5">
+          <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <div className="grid grid-cols-2 gap-8 mt-5">
+              {['توقيع الأستاذ', 'إمضاء نائب العميد المكلف بالبيداغوجيا'].map(s => (
+                <div key={s} className="border-t-2 border-dashed border-gray-300 pt-2 text-center">
+                  <p className="text-xs text-gray-400">{s}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// كشف الغيابات — تحميل Excel لفوج واحد
+function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment: any }) {
+  const [sessions, setSessions] = useState(12);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  async function download() {
+    setLoading(true);
+    try {
+      // جلب الطلبة من قاعدة البيانات مرتّبين أبجديًا
+      const { data: students } = await supabase
+        .from('students')
+        .select('last_name, first_name, registration_number')
+        .eq('specialite', assignment.specialite || '')
+        .eq('groupe', assignment.group_number)
+        .order('last_name', { ascending: true });
+
+      const wb = XLSX.utils.book_new();
+      const ws: XLSX.WorkSheet = {};
+
+      // ── إعدادات الصفحة A4 ──
+      ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+      ws['!margins'] = { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 };
+      ws['!rightToLeft'] = true;
+
+      const rows: any[][] = [];
+
+      // ── رأس الجدول ──
+      rows.push(['الجمهورية الجزائرية الديمقراطية الشعبية', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push(['وزارة التعليم العالي والبحث العلمي', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push(['جامعة محمد البشير الإبراهيمي — برج بوعريريج', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push(['كلية الحقوق والعلوم السياسية', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push([]);
+      rows.push([`المستوى: ${assignment.level_name || ''}`, '', '', `الفوج: ${String(assignment.group_number || '').padStart(2, '0')}`, '', '', `المادة: ${assignment.module_name || ''}`, '', '', '', `الأستاذ: ${prof?.last_name || ''} ${prof?.first_name || ''}`, '', '', '']);
+      rows.push([`النوع: ${assignment.teaching_type || ''}`, '', '', `الموسم: 2026/2027`, '', '', '', '', '', '', '', '', '', '']);
+      rows.push([]);
+
+      // ── رؤوس الأعمدة ──
+      const sessionHeaders = Array.from({ length: sessions }, (_, i) => `حص${i + 1}`);
+      rows.push(['الرقم', 'اللقب والاسم', ...sessionHeaders, 'ح/ت']);
+
+      // ── بيانات الطلبة ──
+      (students || []).forEach((s, i) => {
+        const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
+        rows.push([i + 1, fullName, ...Array(sessions).fill(''), '']);
+      });
+
+      // ── إدراج البيانات ──
+      XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A1' });
+
+      // ── دمج خلايا الرأس ──
+      const totalCols = sessions + 3; // رقم + اسم + حصص + ح/ت
+      const lastCol = XLSX.utils.encode_col(totalCols - 1);
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: totalCols - 1 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: totalCols - 1 } },
+        // سطر المعلومات
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
+        { s: { r: 5, c: 3 }, e: { r: 5, c: 5 } },
+        { s: { r: 5, c: 6 }, e: { r: 5, c: 9 } },
+        { s: { r: 5, c: 10 }, e: { r: 5, c: totalCols - 1 } },
+        { s: { r: 6, c: 0 }, e: { r: 6, c: 2 } },
+        { s: { r: 6, c: 3 }, e: { r: 6, c: totalCols - 1 } },
+      ];
+
+      // ── عرض الأعمدة ──
+      ws['!cols'] = [
+        { wch: 6 },   // رقم
+        { wch: 32 },  // الاسم
+        ...Array(sessions).fill({ wch: 5 }),  // حصص
+        { wch: 6 },   // ح/ت
+      ];
+
+      // ── ارتفاع الصفوف ──
+      ws['!rows'] = [
+        { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
+        { hpt: 8 },
+        { hpt: 20 }, { hpt: 20 },
+        { hpt: 8 },
+        { hpt: 22 }, // رؤوس الأعمدة
+        ...(students || []).map(() => ({ hpt: 20 })),
+      ];
+
+      // ── تنسيق الخلايا ──
+      const headerStyle = {
+        font: { name: 'Times New Roman', bold: true, sz: 12 },
+        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+      const colHeaderStyle = {
+        font: { name: 'Times New Roman', bold: true, sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+        fill: { fgColor: { rgb: '0A1628' }, patternType: 'solid' },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+      const cellStyle = {
+        font: { name: 'Times New Roman', sz: 10 },
+        alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+      const centerStyle = {
+        font: { name: 'Times New Roman', sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+      };
+
+      // تطبيق تنسيق رأس الصفحة (صفوف 0-3)
+      for (let r = 0; r <= 3; r++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c: 0 });
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        ws[cellRef].s = { ...headerStyle, font: { ...headerStyle.font, sz: r === 2 ? 13 : 11 } };
+      }
+
+      // تنسيق سطور المعلومات (5، 6)
+      for (let r = 5; r <= 6; r++) {
+        for (let c = 0; c < totalCols; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (!ws[ref]) ws[ref] = { v: '' };
+          ws[ref].s = { font: { name: 'Times New Roman', bold: true, sz: 10 }, alignment: { horizontal: 'right', vertical: 'center', readingOrder: 2 } };
+        }
+      }
+
+      // تنسيق رؤوس الأعمدة (صف 8)
+      for (let c = 0; c < totalCols; c++) {
+        const ref = XLSX.utils.encode_cell({ r: 8, c });
+        if (!ws[ref]) ws[ref] = { v: '' };
+        ws[ref].s = { ...colHeaderStyle, font: { ...colHeaderStyle.font, color: { rgb: 'C9A227' } } };
+      }
+
+      // تنسيق صفوف الطلبة
+      const startRow = 9;
+      (students || []).forEach((_, i) => {
+        const r = startRow + i;
+        const bg = i % 2 === 0 ? 'FFFFFF' : 'F8F9FA';
+        // رقم
+        const numRef = XLSX.utils.encode_cell({ r, c: 0 });
+        if (!ws[numRef]) ws[numRef] = { v: '' };
+        ws[numRef].s = { ...centerStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
+        // اسم
+        const nameRef = XLSX.utils.encode_cell({ r, c: 1 });
+        if (!ws[nameRef]) ws[nameRef] = { v: '' };
+        ws[nameRef].s = { ...cellStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
+        // حصص + ح/ت
+        for (let c = 2; c < totalCols; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (!ws[ref]) ws[ref] = { v: '' };
+          ws[ref].s = { ...centerStyle, fill: { fgColor: { rgb: bg }, patternType: 'solid' } };
+        }
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws, `ف${String(assignment.group_number).padStart(2,'0')}`);
+      const levelCode = (assignment.level_name || 'مستوى').replace(/\s+/g, '_');
+      const fname = `كشف_ف${String(assignment.group_number).padStart(2,'0')}_${levelCode}_${assignment.module_name?.replace(/\s+/g,'_') || 'مادة'}.xlsx`;
+      XLSX.writeFile(wb, fname);
+    } finally {
+      setLoading(false);
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
+        style={{ background: 'rgba(201,162,39,0.12)', color: '#92400e', border: '1px solid rgba(201,162,39,0.3)' }}
+      >
+        <Download className="w-3 h-3" />
+        كشف الغيابات
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-52">
+          <p className="text-xs font-bold text-gray-700 mb-2">عدد الحصص</p>
+          <div className="flex flex-wrap gap-1 mb-3">
+            {[10, 11, 12, 13, 14].map(n => (
+              <button
+                key={n}
+                onClick={() => setSessions(n)}
+                className="w-9 h-8 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  background: sessions === n ? '#0a1628' : '#f1f4f9',
+                  color: sessions === n ? '#c9a227' : '#64748b',
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={download}
+            disabled={loading}
+            className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2"
+            style={{ background: loading ? '#94a3b8' : 'linear-gradient(135deg,#c9a227,#a07820)' }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            {loading ? 'جارٍ التحميل...' : `تحميل Excel (${sessions} حصص)`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+function ProfScheduleTab({ prof }: any) {
+  const [scheduled, setScheduled] = useState<any[]>([]);
+  const [unscheduled, setUnscheduled] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalHours, setTotalHours] = useState(0);
+  const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
+  useEffect(() => {
+    async function load() {
+      // جلب كل إسنادات الأستاذ
+      const { data: assignments } = await supabase.from('assignments')
+        .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level_id, specialite, status, semester')
+        .eq('professor_id', prof?.id)
+        .eq('academic_year', '2026-2027');
+
+      if (!assignments || assignments.length === 0) { setLoading(false); return; }
+
+      const total = assignments.reduce((s: number, a: any) => s + (a.weekly_hours || 0), 0);
+      setTotalHours(total);
+
+      // جلب المقاييس والمستويات منفصلاً
+      const moduleIds = [...new Set(assignments.map((a: any) => a.module_id))];
+      const levelIds = [...new Set(assignments.map((a: any) => a.level_id).filter(Boolean))];
+      const [{ data: mods }, { data: lvls }] = await Promise.all([
+        supabase.from('modules').select('id, name_ar, weekly_sessions').in('id', moduleIds),
+        supabase.from('levels').select('id, name_ar').in('id', levelIds),
+      ]);
+      const modMap = new Map((mods || []).map((m: any) => [m.id, m]));
+      const lvlMap = new Map((lvls || []).map((l: any) => [l.id, l.name_ar]));
+
+      // جلب الحصص المبرمجة
+      const allIds = assignments.map((a: any) => a.id);
+      const { data: sch } = await supabase.from('schedules')
+        .select('id, assignment_id, room_id, time_slot_id, time_slot:time_slots(day, start_time, end_time, slot_number)')
+        .in('assignment_id', allIds)
+        .eq('academic_year', '2026-2027');
+
+      // جلب القاعات
+      const roomIds = [...new Set((sch || []).map((s: any) => s.room_id).filter(Boolean))];
+      const { data: rooms } = roomIds.length > 0
+        ? await supabase.from('rooms').select('id, name').in('id', roomIds)
+        : { data: [] };
+      const rMap = new Map((rooms || []).map((r: any) => [r.id, r.name]));
+      const aMap = new Map(assignments.map((a: any) => [a.id, a]));
+
+      const scheduledItems = (sch || []).map((s: any) => {
+        const a = aMap.get(s.assignment_id) as any;
+        const mod = modMap.get(a?.module_id);
+        return {
+          id: s.id,
+          assignment_id: s.assignment_id,
+          module_name: mod?.name_ar || '—',
+          level_name: lvlMap.get(a?.level_id) || '—',
+          teaching_type: a?.teaching_type || 'محاضرة',
+          section: a?.section_number,
+          group: a?.group_number,
+          group_number: a?.group_number,
+          weekly_hours: a?.teaching_type === 'محاضرة' ? 2.25 : 1.5,
+          room: rMap.get(s.room_id) || '—',
+          day: s.time_slot?.day,
+          start_time: s.time_slot?.start_time?.slice(0, 5),
+          end_time: s.time_slot?.end_time?.slice(0, 5),
+          slot_number: s.time_slot?.slot_number,
+          specialite: a?.specialite || '',
+        };
+      }).filter((s: any) => s.day);
+
+      // ترتيب باليوم والوقت
+      const dayOrder = Object.fromEntries(['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map((d,i) => [d,i]));
+      scheduledItems.sort((a: any, b: any) => {
+        const di = (dayOrder[a.day]??99) - (dayOrder[b.day]??99);
+        return di !== 0 ? di : a.slot_number - b.slot_number;
+      });
+      setScheduled(scheduledItems);
+
+      // غير المبرمجة — بدون تكرار للأعمال الموجهة
+      const scheduledIds = new Set(scheduledItems.map((s: any) => s.assignment_id));
+      const unsch: any[] = [];
+      const tdSeen = new Set<string>();
+      assignments.filter((a: any) => !scheduledIds.has(a.id)).forEach((a: any) => {
+        const mod = modMap.get(a.module_id);
+        const level = lvlMap.get(a.level_id) || '—';
+        if (a.teaching_type === 'أعمال موجهة') {
+          const key = `${a.module_id}_${a.level_id}`;
+          if (tdSeen.has(key)) return;
+          tdSeen.add(key);
+        }
+        unsch.push({
+          module_name: mod?.name_ar || '—',
+          level_name: level,
+          teaching_type: a.teaching_type,
+          section: a.section_number,
+          group: a.group_number,
+          weekly_hours: (a.weekly_hours || 0) / (mod?.weekly_sessions || 1),
+        });
+      });
+      setUnscheduled(unsch);
+      setLoading(false);
+    }
+    load();
+  }, [prof?.id]);
+
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
+
+  const byDay = ['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map(day => ({
+    day,
+    slots: scheduled.filter((s: any) => s.day === day),
+  })).filter(d => d.slots.length > 0);
+
+  return (
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-700 flex items-center gap-2">
+        <span>⚠</span> في حالة أي ملاحظة حول البرنامج يرجى الاتصال برئيسي القسمين
+      </div>
+
+      {/* الحجم الساعي */}
+      <div className="bg-[#1a3a6b] text-white rounded-2xl p-4 flex items-center justify-between">
+        <p className="text-sm font-bold">الحجم الساعي الإجمالي</p>
+        <p className="text-[#c9a227] font-bold text-lg">{totalHours.toFixed(2)} س/أسبوع</p>
+      </div>
+
+      {/* الحصص المبرمجة */}
+      {byDay.length > 0 && (
+        <div>
+          <h3 className="font-bold text-gray-800 text-sm mb-3">📋 الحصص المبرمجة</h3>
+          <div className="space-y-3">
+            {byDay.map(({ day, slots }) => (
+              <div key={day} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                <div className="bg-[#1a3a6b] px-4 py-2">
+                  <p className="text-white font-bold text-xs">{day}</p>
+                </div>
+                {slots.map((s: any) => (
+                  <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                    <div className="min-w-[110px]">
+                      <p className="text-[#1a3a6b] font-bold text-xs">{s.start_time} — {s.end_time}</p>
+                    </div>
+                    <div className="w-px h-8 bg-gray-200" />
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
+                      <p className="text-gray-400 text-[10px] mt-0.5">
+                        {s.level_name} —
+                        {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ` ف${String(s.group).padStart(2,'0')}`} —
+                        {s.room}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                        {s.teaching_type}
+                      </span>
+                      <span className="text-[10px] text-gray-400">{s.weekly_hours?.toFixed(2)}س</span>
+                      {s.teaching_type !== 'محاضرة' && (
+                        <AttendanceDownloadButton prof={prof} assignment={s} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* غير المبرمجة */}
+      {unscheduled.length > 0 && (
+        <div>
+          <h3 className="font-bold text-gray-800 text-sm mb-3">⏳ سيُبرمج توقيتها لاحقاً</h3>
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 overflow-hidden">
+            {unscheduled.map((s: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                <div className="flex-1">
+                  <p className="font-bold text-gray-600 text-xs">{s.module_name}</p>
+                  <p className="text-gray-300 text-[10px] mt-0.5">
+                    {s.level_name} —
+                    {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ` ف${String(s.group).padStart(2,'0')}`}
+                  </p>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-400' : 'bg-teal-50 text-teal-400'}`}>
+                  {s.teaching_type}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {scheduled.length === 0 && unscheduled.length === 0 && (
+        <p className="text-center text-gray-400 text-sm py-8">لا توجد إسنادات بعد</p>
+      )}
+    </div>
+  );
+}
