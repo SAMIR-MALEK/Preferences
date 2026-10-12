@@ -807,12 +807,14 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       for (let r = 0; r <= range.e.r; r++) {
         for (let c = 0; c < totalCols; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
+          // أجبر وجود الخلية دائماً حتى لو فارغة
           if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+          if (ws[addr].v === undefined) ws[addr].v = '';
+          if (ws[addr].t === undefined) ws[addr].t = 's';
 
           const isHeader = r < 6;          // صفوف 1-6: بدون حدود
           const isColHdr = r === 6;         // صف 7: رؤوس الأعمدة
           const isData   = r > 6;           // صف 8+: بيانات الطلبة
-          const isNum    = c === 0 && !isHeader; // عمود الرقم
           const isName   = c === 1 && !isHeader; // عمود الاسم
 
           ws[addr].s = {
