@@ -11,6 +11,7 @@ import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import XLSX from 'xlsx-js-style';
+import { unzipSync, strToU8, zipSync } from 'fflate';
 
 type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule';
 
@@ -814,7 +815,22 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       XLSX.utils.book_append_sheet(wb, ws, `ف${groupStr}`);
       const fname = `كشف_ف${groupStr}_${levelName.replace(/\s+/g, '_')}_${(assignment.module_name || '').replace(/\s+/g, '_')}.xlsx`;
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
-      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+      // ─── تعديل XML مباشرة لإضافة rightToLeft="1" ────────────────────
+      const unzipped = unzipSync(new Uint8Array(wbout));
+      const sheetKey = 'xl/worksheets/sheet1.xml';
+      if (unzipped[sheetKey]) {
+        let xml = new TextDecoder().decode(unzipped[sheetKey]);
+        // إضافة rightToLeft إلى sheetView الأول
+        xml = xml.replace(/<sheetView /g, '<sheetView rightToLeft="1" ');
+        // إذا لم يكن هناك sheetViews أصلاً
+        if (!xml.includes('<sheetViews>')) {
+          xml = xml.replace('<sheetData>', '<sheetViews><sheetView rightToLeft="1" tabSelected="1" workbookViewId="0"/></sheetViews><sheetData>');
+        }
+        unzipped[sheetKey] = strToU8(xml);
+      }
+      const fixedOut = zipSync(unzipped);
+      const blob = new Blob([fixedOut], { type: 'application/octet-stream' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = fname;
