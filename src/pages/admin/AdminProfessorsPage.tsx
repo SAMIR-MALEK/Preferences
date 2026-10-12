@@ -85,12 +85,9 @@ export default function AdminProfessorsPage() {
 
   async function handleCreateVacataire() {
     const { nin, last_name_ar, first_name_ar, last_name_fr, first_name_fr, birth_date, phone, email, speciality, highest_degree } = vacForm;
-    if (!nin.trim() || nin.length !== 18) { setMessage({ type: 'error', text: 'رقم التعريف الوطني يجب أن يكون 18 رقماً' }); return; }
     if (!last_name_ar.trim() || !first_name_ar.trim()) { setMessage({ type: 'error', text: 'اللقب والاسم بالعربية مطلوبان' }); return; }
-    if (!last_name_fr.trim() || !first_name_fr.trim()) { setMessage({ type: 'error', text: 'اللقب والاسم بالفرنسية مطلوبان' }); return; }
-    if (!birth_date) { setMessage({ type: 'error', text: 'تاريخ الميلاد مطلوب' }); return; }
     if (!phone.trim()) { setMessage({ type: 'error', text: 'رقم الهاتف مطلوب' }); return; }
-    if (!speciality.trim()) { setMessage({ type: 'error', text: 'التخصص مطلوب' }); return; }
+    if (!email.trim()) { setMessage({ type: 'error', text: 'البريد الإلكتروني مطلوب' }); return; }
 
     setVacSaving(true);
     try {
@@ -108,7 +105,7 @@ export default function AdminProfessorsPage() {
         first_name: first_name_ar.trim(),
         last_name_fr: last_name_fr.trim(),
         first_name_fr: first_name_fr.trim(),
-        nin: nin.trim(),
+        ...(nin.trim() ? { nin: nin.trim() } : {}),
         birth_date,
         phone: phone.trim(),
         email: email.trim(),
@@ -394,7 +391,7 @@ export default function AdminProfessorsPage() {
           {!editingId && profType === 'vacataire' && (
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-600 mb-1 block">رقم التعريف الوطني (NIN) * <span className="text-gray-400 text-xs">18 رقم</span></label>
+                <label className="text-sm text-gray-600 mb-1 block">رقم التعريف الوطني (NIN) <span className="text-gray-400 text-xs">18 رقم</span></label>
                 <input type="text" inputMode="numeric" maxLength={18} value={vacForm.nin}
                   onChange={e => setVacForm({ ...vacForm, nin: e.target.value.replace(/\D/g, '') })}
                   placeholder="000000000000000000"
@@ -405,11 +402,11 @@ export default function AdminProfessorsPage() {
                 {[
                   { label: 'اللقب (عربي) *', key: 'last_name_ar',  placeholder: 'بن علي',   dir: 'rtl'  },
                   { label: 'الاسم (عربي) *',  key: 'first_name_ar', placeholder: 'محمد',     dir: 'rtl'  },
-                  { label: 'Nom (français) *', key: 'last_name_fr',  placeholder: 'Ben Ali',  dir: 'ltr'  },
-                  { label: 'Prénom (français) *', key: 'first_name_fr', placeholder: 'Mohamed', dir: 'ltr' },
+                  { label: 'Nom (français)', key: 'last_name_fr',  placeholder: 'Ben Ali',  dir: 'ltr'  },
+                  { label: 'Prénom (français)', key: 'first_name_fr', placeholder: 'Mohamed', dir: 'ltr' },
                   { label: 'رقم الهاتف *', key: 'phone', placeholder: '0550000000', dir: 'ltr' },
                   { label: 'البريد الإلكتروني *', key: 'email', placeholder: 'exemple@mail.com', dir: 'ltr' },
-                  { label: 'التخصص *', key: 'speciality', placeholder: 'قانون جنائي', dir: 'rtl' },
+                  { label: 'التخصص', key: 'speciality', placeholder: 'قانون جنائي', dir: 'rtl' },
                 ].map(f => (
                   <div key={f.key}>
                     <label className="text-sm text-gray-600 mb-1 block">{f.label}</label>
@@ -420,14 +417,14 @@ export default function AdminProfessorsPage() {
                   </div>
                 ))}
                 <div>
-                  <label className="text-sm text-gray-600 mb-1 block">تاريخ الميلاد *</label>
+                  <label className="text-sm text-gray-600 mb-1 block">تاريخ الميلاد</label>
                   <input type="date" value={vacForm.birth_date}
                     onChange={e => setVacForm({ ...vacForm, birth_date: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50" dir="ltr" />
                 </div>
               </div>
               <div>
-                <label className="text-sm text-gray-600 mb-1 block">آخر شهادة *</label>
+                <label className="text-sm text-gray-600 mb-1 block">آخر شهادة</label>
                 <select value={vacForm.highest_degree}
                   onChange={e => setVacForm({ ...vacForm, highest_degree: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-gray-50">
