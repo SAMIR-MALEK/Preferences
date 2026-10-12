@@ -806,6 +806,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
         ...Array((students || []).length).fill({ hpt: 18 }),
       ];
       ws['!rightToLeft'] = true;
+      (ws as any)['!sheetViews'] = [{ rightToLeft: true }];
       ws['!pageSetup']   = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
       ws['!margins']     = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.2, footer: 0.2 };
 
