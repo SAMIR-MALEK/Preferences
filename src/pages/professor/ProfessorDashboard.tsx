@@ -777,11 +777,20 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       for (let c = 0; c < totalCols; c++) empty(5, c, {});
       ws['!merges'].push(merge(5, 0, totalCols - 1));
 
-      // صف 6: رؤوس الأعمدة — مع حدود
-      cell(6, 0, 'الرقم',         true, 'center', fullBorder);
-      cell(6, 1, 'اللقب والاسم', true, 'center', fullBorder);
+      // صف 6: رؤوس الأعمدة — مع حدود وخلفية رمادية خفيفة
+      const headerFill = { fgColor: { rgb: 'D9D9D9' } };
+      const hdrCell = (r: number, c: number, v: any, halign: string) => {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's',
+          s: { font: { name: 'Calibri', sz: 12, bold: true },
+               alignment: { horizontal: halign, vertical: 'center', readingOrder: 2, wrapText: false },
+               fill: headerFill,
+               border: fullBorder } };
+      };
+      hdrCell(6, 0, 'الرقم', 'center');
+      hdrCell(6, 1, 'اللقب والاسم', 'center');
       for (let i = 0; i < sessions; i++) {
-        cell(6, 2 + i, `ح${i + 1}`, true, 'center', fullBorder);
+        hdrCell(6, 2 + i, `ح${i + 1}`, 'center');
       }
 
       // صفوف الطلبة — مع حدود على كل الخلايا
