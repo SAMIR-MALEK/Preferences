@@ -718,84 +718,91 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       const groupStr = String(assignment.group_number).padStart(2, '0');
       const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
       const sessions = 14;
-      const N = sessions + 2; // عدد الأعمدة الكلي (رقم + اسم + حصص)
 
-      // ─── بناء ورقة العمل يدوياً cell by cell ───────────────────────
-      const ws: any = {};
+      // ─── أنماط CSS مشتركة ────────────────────────────────────────────
+      const F  = 'font-family:Calibri;font-size:12pt;direction:rtl;';
+      const FB = F + 'font-weight:bold;';
+      const CENTER = 'text-align:center;vertical-align:middle;';
+      const RIGHT  = 'text-align:right;vertical-align:middle;';
+      const BORDER = 'border:1px solid #000;';
 
-      const cell = (r: number, c: number, v: any, t: 'n'|'s' = 's') => {
-        const addr = XLSX.utils.encode_cell({ r, c });
-        ws[addr] = { v, t };
-      };
+      // ─── بناء جدول HTML ──────────────────────────────────────────────
+      // الصفوف 1-6: بدون حدود، نص في الوسط
+      let html = `<table style="${F}border-collapse:collapse;width:100%;direction:rtl;">`;
 
-      // صف 1: اسم الجامعة
-      cell(0, 0, 'جامعة محمد البشير الإبراهيمي — برج بوعريريج');
-      // صف 2: اسم الكلية
-      cell(1, 0, 'كلية الحقوق والعلوم السياسية');
+      // صف 1: الجامعة
+      html += `<tr style="height:22pt;">
+        <td colspan="16" style="${FB}${CENTER}padding:4px;">
+          جامعة محمد البشير الإبراهيمي — برج بوعريريج
+        </td>
+      </tr>`;
+
+      // صف 2: الكلية
+      html += `<tr style="height:22pt;">
+        <td colspan="16" style="${FB}${CENTER}padding:4px;">
+          كلية الحقوق والعلوم السياسية
+        </td>
+      </tr>`;
+
       // صف 3: فارغ
+      html += `<tr style="height:8pt;"><td colspan="16"></td></tr>`;
 
       // صف 4: المستوى | الفوج | المقياس | الأستاذ
-      cell(3, 0,  `المستوى: ${assignment.level_name || ''}`);
-      cell(3, 3,  `الفوج: ${groupStr}`);
-      cell(3, 6,  `المقياس: ${assignment.module_name || ''}`);
-      cell(3, 10, `الأستاذ: ${profName}`);
+      html += `<tr style="height:20pt;">
+        <td colspan="3"  style="${F}${RIGHT}padding:4px;">المستوى: ${assignment.level_name || ''}</td>
+        <td colspan="3"  style="${F}${CENTER}padding:4px;">الفوج: ${groupStr}</td>
+        <td colspan="4"  style="${F}${RIGHT}padding:4px;">المقياس: ${assignment.module_name || ''}</td>
+        <td colspan="6"  style="${F}${RIGHT}padding:4px;">الأستاذ: ${profName}</td>
+      </tr>`;
 
       // صف 5: النوع | الموسم
-      cell(4, 0, `النوع: ${assignment.teaching_type || ''}`);
-      cell(4, 3, 'الموسم: 2026/2027');
+      html += `<tr style="height:20pt;">
+        <td colspan="3"  style="${F}${RIGHT}padding:4px;">النوع: ${assignment.teaching_type || ''}</td>
+        <td colspan="13" style="${F}${CENTER}padding:4px;">الموسم: 2026/2027</td>
+      </tr>`;
 
       // صف 6: فارغ
+      html += `<tr style="height:8pt;"><td colspan="16"></td></tr>`;
 
-      // صف 7: رؤوس الأعمدة
-      cell(6, 0, 'الرقم');
-      cell(6, 1, 'اللقب والاسم');
-      for (let i = 0; i < sessions; i++) cell(6, i + 2, `ح${i + 1}`);
+      // ─── صف 7: رؤوس الأعمدة — مع حدود ────────────────────────────
+      const hdrStyle = `${FB}${CENTER}${BORDER}padding:3px;`;
+      const sessionHdrs = Array.from({ length: sessions }, (_, i) =>
+        `<th style="${hdrStyle}width:22pt;">ح${i + 1}</th>`
+      ).join('');
 
-      // صفوف الطلبة من صف 8
+      html += `<tr style="height:20pt;">
+        <th style="${hdrStyle}width:28pt;">الرقم</th>
+        <th style="${hdrStyle}width:120pt;">اللقب والاسم</th>
+        ${sessionHdrs}
+      </tr>`;
+
+      // ─── صفوف الطلبة — مع حدود ──────────────────────────────────────
       (students || []).forEach((s: any, i: number) => {
         const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
-        const row = 7 + i;
-        cell(row, 0, i + 1, 'n');
-        cell(row, 1, fullName);
-        for (let j = 0; j < sessions; j++) cell(row, j + 2, '');
+        const numCell  = `<td style="${F}${CENTER}${BORDER}padding:3px;">${i + 1}</td>`;
+        const nameCell = `<td style="${F}${RIGHT}${BORDER}padding:3px;">${fullName}</td>`;
+        const emptyCells = Array(sessions)
+          .fill(`<td style="${BORDER}"></td>`)
+          .join('');
+        html += `<tr style="height:18pt;">${numCell}${nameCell}${emptyCells}</tr>`;
       });
 
-      // نطاق الورقة
-      const lastRow = 7 + (students?.length || 0) - 1;
-      ws['!ref'] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: N - 1 });
+      html += '</table>';
 
-      // دمج الخلايا — يطابق القالب الأصلي
-      ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: N - 1 } },  // صف 1: الجامعة
-        { s: { r: 1, c: 0 }, e: { r: 1, c: N - 1 } },  // صف 2: الكلية
-        { s: { r: 2, c: 0 }, e: { r: 2, c: N - 1 } },  // صف 3: فارغ
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 2  } },     // المستوى A4:C4
-        { s: { r: 3, c: 3 }, e: { r: 3, c: 5  } },     // الفوج D4:F4
-        { s: { r: 3, c: 6 }, e: { r: 3, c: 9  } },     // المقياس G4:J4
-        { s: { r: 3, c:10 }, e: { r: 3, c: N - 1 } },  // الأستاذ K4:P4
-        { s: { r: 4, c: 0 }, e: { r: 4, c: 2  } },     // النوع A5:C5
-        { s: { r: 4, c: 3 }, e: { r: 4, c: N - 1 } },  // الموسم D5:P5
-        { s: { r: 5, c: 0 }, e: { r: 5, c: N - 1 } },  // صف 6: فارغ
-      ];
+      // ─── تحويل HTML → ورقة عمل ──────────────────────────────────────
+      const parser = new DOMParser();
+      const doc2   = parser.parseFromString(html, 'text/html');
+      const table  = doc2.querySelector('table')!;
+      const ws     = XLSX.utils.table_to_sheet(table, { raw: true });
 
-      // عرض الأعمدة
       ws['!cols'] = [
-        { wch: 7 },   // A: الرقم
-        { wch: 30 },  // B: الاسم
-        ...Array(sessions).fill({ wch: 5 }),  // C-P: الحصص
+        { wch: 7  },  // A: الرقم
+        { wch: 28 },  // B: الاسم
+        ...Array(sessions).fill({ wch: 5 }),
       ];
-
       ws['!rightToLeft'] = true;
-      ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
-      ws['!margins'] = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.2, footer: 0.2 };
-
-      // ارتفاع الصفوف
-      ws['!rows'] = [
-        { hpt: 22 }, { hpt: 22 }, { hpt: 8 },
-        { hpt: 20 }, { hpt: 20 }, { hpt: 8 },
-        { hpt: 20 },
-        ...Array(students?.length || 0).fill({ hpt: 18 }),
-      ];
+      ws['!pageSetup']   = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+      ws['!margins']     = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.2, footer: 0.2 };
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `ف${groupStr}`);
