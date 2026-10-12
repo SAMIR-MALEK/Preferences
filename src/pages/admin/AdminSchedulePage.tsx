@@ -330,37 +330,78 @@ export default function AdminSchedulePage() {
   }
 
   function handlePrint() {
-    if (!printRef.current) return;
-    const content = printRef.current.innerHTML;
     const levelName = levelObj?.name_ar ?? '';
     const sectionLabel = `المجموعة ${toArabicNum(selectedSection)}`;
     const groupLabel = selectedGroup > 0 ? ` — الفوج ${toArabicNum(selectedGroup)}` : '';
-    const win = window.open('', '_blank', 'width=900,height=600');
+
+    // بناء رأس الجدول
+    const slotHeaders = SLOT_NUMBERS.map(n => {
+      const slot = timeSlots.find(s => s.slot_number === n && s.day === DAYS[0]);
+      const label = slot ? `${slot.start_time.slice(0,5)} – ${slot.end_time.slice(0,5)}` : `الحصة ${toArabicNum(n)}`;
+      return `<th>${label}</th>`;
+    }).join('');
+
+    // بناء صفوف الأيام
+    const rows = DAYS.map(day => {
+      const cells = SLOT_NUMBERS.map(slotNum => {
+        const entries = getCellEntries(day, slotNum);
+        if (entries.length === 0) return '<td></td>';
+        const inner = entries.map(entry => {
+          const a = assignments.find(x => x.id === entry.assignment_id);
+          const room = rooms.find(r => r.id === entry.room_id);
+          const isCustom = !entry.assignment_id;
+          const isLec = a?.teaching_type === 'محاضرة';
+          const cls = isCustom ? 'custom' : isLec ? 'lec' : 'td-entry';
+          const name = isCustom
+            ? (entry.custom_module || '') + (entry.custom_professor ? `<br/><small>${entry.custom_professor}</small>` : '')
+            : `${a?.module_name ?? ''}<br/><small>${a?.professor_name ?? ''}</small>${room ? `<br/><small class="room">${room.name}</small>` : ''}`;
+          return `<div class="${cls}">${name}</div>`;
+        }).join('');
+        return `<td>${inner}</td>`;
+      }).join('');
+      return `<tr><td class="day-cell">${day}</td>${cells}</tr>`;
+    }).join('');
+
+    const win = window.open('', '_blank', 'width=1100,height=700');
     if (!win) return;
     win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head>
 <meta charset="utf-8"/>
 <title>التوقيت الأسبوعي</title>
 <style>
-  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 16px; direction: rtl; }
-  h2 { text-align: center; font-size: 16px; margin-bottom: 4px; }
-  p { text-align: center; font-size: 12px; color: #555; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { background: #1a3a6b; color: white; padding: 6px 4px; text-align: center; border: 1px solid #ccc; }
-  td { border: 1px solid #ddd; padding: 4px 3px; vertical-align: top; min-width: 60px; }
-  td:first-child { font-weight: bold; color: #1a3a6b; white-space: nowrap; text-align: center; }
-  .lec { background: #1a3a6b; color: white; border-radius: 4px; padding: 3px 4px; margin-bottom: 2px; font-size: 10px; }
-  .td-entry { background: #0d9488; color: white; border-radius: 4px; padding: 3px 4px; margin-bottom: 2px; font-size: 10px; }
-  .custom { background: #f59e0b; color: white; border-radius: 4px; padding: 3px 4px; margin-bottom: 2px; font-size: 10px; }
-  @media print { body { padding: 8px; } }
+  @page { size: A4 landscape; margin: 1cm; }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; padding: 12px; direction: rtl; background: #fff; color: #111; }
+  h2 { text-align: center; font-size: 18px; font-weight: bold; margin: 0 0 4px; }
+  p.sub { text-align: center; font-size: 13px; color: #444; margin: 0 0 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  th { background: #1a3a6b; color: #fff; padding: 8px 6px; text-align: center;
+       border: 2px solid #0f2550; font-size: 12px; font-weight: bold; }
+  td { border: 2px solid #888; padding: 6px 5px; vertical-align: top; height: 80px; }
+  td.day-cell { font-weight: bold; color: #1a3a6b; text-align: center; vertical-align: middle;
+                background: #eef2f9; font-size: 13px; white-space: nowrap; width: 64px; }
+  .lec { background: #1a3a6b; color: #fff; border-radius: 5px; padding: 5px 6px; margin-bottom: 4px;
+         font-size: 12px; line-height: 1.5; }
+  .td-entry { background: #0d9488; color: #fff; border-radius: 5px; padding: 5px 6px; margin-bottom: 4px;
+              font-size: 12px; line-height: 1.5; }
+  .custom { background: #f59e0b; color: #fff; border-radius: 5px; padding: 5px 6px; margin-bottom: 4px;
+            font-size: 12px; line-height: 1.5; }
+  small { font-size: 10px; opacity: 0.88; display: block; }
+  small.room { opacity: 0.75; }
+  @media print {
+    body { padding: 0; }
+    button, .no-print { display: none !important; }
+  }
 </style>
 </head><body>
 <h2>التوقيت الأسبوعي — السداسي الأول</h2>
-<p>${levelName} — ${sectionLabel}${groupLabel}</p>
-${content}
+<p class="sub">${levelName} — ${sectionLabel}${groupLabel}</p>
+<table>
+  <thead><tr><th>اليوم</th>${slotHeaders}</tr></thead>
+  <tbody>${rows}</tbody>
+</table>
 </body></html>`);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 400);
+    setTimeout(() => { win.print(); win.close(); }, 500);
   }
 
   async function removeEntry(id: string) {
