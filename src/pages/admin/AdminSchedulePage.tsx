@@ -381,12 +381,9 @@ export default function AdminSchedulePage() {
   td { border: 2px solid #000; padding: 4px 3px; vertical-align: top; height: 70px; }
   td.day-cell { font-weight: bold; color: #1a3a6b; text-align: center; vertical-align: middle;
                 background: #eef2f9; font-size: 12px; white-space: nowrap; width: 52px; }
-  .lec { background: #fff; color: #000; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
-         font-size: 11px; line-height: 1.4; border: 3px solid #1a3a6b; }
-  .td-entry { background: #fff; color: #000; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
-              font-size: 11px; line-height: 1.4; border: 3px solid #0d9488; }
-  .custom { background: #fff; color: #000; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
-            font-size: 11px; line-height: 1.4; border: 3px solid #f59e0b; }
+  .lec { background: #fff; color: #000; padding: 3px 4px; margin-bottom: 3px; font-size: 11px; line-height: 1.4; }
+  .td-entry { background: #fff; color: #000; padding: 3px 4px; margin-bottom: 3px; font-size: 11px; line-height: 1.4; }
+  .custom { background: #fff; color: #000; padding: 3px 4px; margin-bottom: 3px; font-size: 11px; line-height: 1.4; }
   .mod-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
               font-weight: bold; max-width: 100%; }
   small { font-size: 9.5px; opacity: 0.9; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
