@@ -827,14 +827,6 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
         if (!xml.includes('<sheetViews>')) {
           xml = xml.replace('<sheetData>', '<sheetViews><sheetView rightToLeft="1" tabSelected="1" workbookViewId="0"/></sheetViews><sheetData>');
         }
-        // ضمان pageSetup في XML مباشرةً
-        if (xml.includes('<pageSetup ')) {
-          xml = xml.replace(/<pageSetup [^/]*/,
-            '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0" ');
-        } else {
-          xml = xml.replace('</sheetData>',
-            '</sheetData><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
-        }
         unzipped[sheetKey] = strToU8(xml);
       }
       const fixedOut = zipSync(unzipped);
