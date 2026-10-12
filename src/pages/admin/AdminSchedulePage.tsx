@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
-import { X, Save, CheckCircle, AlertCircle, RefreshCw, Zap, Plus } from 'lucide-react';
+import { X, Save, CheckCircle, AlertCircle, RefreshCw, Zap, Plus, Printer } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
@@ -55,6 +55,7 @@ export default function AdminSchedulePage() {
   const [displayFilter, setDisplayFilter] = useState<'all' | 'lec' | 'td'>('all');
   const [selectedGroup, setSelectedGroup] = useState(0);
 
+  const printRef = useRef<HTMLDivElement>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [viewCell, setViewCell] = useState<{day:string;slotId:string;slotLabel:string} | null>(null);
   const [modalTab, setModalTab] = useState<'assigned' | 'custom'>('assigned');
@@ -320,8 +321,46 @@ export default function AdminSchedulePage() {
       if (displayFilter === 'lec' && a.teaching_type !== 'محاضرة') return false;
       if (displayFilter === 'td' && a.teaching_type !== 'أعمال موجهة') return false;
       if (displayFilter === 'td' && selectedGroup > 0 && a.group_number !== selectedGroup) return false;
+      // عند "الكل" مع فوج محدد: محاضرات المجموعة + أعمال موجهة الفوج فقط
+      if (displayFilter === 'all' && selectedGroup > 0) {
+        if (a.teaching_type === 'أعمال موجهة' && a.group_number !== selectedGroup) return false;
+      }
       return true;
     });
+  }
+
+  function handlePrint() {
+    if (!printRef.current) return;
+    const content = printRef.current.innerHTML;
+    const levelName = levelObj?.name_ar ?? '';
+    const sectionLabel = `المجموعة ${toArabicNum(selectedSection)}`;
+    const groupLabel = selectedGroup > 0 ? ` — الفوج ${toArabicNum(selectedGroup)}` : '';
+    const win = window.open('', '_blank', 'width=900,height=600');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<title>التوقيت الأسبوعي</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 16px; direction: rtl; }
+  h2 { text-align: center; font-size: 16px; margin-bottom: 4px; }
+  p { text-align: center; font-size: 12px; color: #555; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { background: #1a3a6b; color: white; padding: 6px 4px; text-align: center; border: 1px solid #ccc; }
+  td { border: 1px solid #ddd; padding: 4px 3px; vertical-align: top; min-width: 60px; }
+  td:first-child { font-weight: bold; color: #1a3a6b; white-space: nowrap; text-align: center; }
+  .lec { background: #1a3a6b; color: white; border-radius: 4px; padding: 3px 4px; margin-bottom: 2px; font-size: 10px; }
+  .td-entry { background: #0d9488; color: white; border-radius: 4px; padding: 3px 4px; margin-bottom: 2px; font-size: 10px; }
+  .custom { background: #f59e0b; color: white; border-radius: 4px; padding: 3px 4px; margin-bottom: 2px; font-size: 10px; }
+  @media print { body { padding: 8px; } }
+</style>
+</head><body>
+<h2>التوقيت الأسبوعي — السداسي الأول</h2>
+<p>${levelName} — ${sectionLabel}${groupLabel}</p>
+${content}
+</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
   }
 
   async function removeEntry(id: string) {
@@ -406,6 +445,13 @@ export default function AdminSchedulePage() {
             <Zap className="w-4 h-4" />
             {running ? 'جارٍ التوليد...' : 'توليد تلقائي'}
           </button>
+          {selectedLevel && (
+            <button onClick={handlePrint}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors">
+              <Printer className="w-4 h-4" />
+              طباعة
+            </button>
+          )}
         </div>
       </div>
 
@@ -483,7 +529,7 @@ export default function AdminSchedulePage() {
       )}
 
       {selectedLevel && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" ref={printRef}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse" style={{minWidth:900}}>
               <thead>
