@@ -751,31 +751,31 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       for (let c = 0; c < totalCols; c++) empty(2, c, {});
       ws['!merges'].push(merge(2, 0, totalCols - 1));
 
-      // صف 3: المستوى(0-2) | الفوج(3-5) | المقياس(6-9) | الأستاذ(10-15)
+      // صف 3: المستوى(0-4) | الفوج(5-7) | الأستاذ(8-15)
       cell(3, 0, `المستوى: ${levelName}`, false, 'right', {});
-      for (let c = 1; c < 3; c++) empty(3, c, {});
-      ws['!merges'].push(merge(3, 0, 2));
+      for (let c = 1; c < 5; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 0, 4));
 
-      cell(3, 3, `الفوج: ${groupStr}`, false, 'center', {});
-      for (let c = 4; c < 6; c++) empty(3, c, {});
-      ws['!merges'].push(merge(3, 3, 5));
+      cell(3, 5, `الفوج: ${groupStr}`, false, 'center', {});
+      for (let c = 6; c < 8; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 5, 7));
 
-      cell(3, 6, `المقياس: ${assignment.module_name || ''}`, false, 'right', {});
-      for (let c = 7; c < 11; c++) empty(3, c, {});
-      ws['!merges'].push(merge(3, 6, 10));
+      cell(3, 8, `الأستاذ: ${profName}`, false, 'right', {});
+      for (let c = 9; c < totalCols; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 8, totalCols - 1));
 
-      cell(3, 11, `الأستاذ: ${profName}`, false, 'right', {});
-      for (let c = 12; c < totalCols; c++) empty(3, c, {});
-      ws['!merges'].push(merge(3, 11, totalCols - 1));
-
-      // صف 4: النوع(0-2) | الموسم(3-15)
+      // صف 4: النوع(0-4) | المقياس(5-11) | الموسم(12-15)
       cell(4, 0, `النوع: ${assignment.teaching_type || ''}`, false, 'right', {});
-      for (let c = 1; c < 3; c++) empty(4, c, {});
-      ws['!merges'].push(merge(4, 0, 2));
+      for (let c = 1; c < 5; c++) empty(4, c, {});
+      ws['!merges'].push(merge(4, 0, 4));
 
-      cell(4, 3, 'الموسم: 2026/2027', false, 'center', {});
-      for (let c = 4; c < totalCols; c++) empty(4, c, {});
-      ws['!merges'].push(merge(4, 3, totalCols - 1));
+      cell(4, 5, `المقياس: ${assignment.module_name || ''}`, false, 'right', {});
+      for (let c = 6; c < 12; c++) empty(4, c, {});
+      ws['!merges'].push(merge(4, 5, 11));
+
+      cell(4, 12, 'الموسم: 2026/2027', false, 'center', {});
+      for (let c = 13; c < totalCols; c++) empty(4, c, {});
+      ws['!merges'].push(merge(4, 12, totalCols - 1));
 
       // صف 5: فارغ
       for (let c = 0; c < totalCols; c++) empty(5, c, {});
