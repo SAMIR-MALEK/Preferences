@@ -696,21 +696,24 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
   async function download() {
     setLoading(true);
     try {
-      // جلب الطلبة من قاعدة البيانات مرتّبين أبجديًا
-      // جلب specialite من levels عبر level_id
-      const { data: lvlData } = await supabase
-        .from('levels')
-        .select('name_ar')
-        .eq('id', assignment.level_id)
-        .single();
-      const specialite = lvlData?.name_ar || null;
+      // جلب القيم المميزة لـ specialite في هذا الفوج
+      const { data: specRows } = await supabase
+        .from('students')
+        .select('specialite')
+        .eq('groupe', assignment.group_number);
+      const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))];
+
+      // مطابقة specialite مع level_name (يتجاهل الفروق الطفيفة مثل "ال")
+      const levelName: string = assignment.level_name || '';
+      const normalize = (s: string) => s.replace(/\s+/g, ' ').replace(/ال/g, '').trim();
+      const matchedSpec = uniqueSpecs.find(sp => normalize(sp) === normalize(levelName)) || uniqueSpecs[0] || null;
 
       let studQuery = supabase
         .from('students')
         .select('last_name, first_name, mat_etudiant')
         .eq('groupe', assignment.group_number)
         .order('last_name', { ascending: true });
-      if (specialite) studQuery = studQuery.eq('specialite', specialite);
+      if (matchedSpec) studQuery = studQuery.eq('specialite', matchedSpec);
       const { data: students } = await studQuery;
 
       // ── بناء HTML Table وتحويله لـ worksheet (يضمن الحدود) ──
