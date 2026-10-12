@@ -719,65 +719,70 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       if (matchedSpec) studQuery = studQuery.eq('specialite', matchedSpec);
       const { data: students } = await studQuery;
 
-      // تحميل القالب من base64
-      const b64 = ATTENDANCE_TEMPLATE_B64;
-      const binary = atob(b64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const wb = XLSX.read(bytes, { type: 'array' });
-      const oldSheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[oldSheetName];
-
-      // تعديل اسم التبويب
       const groupStr = String(assignment.group_number).padStart(2, '0');
-      const newSheetName = `ف${groupStr}`;
-      wb.SheetNames[0] = newSheetName;
-      wb.Sheets[newSheetName] = ws;
-      if (oldSheetName !== newSheetName) delete wb.Sheets[oldSheetName];
-
-      // ملء خلايا المعلومات
       const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
-      ws['A4'] = { ...ws['A4'], v: `المستوى: ${assignment.level_name || ''}`, w: `المستوى: ${assignment.level_name || ''}` };
-      ws['D4'] = { ...ws['D4'], v: `الفوج: ${groupStr}`, w: `الفوج: ${groupStr}` };
-      ws['G4'] = { ...ws['G4'], v: `المقياس: ${assignment.module_name || ''}`, w: `المقياس: ${assignment.module_name || ''}` };
-      ws['K4'] = { ...ws['K4'], v: `الأستاذ: ${profName}`, w: `الأستاذ: ${profName}` };
-      ws['A5'] = { ...ws['A5'], v: `النوع: ${assignment.teaching_type || ''}`, w: `النوع: ${assignment.teaching_type || ''}` };
-      ws['D5'] = { ...ws['D5'], v: `الموسم: 2026/2027`, w: `الموسم: 2026/2027` };
+      const sessions = 14;
 
-      // ملء أسماء الطلبة (تبدأ من الصف 8)
-      const startRow = 8;
+      // بناء HTML بنفس هيكل القالب
+      const C = (s: string) => `text-align:center;vertical-align:middle;${s}`;
+      const R = (s: string) => `text-align:right;vertical-align:middle;${s}`;
+      const B = 'border:1px solid #000;';
+      const F = 'font-family:Calibri;font-size:12pt;';
+      const FB = `${F}font-weight:bold;`;
+
+      let html = `<table style="${F}border-collapse:collapse;width:100%">`;
+
+      // رأس المؤسسة (صفوف 1-2)
+      html += `<tr><td colspan="16" style="${C(FB)}padding:4px;">جامعة محمد البشير الإبراهيمي — برج بوعريريج</td></tr>`;
+      html += `<tr><td colspan="16" style="${C(FB)}padding:4px;">كلية الحقوق والعلوم السياسية</td></tr>`;
+      html += `<tr><td colspan="16" style="height:6px;"></td></tr>`;
+
+      // معلومات (صفوف 4-5)
+      html += `<tr>
+        <td colspan="3" style="${R(F)}padding:4px;">المستوى: ${assignment.level_name || ''}</td>
+        <td colspan="3" style="${R(F)}padding:4px;">الفوج: ${groupStr}</td>
+        <td colspan="4" style="${R(F)}padding:4px;">المقياس: ${assignment.module_name || ''}</td>
+        <td colspan="6" style="${R(F)}padding:4px;">الأستاذ: ${profName}</td>
+      </tr>`;
+      html += `<tr>
+        <td colspan="3" style="${R(F)}padding:4px;">النوع: ${assignment.teaching_type || ''}</td>
+        <td colspan="13" style="${R(F)}padding:4px;">الموسم: 2026/2027</td>
+      </tr>`;
+      html += `<tr><td colspan="16" style="height:6px;"></td></tr>`;
+
+      // رؤوس الأعمدة (صف 7)
+      const sessionCols = Array.from({length: sessions}, (_, i) => `<th style="${C(FB+B)}padding:3px;width:26px;">ح${i+1}</th>`).join('');
+      html += `<tr>
+        <th style="${C(FB+B)}padding:4px;width:32px;">الرقم</th>
+        <th style="${C(FB+B)}padding:4px;width:160px;">اللقب والاسم</th>
+        ${sessionCols}
+      </tr>`;
+
+      // صفوف الطلبة (من صف 8)
       (students || []).forEach((s: any, i: number) => {
         const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
-        const rowNum = startRow + i;
-        const aKey = `A${rowNum}`;
-        const bKey = `B${rowNum}`;
-        if (ws[aKey]) {
-          ws[aKey] = { ...ws[aKey], v: String(i + 1), w: String(i + 1), t: 'n', z: '0' };
-        } else {
-          ws[aKey] = { v: i + 1, t: 'n', z: '0' };
-        }
-        if (ws[bKey]) {
-          ws[bKey] = { ...ws[bKey], v: fullName, w: fullName, t: 's' };
-        } else {
-          ws[bKey] = { v: fullName, t: 's' };
-        }
+        const emptyCols = Array(sessions).fill(`<td style="${C(F+B)}padding:4px;"></td>`).join('');
+        html += `<tr>
+          <td style="${C(F+B)}padding:4px;">${i + 1}</td>
+          <td style="${R(F+B)}padding:4px;">${fullName}</td>
+          ${emptyCols}
+        </tr>`;
       });
 
-      // حذف الصفوف الفارغة الزائدة إن كان عدد الطلاب أقل من القالب
-      const templateRows = 45; // القالب فيه 45 صفاً للطلاب
-      const actualCount = (students || []).length;
-      for (let i = actualCount; i < templateRows; i++) {
-        const rowNum = startRow + i;
-        for (let col = 0; col < 16; col++) {
-          const key = XLSX.utils.encode_cell({ r: rowNum - 1, c: col });
-          if (ws[key]) ws[key] = { ...ws[key], v: '', w: '' };
-        }
-      }
+      html += '</table>';
 
-      // تحديث نطاق الورقة
-      const lastRow = startRow + Math.max(actualCount, 1) - 1;
-      ws['!ref'] = `A1:P${lastRow}`;
+      const parser = new DOMParser();
+      const doc2 = parser.parseFromString(html, 'text/html');
+      const table = doc2.querySelector('table')!;
+      const ws = XLSX.utils.table_to_sheet(table, { raw: true });
 
+      ws['!cols'] = [{ wch: 6 }, { wch: 32 }, ...Array(sessions).fill({ wch: 5 })];
+      ws['!rightToLeft'] = true;
+      ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+      ws['!margins'] = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.2, footer: 0.2 };
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `ف${groupStr}`);
       const fname = `كشف_ف${groupStr}_${(assignment.level_name || '').replace(/\s+/g, '_')}_${(assignment.module_name || '').replace(/\s+/g, '_')}.xlsx`;
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
