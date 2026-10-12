@@ -795,6 +795,39 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       const table  = doc2.querySelector('table')!;
       const ws     = XLSX.utils.table_to_sheet(table, { raw: true });
 
+      // ─── تطبيق التنسيق يدوياً (table_to_sheet لا يُصدّر CSS) ────────
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      const totalRows = range.e.r + 1;
+      const totalCols = sessions + 2; // رقم + اسم + حصص
+
+      // حدود سوداء كاملة
+      const blackBorder = { style: 'thin', color: { rgb: '000000' } };
+      const fullBorder  = { top: blackBorder, bottom: blackBorder, left: blackBorder, right: blackBorder };
+
+      for (let r = 0; r <= range.e.r; r++) {
+        for (let c = 0; c < totalCols; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+
+          const isHeader = r < 6;          // صفوف 1-6: بدون حدود
+          const isColHdr = r === 6;         // صف 7: رؤوس الأعمدة
+          const isData   = r > 6;           // صف 8+: بيانات الطلبة
+          const isNum    = c === 0 && !isHeader; // عمود الرقم
+          const isName   = c === 1 && !isHeader; // عمود الاسم
+
+          ws[addr].s = {
+            font:      { name: 'Calibri', sz: 12, bold: isHeader || isColHdr },
+            alignment: {
+              horizontal: isName ? 'right' : 'center',
+              vertical:   'center',
+              readingOrder: 2,  // RTL
+              wrapText: false,
+            },
+            border: (isColHdr || isData) ? fullBorder : {},
+          };
+        }
+      }
+
       ws['!cols'] = [
         { wch: 7  },  // A: الرقم
         { wch: 28 },  // B: الاسم
@@ -807,7 +840,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `ف${groupStr}`);
       const fname = `كشف_ف${groupStr}_${(assignment.level_name || '').replace(/\s+/g, '_')}_${(assignment.module_name || '').replace(/\s+/g, '_')}.xlsx`;
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
