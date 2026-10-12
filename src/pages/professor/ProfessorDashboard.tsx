@@ -695,20 +695,15 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
   async function download() {
     setLoading(true);
     try {
-      // جلب القيم المميزة لـ specialite في هذا الفوج
+      // جلب التخصصات الفريدة في هذا الفوج
       const { data: specRows } = await supabase
-        .from('students')
-        .select('specialite')
-        .eq('groupe', assignment.group_number);
+        .from('students').select('specialite').eq('groupe', assignment.group_number);
       const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))];
-
-      // مطابقة specialite مع level_name (يتجاهل الفروق الطفيفة مثل "ال")
       const levelName: string = assignment.level_name || '';
       const normalize = (s: string) => s.replace(/\s+/g, ' ').replace(/ال/g, '').trim();
       const matchedSpec = uniqueSpecs.find(sp => normalize(sp) === normalize(levelName)) || uniqueSpecs[0] || null;
 
-      let studQuery = supabase
-        .from('students')
+      let studQuery = supabase.from('students')
         .select('last_name, first_name, mat_etudiant')
         .eq('groupe', assignment.group_number)
         .order('last_name', { ascending: true });
@@ -718,122 +713,97 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       const groupStr = String(assignment.group_number).padStart(2, '0');
       const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
       const sessions = 14;
+      const totalCols = sessions + 2; // A: رقم، B: اسم، C-P: حصص
 
-      // ─── أنماط CSS مشتركة ────────────────────────────────────────────
-      const F  = 'font-family:Calibri;font-size:12pt;direction:rtl;';
-      const FB = F + 'font-weight:bold;';
-      const CENTER = 'text-align:center;vertical-align:middle;';
-      const RIGHT  = 'text-align:right;vertical-align:middle;';
-      const BORDER = 'border:1px solid #000;';
-
-      // ─── بناء جدول HTML ──────────────────────────────────────────────
-      // الصفوف 1-6: بدون حدود، نص في الوسط
-      let html = `<table style="${F}border-collapse:collapse;width:100%;direction:rtl;">`;
-
-      // صف 1: الجامعة
-      html += `<tr style="height:22pt;">
-        <td colspan="16" style="${FB}${CENTER}padding:4px;">
-          جامعة محمد البشير الإبراهيمي — برج بوعريريج
-        </td>
-      </tr>`;
-
-      // صف 2: الكلية
-      html += `<tr style="height:22pt;">
-        <td colspan="16" style="${FB}${CENTER}padding:4px;">
-          كلية الحقوق والعلوم السياسية
-        </td>
-      </tr>`;
-
-      // صف 3: فارغ
-      html += `<tr style="height:8pt;"><td colspan="16"></td></tr>`;
-
-      // صف 4: المستوى | الفوج | المقياس | الأستاذ
-      html += `<tr style="height:20pt;">
-        <td colspan="3"  style="${F}${RIGHT}padding:4px;">المستوى: ${assignment.level_name || ''}</td>
-        <td colspan="3"  style="${F}${CENTER}padding:4px;">الفوج: ${groupStr}</td>
-        <td colspan="4"  style="${F}${RIGHT}padding:4px;">المقياس: ${assignment.module_name || ''}</td>
-        <td colspan="6"  style="${F}${RIGHT}padding:4px;">الأستاذ: ${profName}</td>
-      </tr>`;
-
-      // صف 5: النوع | الموسم
-      html += `<tr style="height:20pt;">
-        <td colspan="3"  style="${F}${RIGHT}padding:4px;">النوع: ${assignment.teaching_type || ''}</td>
-        <td colspan="13" style="${F}${CENTER}padding:4px;">الموسم: 2026/2027</td>
-      </tr>`;
-
-      // صف 6: فارغ
-      html += `<tr style="height:8pt;"><td colspan="16"></td></tr>`;
-
-      // ─── صف 7: رؤوس الأعمدة — مع حدود ────────────────────────────
-      const hdrStyle = `${FB}${CENTER}${BORDER}padding:3px;`;
-      const sessionHdrs = Array.from({ length: sessions }, (_, i) =>
-        `<th style="${hdrStyle}width:22pt;">ح${i + 1}</th>`
-      ).join('');
-
-      html += `<tr style="height:20pt;">
-        <th style="${hdrStyle}width:28pt;">الرقم</th>
-        <th style="${hdrStyle}width:120pt;">اللقب والاسم</th>
-        ${sessionHdrs}
-      </tr>`;
-
-      // ─── صفوف الطلبة — مع حدود ──────────────────────────────────────
-      (students || []).forEach((s: any, i: number) => {
-        const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
-        const numCell  = `<td style="${F}${CENTER}${BORDER}padding:3px;">${i + 1}</td>`;
-        const nameCell = `<td style="${F}${RIGHT}${BORDER}padding:3px;">${fullName}</td>`;
-        const emptyCells = Array(sessions)
-          .fill(`<td style="${BORDER}"></td>`)
-          .join('');
-        html += `<tr style="height:18pt;">${numCell}${nameCell}${emptyCells}</tr>`;
-      });
-
-      html += '</table>';
-
-      // ─── تحويل HTML → ورقة عمل ──────────────────────────────────────
-      const parser = new DOMParser();
-      const doc2   = parser.parseFromString(html, 'text/html');
-      const table  = doc2.querySelector('table')!;
-      const ws     = XLSX.utils.table_to_sheet(table, { raw: true });
-
-      // ─── تطبيق التنسيق يدوياً (table_to_sheet لا يُصدّر CSS) ────────
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-      const totalRows = range.e.r + 1;
-      const totalCols = sessions + 2; // رقم + اسم + حصص
-
-      // حدود سوداء كاملة
+      // ─── بناء الورقة يدوياً (بدون table_to_sheet) ────────────────────
+      const ws: any = {};
       const blackBorder = { style: 'thin', color: { rgb: '000000' } };
       const fullBorder  = { top: blackBorder, bottom: blackBorder, left: blackBorder, right: blackBorder };
 
-      for (let r = 0; r <= range.e.r; r++) {
-        for (let c = 0; c < totalCols; c++) {
-          const addr = XLSX.utils.encode_cell({ r, c });
-          // أجبر وجود الخلية دائماً حتى لو فارغة
-          if (!ws[addr]) ws[addr] = { v: '', t: 's' };
-          if (ws[addr].v === undefined) ws[addr].v = '';
-          if (ws[addr].t === undefined) ws[addr].t = 's';
+      const cell = (r: number, c: number, v: string | number, bold: boolean, halign: string, border: any) => {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        ws[addr] = {
+          v, t: typeof v === 'number' ? 'n' : 's',
+          s: {
+            font:      { name: 'Calibri', sz: 12, bold },
+            alignment: { horizontal: halign, vertical: 'center', readingOrder: 2, wrapText: false },
+            border,
+          },
+        };
+      };
+      const empty = (r: number, c: number, border: any) => cell(r, c, '', false, 'center', border);
+      const merge = (r: number, s: number, e: number) => ({ s: { r, c: s }, e: { r, c: e } });
 
-          const isHeader = r < 6;          // صفوف 1-6: بدون حدود
-          const isColHdr = r === 6;         // صف 7: رؤوس الأعمدة
-          const isData   = r > 6;           // صف 8+: بيانات الطلبة
-          const isName   = c === 1 && !isHeader; // عمود الاسم
+      ws['!merges'] = [];
 
-          ws[addr].s = {
-            font:      { name: 'Calibri', sz: 12, bold: isHeader || isColHdr },
-            alignment: {
-              horizontal: isName ? 'right' : 'center',
-              vertical:   'center',
-              readingOrder: 2,  // RTL
-              wrapText: false,
-            },
-            border: (isColHdr || isData) ? fullBorder : {},
-          };
-        }
+      // صف 0: الجامعة (colspan 16 → A-P)
+      cell(0, 0, 'جامعة محمد البشير الإبراهيمي — برج بوعريريج', true, 'center', {});
+      for (let c = 1; c < totalCols; c++) empty(0, c, {});
+      ws['!merges'].push(merge(0, 0, totalCols - 1));
+
+      // صف 1: الكلية
+      cell(1, 0, 'كلية الحقوق والعلوم السياسية', true, 'center', {});
+      for (let c = 1; c < totalCols; c++) empty(1, c, {});
+      ws['!merges'].push(merge(1, 0, totalCols - 1));
+
+      // صف 2: فارغ
+      for (let c = 0; c < totalCols; c++) empty(2, c, {});
+      ws['!merges'].push(merge(2, 0, totalCols - 1));
+
+      // صف 3: المستوى(0-2) | الفوج(3-5) | المقياس(6-9) | الأستاذ(10-15)
+      cell(3, 0, `المستوى: ${levelName}`, false, 'right', {});
+      for (let c = 1; c < 3; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 0, 2));
+
+      cell(3, 3, `الفوج: ${groupStr}`, false, 'center', {});
+      for (let c = 4; c < 6; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 3, 5));
+
+      cell(3, 6, `المقياس: ${assignment.module_name || ''}`, false, 'right', {});
+      for (let c = 7; c < 10; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 6, 9));
+
+      cell(3, 10, `الأستاذ: ${profName}`, false, 'right', {});
+      for (let c = 11; c < totalCols; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 10, totalCols - 1));
+
+      // صف 4: النوع(0-2) | الموسم(3-15)
+      cell(4, 0, `النوع: ${assignment.teaching_type || ''}`, false, 'right', {});
+      for (let c = 1; c < 3; c++) empty(4, c, {});
+      ws['!merges'].push(merge(4, 0, 2));
+
+      cell(4, 3, 'الموسم: 2026/2027', false, 'center', {});
+      for (let c = 4; c < totalCols; c++) empty(4, c, {});
+      ws['!merges'].push(merge(4, 3, totalCols - 1));
+
+      // صف 5: فارغ
+      for (let c = 0; c < totalCols; c++) empty(5, c, {});
+      ws['!merges'].push(merge(5, 0, totalCols - 1));
+
+      // صف 6: رؤوس الأعمدة — مع حدود
+      cell(6, 0, 'الرقم',         true, 'center', fullBorder);
+      cell(6, 1, 'اللقب والاسم', true, 'center', fullBorder);
+      for (let i = 0; i < sessions; i++) {
+        cell(6, 2 + i, `ح${i + 1}`, true, 'center', fullBorder);
       }
 
-      ws['!cols'] = [
-        { wch: 7  },  // A: الرقم
-        { wch: 28 },  // B: الاسم
-        ...Array(sessions).fill({ wch: 5 }),
+      // صفوف الطلبة — مع حدود على كل الخلايا
+      (students || []).forEach((s: any, i: number) => {
+        const r = 7 + i;
+        const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
+        cell(r, 0, i + 1,    false, 'center', fullBorder);
+        cell(r, 1, fullName, false, 'right',  fullBorder);
+        for (let c = 2; c < totalCols; c++) {
+          empty(r, c, fullBorder);
+        }
+      });
+
+      const totalRows = 7 + (students || []).length;
+      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRows - 1, c: totalCols - 1 } });
+      ws['!cols'] = [{ wch: 7 }, { wch: 28 }, ...Array(sessions).fill({ wch: 5 })];
+      ws['!rows'] = [
+        { hpt: 22 }, { hpt: 22 }, { hpt: 8 }, { hpt: 20 }, { hpt: 20 }, { hpt: 8 }, { hpt: 20 },
+        ...Array((students || []).length).fill({ hpt: 18 }),
       ];
       ws['!rightToLeft'] = true;
       ws['!pageSetup']   = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
@@ -841,17 +811,14 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `ف${groupStr}`);
-      const fname = `كشف_ف${groupStr}_${(assignment.level_name || '').replace(/\s+/g, '_')}_${(assignment.module_name || '').replace(/\s+/g, '_')}.xlsx`;
+      const fname = `كشف_ف${groupStr}_${levelName.replace(/\s+/g, '_')}_${(assignment.module_name || '').replace(/\s+/g, '_')}.xlsx`;
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fname;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
     } catch (err) {
       console.error('AttendanceDownload error:', err);
       alert('خطأ: ' + String(err));
