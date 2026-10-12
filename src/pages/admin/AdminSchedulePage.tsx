@@ -352,9 +352,12 @@ export default function AdminSchedulePage() {
           const isCustom = !entry.assignment_id;
           const isLec = a?.teaching_type === 'محاضرة';
           const cls = isCustom ? 'custom' : isLec ? 'lec' : 'td-entry';
+          const prof = a?.professor_name ?? '';
+          const roomName = room?.name ?? '';
+          const profRoom = [prof, roomName].filter(Boolean).join(' | ');
           const name = isCustom
             ? (entry.custom_module || '') + (entry.custom_professor ? `<br/><small>${entry.custom_professor}</small>` : '')
-            : `${a?.module_name ?? ''}<br/><small>${a?.professor_name ?? ''}</small>${room ? `<br/><small class="room">${room.name}</small>` : ''}`;
+            : `<span class="mod-name">${a?.module_name ?? ''}</span><br/><small>${profRoom}</small>`;
           return `<div class="${cls}">${name}</div>`;
         }).join('');
         return `<td>${inner}</td>`;
@@ -368,24 +371,25 @@ export default function AdminSchedulePage() {
 <meta charset="utf-8"/>
 <title>التوقيت الأسبوعي</title>
 <style>
-  @page { size: A4 landscape; margin: 1cm; }
-  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; padding: 12px; direction: rtl; background: #fff; color: #111; }
-  h2 { text-align: center; font-size: 18px; font-weight: bold; margin: 0 0 4px; }
-  p.sub { text-align: center; font-size: 13px; color: #444; margin: 0 0 14px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-  th { background: #1a3a6b; color: #fff; padding: 8px 6px; text-align: center;
-       border: 2px solid #0f2550; font-size: 12px; font-weight: bold; }
-  td { border: 2px solid #888; padding: 6px 5px; vertical-align: top; height: 80px; }
+  @page { size: A4 landscape; margin: 0.8cm; }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; padding: 8px; direction: rtl; background: #fff; color: #111; }
+  h2 { text-align: center; font-size: 16px; font-weight: bold; margin: 0 0 3px; }
+  p.sub { text-align: center; font-size: 12px; color: #444; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+  th { background: #1a3a6b; color: #fff; padding: 6px 4px; text-align: center;
+       border: 2px solid #000; font-size: 11px; font-weight: bold; }
+  td { border: 2px solid #000; padding: 4px 3px; vertical-align: top; height: 70px; }
   td.day-cell { font-weight: bold; color: #1a3a6b; text-align: center; vertical-align: middle;
-                background: #eef2f9; font-size: 13px; white-space: nowrap; width: 64px; }
-  .lec { background: #1a3a6b; color: #fff; border-radius: 5px; padding: 5px 6px; margin-bottom: 4px;
-         font-size: 12px; line-height: 1.5; }
-  .td-entry { background: #0d9488; color: #fff; border-radius: 5px; padding: 5px 6px; margin-bottom: 4px;
-              font-size: 12px; line-height: 1.5; }
-  .custom { background: #f59e0b; color: #fff; border-radius: 5px; padding: 5px 6px; margin-bottom: 4px;
-            font-size: 12px; line-height: 1.5; }
-  small { font-size: 10px; opacity: 0.88; display: block; }
-  small.room { opacity: 0.75; }
+                background: #eef2f9; font-size: 12px; white-space: nowrap; width: 52px; }
+  .lec { background: #1a3a6b; color: #fff; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
+         font-size: 11px; line-height: 1.4; }
+  .td-entry { background: #0d9488; color: #fff; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
+              font-size: 11px; line-height: 1.4; }
+  .custom { background: #f59e0b; color: #fff; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
+            font-size: 11px; line-height: 1.4; }
+  .mod-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+              font-weight: bold; max-width: 100%; }
+  small { font-size: 9.5px; opacity: 0.9; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   @media print {
     body { padding: 0; }
     button, .no-print { display: none !important; }
