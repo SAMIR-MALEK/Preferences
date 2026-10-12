@@ -10,7 +10,7 @@ import type { Wish } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 
 type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule';
 
