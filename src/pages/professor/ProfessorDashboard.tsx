@@ -725,13 +725,15 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       const wb = XLSX.read(bytes, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const oldSheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[oldSheetName];
 
       // تعديل اسم التبويب
       const groupStr = String(assignment.group_number).padStart(2, '0');
-      wb.SheetNames[0] = `ف${groupStr}`;
-      wb.Sheets[`ف${groupStr}`] = ws;
-      delete wb.Sheets[wb.SheetNames[0] === `ف${groupStr}` ? 'ف07' : wb.SheetNames[0]];
+      const newSheetName = `ف${groupStr}`;
+      wb.SheetNames[0] = newSheetName;
+      wb.Sheets[newSheetName] = ws;
+      if (oldSheetName !== newSheetName) delete wb.Sheets[oldSheetName];
 
       // ملء خلايا المعلومات
       const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
