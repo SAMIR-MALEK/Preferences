@@ -376,7 +376,7 @@ export default function AdminSchedulePage() {
   h2 { text-align: center; font-size: 16px; font-weight: bold; margin: 0 0 3px; }
   p.sub { text-align: center; font-size: 12px; color: #444; margin: 0 0 10px; }
   table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
-  th { background: #1a3a6b; color: #fff; padding: 6px 4px; text-align: center;
+  th { background: #fff; color: #000; padding: 6px 4px; text-align: center;
        border: 2px solid #000; font-size: 11px; font-weight: bold; }
   td { border: 2px solid #000; padding: 4px 3px; vertical-align: top; height: 70px; }
   td.day-cell { font-weight: bold; color: #1a3a6b; text-align: center; vertical-align: middle;
