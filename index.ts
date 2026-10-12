@@ -1,0 +1,108 @@
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// توليد كلمة مرور عشوائية آمنة (8 خانات) بلا رموز ملتبسة مثل 0/O و1/l
+function generatePassword(length = 8): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  const bytes = crypto.getRandomValues(new Uint8Array(length))
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('')
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) throw new Error('غير مصرح')
+
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    )
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    if (authError || !user) throw new Error('غير مصرح')
+
+    const { data: admin } = await supabaseAdmin
+      .from('admins')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!admin) throw new Error('صلاحيات غير كافية')
+
+    const body = await req.json()
+    const {
+      last_name, first_name, rank, highest_degree,
+      degree_speciality, degree_title, professional_experience,
+      email, username_index, custom_username, custom_password
+    } = body
+
+    if (!last_name || !first_name) throw new Error('اللقب والاسم مطلوبان')
+
+    const username = custom_username && String(custom_username).trim()
+      ? String(custom_username).trim()
+      : String(username_index)
+
+    // كلمة المرور: المخصّصة (6 أحرف على الأقل) أو توليد تلقائي من 8 خانات
+    const customPwd = custom_password ? String(custom_password).trim() : ''
+    if (customPwd && customPwd.length < 6) {
+      throw new Error('كلمة المرور يجب ألا تقل عن 6 أحرف')
+    }
+    const password = customPwd || generatePassword()
+
+    const { data: existingProf } = await supabaseAdmin
+      .from('professors')
+      .select('id')
+      .eq('username', username)
+      .maybeSingle()
+    if (existingProf) throw new Error(`اسم المستخدم "${username}" مستخدم بالفعل من أستاذ آخر`)
+
+    // إيميل فريد دائماً بإضافة timestamp لتفادي تعارض Auth
+    const cleanUsername = username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'prof'
+    const authEmail = `${cleanUsername}_${Date.now()}@wishes.univ-bbm.dz`
+
+    const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+      email: authEmail,
+      password,
+      email_confirm: true,
+    })
+
+    if (authErr || !authData.user) throw new Error(authErr?.message || 'فشل إنشاء المستخدم')
+
+    const { error: profErr } = await supabaseAdmin.from('professors').insert({
+      user_id: authData.user.id,
+      username,
+      last_name,
+      first_name,
+      rank,
+      professional_experience: professional_experience || 0,
+      highest_degree: highest_degree || 'دكتوراه',
+      degree_speciality: degree_speciality || '',
+      degree_title: degree_title || '',
+      email: email || '',
+    })
+
+    if (profErr) {
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      throw new Error(profErr.message)
+    }
+
+    return new Response(
+      JSON.stringify({ username, password, success: true }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+})
