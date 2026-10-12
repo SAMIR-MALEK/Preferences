@@ -801,7 +801,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
       const totalRows = 7 + (students || []).length;
       ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRows - 1, c: totalCols - 1 } });
-      ws['!cols'] = [{ wch: 7 }, { wch: 28 }, ...Array(sessions).fill({ wch: 5 })];
+      ws['!cols'] = [{ wch: 5 }, { wch: 24 }, ...Array(sessions).fill({ wch: 3 })];
       ws['!rows'] = [
         { hpt: 22 }, { hpt: 22 }, { hpt: 8 }, { hpt: 20 }, { hpt: 20 }, { hpt: 8 }, { hpt: 20 },
         ...Array((students || []).length).fill({ hpt: 18 }),
@@ -826,6 +826,14 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
         // إذا لم يكن هناك sheetViews أصلاً
         if (!xml.includes('<sheetViews>')) {
           xml = xml.replace('<sheetData>', '<sheetViews><sheetView rightToLeft="1" tabSelected="1" workbookViewId="0"/></sheetViews><sheetData>');
+        }
+        // ضمان pageSetup في XML مباشرةً
+        if (xml.includes('<pageSetup ')) {
+          xml = xml.replace(/<pageSetup [^/]*/,
+            '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0" ');
+        } else {
+          xml = xml.replace('</sheetData>',
+            '</sheetData><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
         }
         unzipped[sheetKey] = strToU8(xml);
       }
