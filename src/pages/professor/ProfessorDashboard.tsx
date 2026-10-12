@@ -789,6 +789,9 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('AttendanceDownload error:', err);
+      alert('خطأ: ' + String(err));
     } finally {
       setLoading(false);
     }
