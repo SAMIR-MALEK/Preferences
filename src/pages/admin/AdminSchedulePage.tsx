@@ -373,6 +373,8 @@ export default function AdminSchedulePage() {
 <style>
   @page { size: A4 landscape; margin: 0.8cm; }
   body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; padding: 8px; direction: rtl; background: #fff; color: #111; }
+  p.univ { text-align: center; font-size: 13px; font-weight: bold; margin: 0 0 2px; }
+  p.faculty { text-align: center; font-size: 12px; margin: 0 0 6px; }
   h2 { text-align: center; font-size: 16px; font-weight: bold; margin: 0 0 3px; }
   p.sub { text-align: center; font-size: 12px; color: #444; margin: 0 0 10px; }
   table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
@@ -393,6 +395,8 @@ export default function AdminSchedulePage() {
   }
 </style>
 </head><body>
+<p class="univ">جامعة محمد البشير الإبراهيمي - برج بوعريريج</p>
+<p class="faculty">كلية الحقوق والعلوم السياسية</p>
 <h2>التوقيت الأسبوعي — السداسي الأول</h2>
 <p class="sub">${levelName} — ${sectionLabel}${groupLabel}</p>
 <table>
