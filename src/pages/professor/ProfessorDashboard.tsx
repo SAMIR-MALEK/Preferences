@@ -764,18 +764,14 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       for (let c = 9; c < totalCols; c++) empty(3, c, {});
       ws['!merges'].push(merge(3, 8, totalCols - 1));
 
-      // صف 4: النوع(0-4) | المقياس(5-11) | الموسم(12-15)
+      // صف 4: النوع(0-4) | المقياس(5-15)
       cell(4, 0, `النوع: ${assignment.teaching_type || ''}`, false, 'right', {});
       for (let c = 1; c < 5; c++) empty(4, c, {});
       ws['!merges'].push(merge(4, 0, 4));
 
-      cell(4, 5, `المقياس: ${assignment.module_name || ''}`, false, 'right', {});
-      for (let c = 6; c < 12; c++) empty(4, c, {});
-      ws['!merges'].push(merge(4, 5, 11));
-
-      cell(4, 12, 'الموسم: 2026/2027', false, 'center', {});
-      for (let c = 13; c < totalCols; c++) empty(4, c, {});
-      ws['!merges'].push(merge(4, 12, totalCols - 1));
+      cell(4, 5, `المقياس: ${assignment.module_name || ''}`, false, 'center', {});
+      for (let c = 6; c < totalCols; c++) empty(4, c, {});
+      ws['!merges'].push(merge(4, 5, totalCols - 1));
 
       // صف 5: فارغ
       for (let c = 0; c < totalCols; c++) empty(5, c, {});
