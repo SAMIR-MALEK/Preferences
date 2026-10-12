@@ -761,12 +761,12 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       ws['!merges'].push(merge(3, 3, 5));
 
       cell(3, 6, `المقياس: ${assignment.module_name || ''}`, false, 'right', {});
-      for (let c = 7; c < 10; c++) empty(3, c, {});
-      ws['!merges'].push(merge(3, 6, 9));
+      for (let c = 7; c < 11; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 6, 10));
 
-      cell(3, 10, `الأستاذ: ${profName}`, false, 'right', {});
-      for (let c = 11; c < totalCols; c++) empty(3, c, {});
-      ws['!merges'].push(merge(3, 10, totalCols - 1));
+      cell(3, 11, `الأستاذ: ${profName}`, false, 'right', {});
+      for (let c = 12; c < totalCols; c++) empty(3, c, {});
+      ws['!merges'].push(merge(3, 11, totalCols - 1));
 
       // صف 4: النوع(0-2) | الموسم(3-15)
       cell(4, 0, `النوع: ${assignment.teaching_type || ''}`, false, 'right', {});
@@ -809,7 +809,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       ws['!rightToLeft'] = true;
       (ws as any)['!sheetViews'] = [{ rightToLeft: true }];
       ws['!pageSetup']   = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
-      ws['!margins']     = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.2, footer: 0.2 };
+      ws['!margins']     = { left: 0.2, right: 0.2, top: 0.2, bottom: 0.2, header: 0.1, footer: 0.1 };
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `ف${groupStr}`);
