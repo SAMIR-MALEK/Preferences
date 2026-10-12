@@ -382,11 +382,11 @@ export default function AdminSchedulePage() {
   td.day-cell { font-weight: bold; color: #1a3a6b; text-align: center; vertical-align: middle;
                 background: #eef2f9; font-size: 12px; white-space: nowrap; width: 52px; }
   .lec { background: #1a3a6b; color: #fff; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
-         font-size: 11px; line-height: 1.4; }
+         font-size: 11px; line-height: 1.4; border: 2px solid #000; box-shadow: inset 0 0 0 1px #000; }
   .td-entry { background: #0d9488; color: #fff; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
-              font-size: 11px; line-height: 1.4; }
+              font-size: 11px; line-height: 1.4; border: 2px solid #000; box-shadow: inset 0 0 0 1px #000; }
   .custom { background: #f59e0b; color: #fff; border-radius: 4px; padding: 3px 4px; margin-bottom: 3px;
-            font-size: 11px; line-height: 1.4; }
+            font-size: 11px; line-height: 1.4; border: 2px solid #000; box-shadow: inset 0 0 0 1px #000; }
   .mod-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
               font-weight: bold; max-width: 100%; }
   small { font-size: 9.5px; opacity: 0.9; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
