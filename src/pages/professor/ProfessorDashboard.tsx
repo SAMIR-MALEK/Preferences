@@ -697,13 +697,13 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
     setLoading(true);
     try {
       // جلب الطلبة من قاعدة البيانات مرتّبين أبجديًا
-      // جلب specialite من assignments لفلترة الطلبة بدقة
-      const { data: asgData } = await supabase
-        .from('assignments')
-        .select('specialite')
-        .eq('id', assignment.assignment_id)
+      // جلب specialite من levels عبر level_id
+      const { data: lvlData } = await supabase
+        .from('levels')
+        .select('name_ar')
+        .eq('id', assignment.level_id)
         .single();
-      const specialite = asgData?.specialite || null;
+      const specialite = lvlData?.name_ar || null;
 
       let studQuery = supabase
         .from('students')
@@ -890,6 +890,7 @@ function ProfScheduleTab({ prof }: any) {
           section: a?.section_number,
           group: a?.group_number,
           group_number: a?.group_number,
+          level_id: a?.level_id,
           weekly_hours: a?.teaching_type === 'محاضرة' ? 2.25 : 1.5,
           room: rMap.get(s.room_id) || '—',
           day: s.time_slot?.day,
