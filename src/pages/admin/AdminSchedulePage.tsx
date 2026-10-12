@@ -53,7 +53,7 @@ export default function AdminSchedulePage() {
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedSection, setSelectedSection] = useState(1);
   const [displayFilter, setDisplayFilter] = useState<'all' | 'lec' | 'td'>('all');
-  const [selectedGroup, setSelectedGroup] = useState(0);
+  const [selectedGroup, setSelectedGroup] = useState(1);
 
   const printRef = useRef<HTMLDivElement>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -522,7 +522,7 @@ export default function AdminSchedulePage() {
       {/* فلاتر */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <select value={selectedLevel} onChange={e => { setSelectedLevel(e.target.value); setSelectedSection(1); setSelectedGroup(0); }}
+          <select value={selectedLevel} onChange={e => { setSelectedLevel(e.target.value); setSelectedSection(1); setSelectedGroup(1); }}
             className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1a3a6b] bg-white">
             <option value="">— اختر المستوى —</option>
             {levels.map(l => <option key={l.id} value={l.id}>{l.name_ar}</option>)}
@@ -531,7 +531,7 @@ export default function AdminSchedulePage() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">المجموعة:</span>
               {Array.from({length: levelSemesters.find(l => l.level_id === selectedLevel)?.num_sections || 1}, (_,i) => i+1).map(s => (
-                <button key={s} onClick={() => { setSelectedSection(s); setSelectedGroup(0); }}
+                <button key={s} onClick={() => { setSelectedSection(s); setSelectedGroup(1); }}
                   className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${selectedSection===s?'bg-[#1a3a6b] text-white':'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                   {toArabicNum(s)}
                 </button>
