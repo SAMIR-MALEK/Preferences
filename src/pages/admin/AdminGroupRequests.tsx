@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, FileText, User, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, FileText, User, RefreshCw, BarChart2 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,15 +25,156 @@ interface GroupRequest {
 }
 
 interface Props {
-  /** role of the logged-in admin: 'dept_head' | 'super_admin' */
   role: 'dept_head' | 'super_admin';
+  department?: 'عام' | 'خاص'; // للـ dept_head فقط
 }
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pending:  { label: 'قيد الانتظار', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  approved: { label: 'مقبول',        color: 'bg-green-50 text-green-700 border-green-200' },
-  rejected: { label: 'مرفوض',        color: 'bg-red-50 text-red-600 border-red-200' },
+// خريطة التخصصات حسب القسم
+const DEPT_SPECIALITIES: Record<string, string[]> = {
+  'عام':  ['قانون عام', 'قانون جنائي', 'قانون الإعلام الآلي والإنترنت', 'قانون الصحة', 'قانون التهيئة والتعمير'],
+  'خاص':  ['قانون خاص', 'قانون أعمال', 'قانون عقاري'],
 };
+
+const STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  pending:       { label: 'قيد الانتظار', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  dept_approved: { label: 'موافقة القسم', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  approved:      { label: 'مقبول',        color: 'bg-green-50 text-green-700 border-green-200' },
+  rejected:      { label: 'مرفوض',        color: 'bg-red-50 text-red-600 border-red-200' },
+};
+
+// ─── حوصلة عامة ───────────────────────────────────────────────────────────────
+
+interface SummaryProps {
+  requests: GroupRequest[];
+  speciality: string | 'all';
+}
+
+function GlobalSummary({ requests, speciality }: SummaryProps) {
+  const [open, setOpen] = useState(false);
+
+  const scoped = speciality === 'all'
+    ? requests
+    : requests.filter(r => r.student?.specialite === speciality);
+
+  const pending = scoped.filter(r => r.status === 'pending');
+
+  // احسب لكل فوج: كم طلب خروج وكم طلب دخول
+  const groupStats: Record<number, { out: number; in: number }> = {};
+  for (const r of pending) {
+    if (!groupStats[r.current_groupe])   groupStats[r.current_groupe]   = { out: 0, in: 0 };
+    if (!groupStats[r.requested_groupe]) groupStats[r.requested_groupe] = { out: 0, in: 0 };
+    groupStats[r.current_groupe].out++;
+    groupStats[r.requested_groupe].in++;
+  }
+
+  const groups = Object.keys(groupStats).map(Number).sort((a, b) => a - b);
+
+  // توصية جماعية: هل يمكن قبول كل طلبات الانتظار؟
+  // الشرط: لكل فوج مصدر، عدد الدخول للفوج الهدف ≈ عدد الخروج منه
+  function globalRecommendation() {
+    if (pending.length === 0) return null;
+
+    // بناء مصفوفة الانتقالات
+    const flows: { from: number; to: number }[] = pending.map(r => ({
+      from: r.current_groupe,
+      to:   r.requested_groupe,
+    }));
+
+    // لكل فوج: هل التوازن محقق (|out - in| <= 2)؟
+    const balanced = groups.every(g => {
+      const { out, in: inC } = groupStats[g];
+      return Math.abs(out - inC) <= 2;
+    });
+
+    return balanced;
+  }
+
+  const rec = globalRecommendation();
+
+  if (pending.length === 0) return null;
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3 text-right"
+        onClick={() => setOpen(v => !v)}
+      >
+        <BarChart2 className="w-5 h-5 text-[#0a1628] shrink-0" />
+        <div className="flex-1">
+          <p className="font-bold text-sm text-gray-800">الحوصلة العامة للطلبات المعلقة</p>
+          <p className="text-xs text-gray-400">{pending.length} طلب معلق</p>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-50 px-4 pb-4 pt-3 space-y-4">
+
+          {/* توصية جماعية */}
+          {rec !== null && (
+            <div className={`rounded-xl border px-3 py-2.5 ${rec
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              <p className="text-xs font-bold mb-0.5">
+                {rec ? '🟢 يمكن قبول جميع الطلبات المعلقة' : '🟡 لا يُنصح بقبول الجميع دفعةً واحدة'}
+              </p>
+              <p className="text-[11px] opacity-80">
+                {rec
+                  ? 'التوازن بين الخروج والدخول لكل فوج محقق — قبول الجميع لن يُحدث اختلالاً ملحوظاً.'
+                  : 'بعض الأفواج ستعاني من اختلال في الأعداد إذا قُبلت كل الطلبات. راجع تفاصيل كل فوج أدناه.'}
+              </p>
+            </div>
+          )}
+
+          {/* جدول الأفواج */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-center border-collapse">
+              <thead>
+                <tr className="text-[11px] text-gray-400 border-b border-gray-100">
+                  <th className="py-1.5 px-2 text-right font-medium">الفوج</th>
+                  <th className="py-1.5 px-2 font-medium">طلبات الخروج</th>
+                  <th className="py-1.5 px-2 font-medium">طلبات الدخول</th>
+                  <th className="py-1.5 px-2 font-medium">التوازن</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map(g => {
+                  const { out, in: inC } = groupStats[g];
+                  const diff = inC - out;
+                  const balanced = Math.abs(diff) <= 2;
+                  return (
+                    <tr key={g} className="border-b border-gray-50 last:border-0">
+                      <td className="py-2 px-2 text-right font-bold text-gray-700">ف {g}</td>
+                      <td className="py-2 px-2">
+                        <span className="inline-block bg-red-50 text-red-600 rounded-lg px-2 py-0.5 text-xs font-bold">{out}</span>
+                      </td>
+                      <td className="py-2 px-2">
+                        <span className="inline-block bg-green-50 text-green-700 rounded-lg px-2 py-0.5 text-xs font-bold">{inC}</span>
+                      </td>
+                      <td className="py-2 px-2">
+                        <span className={`inline-block rounded-lg px-2 py-0.5 text-xs font-bold ${
+                          balanced
+                            ? 'bg-green-50 text-green-700'
+                            : diff > 0
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-red-50 text-red-600'
+                        }`}>
+                          {diff > 0 ? `+${diff}` : diff === 0 ? '±0' : diff}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-gray-300">التوازن = طلبات الدخول − طلبات الخروج. القيم بين −2 و+2 تُعدّ متوازنة.</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Single request card ───────────────────────────────────────────────────────
 
@@ -92,12 +233,10 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
     onRefresh();
   }
 
-  // رئيس القسم فقط يتخذ القرار — الإدارة العليا تراقب فقط
   const canAct = role === 'dept_head' && req.status === 'pending';
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
-      {/* Header row */}
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
         onClick={handleExpand}
@@ -119,18 +258,15 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
         </div>
       </div>
 
-      {/* Expanded body */}
       {expanded && (
         <div className="border-t border-gray-50 px-4 pb-4 pt-3 space-y-3">
 
-          {/* Groupe stats — dept_head */}
           {role === 'dept_head' && (
             <div className="space-y-2">
               {statsLoading ? (
                 <div className="py-2 text-xs text-gray-300 text-center">جارٍ التحميل...</div>
               ) : stats ? (
                 <>
-                  {/* 3 tiles */}
                   <div className="grid grid-cols-3 gap-2 text-center">
                     {[
                       { label: `ف ${req.current_groupe} الأصلي`,   value: stats.fromCount },
@@ -145,13 +281,12 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
                     ))}
                   </div>
 
-                  {/* Recommendation */}
                   {(() => {
                     const { fromCount, toCount, avg } = stats;
                     const THRESHOLD = 3;
-                    const toFull    = toCount >= avg;
-                    const fromOver  = fromCount > avg;
-                    const close     = Math.abs(toCount - avg) <= THRESHOLD && Math.abs(fromCount - avg) <= THRESHOLD;
+                    const toFull   = toCount >= avg;
+                    const fromOver = fromCount > avg;
+                    const close    = Math.abs(toCount - avg) <= THRESHOLD && Math.abs(fromCount - avg) <= THRESHOLD;
 
                     let rec: { icon: string; color: string; title: string; reason: string };
 
@@ -199,7 +334,6 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
             </div>
           )}
 
-          {/* Quick info */}
           <div className="grid grid-cols-3 gap-2 text-center">
             {[
               { label: 'المجموعة الحالية', value: `م ${req.current_section}` },
@@ -213,13 +347,11 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
             ))}
           </div>
 
-          {/* Reason */}
           <div className="bg-gray-50 rounded-xl p-3">
             <p className="text-[10px] text-gray-400 mb-1">المبرر</p>
             <p className="text-sm text-gray-700 leading-relaxed">{req.reason}</p>
           </div>
 
-          {/* Attached file */}
           {req.file_url && (
             <a
               href={req.file_url}
@@ -232,7 +364,6 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
             </a>
           )}
 
-          {/* Previous notes */}
           {req.dept_head_note && (
             <div className="bg-blue-50 rounded-xl p-3">
               <p className="text-[10px] text-blue-400 mb-1">ملاحظة رئيس القسم</p>
@@ -246,12 +377,10 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
             </div>
           )}
 
-          {/* Date */}
           <p className="text-[11px] text-gray-300 text-left">
             {new Date(req.created_at).toLocaleDateString('ar-DZ', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
 
-          {/* Action buttons */}
           {canAct && (
             <div className="space-y-2 pt-1">
               <textarea
@@ -289,28 +418,46 @@ function RequestCard({ req, role, onRefresh }: { req: GroupRequest; role: string
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function AdminGroupRequests({ role }: Props) {
-  const [requests, setRequests] = useState<GroupRequest[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [filter, setFilter]     = useState<'all' | 'pending' | 'dept_approved' | 'approved' | 'rejected'>('all');
+export default function AdminGroupRequests({ role, department }: Props) {
+  const [requests, setRequests]       = useState<GroupRequest[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [specialityFilter, setSpecialityFilter] = useState<string>('all');
 
   async function fetchRequests() {
     setLoading(true);
     const { data } = await supabase
       .from('group_change_requests')
-      .select(`
-        *,
-        student:students (last_name, first_name, mat_etudiant, specialite)
-      `)
+      .select(`*, student:students (last_name, first_name, mat_etudiant, specialite)`)
       .order('created_at', { ascending: false });
 
-    setRequests((data as GroupRequest[]) || []);
+    let rows = (data as GroupRequest[]) || [];
+
+    // رئيس القسم يرى فقط تخصصات قسمه
+    if (role === 'dept_head' && department) {
+      const allowed = DEPT_SPECIALITIES[department] ?? [];
+      rows = rows.filter(r => allowed.includes(r.student?.specialite ?? ''));
+    }
+
+    setRequests(rows);
     setLoading(false);
   }
 
   useEffect(() => { fetchRequests(); }, []);
 
-  const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
+  // قائمة التخصصات الموجودة في الطلبات
+  const availableSpecialities = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of requests) if (r.student?.specialite) set.add(r.student.specialite);
+    return Array.from(set).sort();
+  }, [requests]);
+
+  // فلترة مزدوجة: حالة + تخصص
+  const filtered = useMemo(() => requests.filter(r => {
+    const matchStatus     = statusFilter === 'all' || r.status === statusFilter;
+    const matchSpeciality = specialityFilter === 'all' || r.student?.specialite === specialityFilter;
+    return matchStatus && matchSpeciality;
+  }), [requests, statusFilter, specialityFilter]);
 
   const counts = {
     all:      requests.length,
@@ -319,19 +466,24 @@ export default function AdminGroupRequests({ role }: Props) {
     rejected: requests.filter(r => r.status === 'rejected').length,
   };
 
-  const filters: { key: typeof filter; label: string }[] = [
+  const statusFilters: { key: typeof statusFilter; label: string }[] = [
     { key: 'all',      label: `الكل (${counts.all})` },
     { key: 'pending',  label: `انتظار (${counts.pending})` },
     { key: 'approved', label: `مقبول (${counts.approved})` },
     { key: 'rejected', label: `مرفوض (${counts.rejected})` },
   ];
 
+  const deptLabel = department === 'عام' ? 'قسم القانون العام' : department === 'خاص' ? 'قسم القانون الخاص' : '';
+
   return (
     <div dir="rtl" className="space-y-4">
 
-      {/* Title + refresh */}
+      {/* العنوان */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-800">طلبات تغيير الأفواج</h2>
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">طلبات تغيير الأفواج</h2>
+          {deptLabel && <p className="text-xs text-gray-400 mt-0.5">{deptLabel}</p>}
+        </div>
         <button
           onClick={fetchRequests}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl px-3 py-1.5 transition-colors"
@@ -341,14 +493,47 @@ export default function AdminGroupRequests({ role }: Props) {
         </button>
       </div>
 
-      {/* Filter chips */}
+      {/* الحوصلة العامة */}
+      <GlobalSummary requests={requests} speciality={specialityFilter} />
+
+      {/* فلترة التخصص */}
+      {availableSpecialities.length > 1 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-[11px] text-gray-400 shrink-0">التخصص:</span>
+          <button
+            onClick={() => setSpecialityFilter('all')}
+            className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+              specialityFilter === 'all'
+                ? 'bg-[#0a1628] text-white border-[#0a1628]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+            }`}
+          >
+            الكل
+          </button>
+          {availableSpecialities.map(sp => (
+            <button
+              key={sp}
+              onClick={() => setSpecialityFilter(sp)}
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                specialityFilter === sp
+                  ? 'bg-[#0a1628] text-white border-[#0a1628]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              {sp}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* فلترة الحالة */}
       <div className="flex flex-wrap gap-2">
-        {filters.map(({ key, label }) => (
+        {statusFilters.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setFilter(key)}
+            onClick={() => setStatusFilter(key)}
             className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-              filter === key
+              statusFilter === key
                 ? 'bg-[#0a1628] text-white border-[#0a1628]'
                 : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
             }`}
@@ -358,7 +543,7 @@ export default function AdminGroupRequests({ role }: Props) {
         ))}
       </div>
 
-      {/* List */}
+      {/* القائمة */}
       {loading ? (
         <div className="text-center py-16 text-gray-400">
           <Clock className="w-8 h-8 mx-auto mb-3 animate-pulse opacity-40" />
