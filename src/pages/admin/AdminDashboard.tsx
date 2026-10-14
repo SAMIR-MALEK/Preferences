@@ -229,7 +229,10 @@ export default function AdminDashboard() {
         {tab === 'vacataire' && <AdminVacataireTab />}
         {tab === 'students' && <AdminStudentsTab />}
         {tab === 'grouprequests' && (
-          <AdminGroupRequests role={user?.admin?.role === 'dept_head' ? 'dept_head' : 'super_admin'} />
+          <AdminGroupRequests
+            role={user?.admin?.role === 'dept_head' ? 'dept_head' : 'super_admin'}
+            department={user?.admin?.department as 'عام' | 'خاص' | undefined}
+          />
         )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}

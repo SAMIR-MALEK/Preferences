@@ -324,20 +324,7 @@ export default function AdminGroupRequests({ role, department }: Props) {
   const [statusFilter, setStatusFilter]     = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [specialityFilter, setSpeciality]   = useState<string>('all');
 
-  // جلب التخصصات المسموح بها من جدول levels
-  useEffect(() => {
-    if (role !== 'dept_head' || !department) return;
-    supabase
-      .from('levels')
-      .select('name_ar')
-      .eq('department', department)
-      .eq('is_active', true)
-      .then(({ data }) => {
-        setAllowed((data ?? []).map((l: any) => l.name_ar));
-      });
-  }, [role, department]);
-
-  async function fetchRequests() {
+  async function fetchRequests(allowed: string[] = allowedSpecialities) {
     setLoading(true);
     const { data } = await supabase
       .from('group_change_requests')
@@ -347,19 +334,43 @@ export default function AdminGroupRequests({ role, department }: Props) {
     let rows = (data as GroupRequest[]) || [];
 
     // رئيس القسم يرى فقط تخصصات قسمه
-    if (role === 'dept_head' && allowedSpecialities.length > 0) {
-      rows = rows.filter(r => allowedSpecialities.includes(r.student?.specialite ?? ''));
+    if (role === 'dept_head') {
+      if (allowed.length === 0) {
+        // التخصصات لم تُحمَّل بعد أو القسم غير محدد — لا نعرض شيئاً
+        setRequests([]);
+        setLoading(false);
+        return;
+      }
+      rows = rows.filter(r => allowed.includes(r.student?.specialite ?? ''));
     }
 
     setRequests(rows);
     setLoading(false);
   }
 
+  // جلب التخصصات المسموح بها من جدول levels ثم جلب الطلبات مباشرة
   useEffect(() => {
-    // انتظر حتى تُحمَّل التخصصات قبل جلب الطلبات
-    if (role === 'dept_head' && allowedSpecialities.length === 0 && department) return;
-    fetchRequests();
-  }, [allowedSpecialities]);
+    if (role !== 'dept_head') {
+      fetchRequests([]);
+      return;
+    }
+    if (!department) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+    supabase
+      .from('levels')
+      .select('name_ar')
+      .eq('department', department)
+      .eq('is_active', true)
+      .then(({ data }) => {
+        const allowed = (data ?? []).map((l: any) => l.name_ar);
+        setAllowed(allowed);
+        fetchRequests(allowed);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, department]);
 
   // التخصصات الموجودة فعلاً في الطلبات
   const availableSpecialities = useMemo(() => {
@@ -398,7 +409,7 @@ export default function AdminGroupRequests({ role, department }: Props) {
           <h2 className="text-lg font-bold text-gray-800">طلبات تغيير الأفواج</h2>
           {deptLabel && <p className="text-xs text-gray-400 mt-0.5">{deptLabel}</p>}
         </div>
-        <button onClick={fetchRequests}
+        <button onClick={() => fetchRequests(allowedSpecialities)}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl px-3 py-1.5 transition-colors">
           <RefreshCw className="w-3.5 h-3.5" />تحديث
         </button>
@@ -444,7 +455,7 @@ export default function AdminGroupRequests({ role, department }: Props) {
       ) : (
         <div className="space-y-3">
           {filtered.map(req => (
-            <RequestCard key={req.id} req={req} role={role} onRefresh={fetchRequests} />
+            <RequestCard key={req.id} req={req} role={role} onRefresh={() => fetchRequests(allowedSpecialities)} />
           ))}
         </div>
       )}
