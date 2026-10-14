@@ -565,7 +565,7 @@ export default function StudentPage() {
       .from('assignments')
       .select('id, teaching_type, module_id, professor_id, section_number, group_number')
       .eq('level_id', levelId)
-      .eq('status', 'نهائي')
+      .in('status', ['نهائي', 'مؤقت'])
       .or(
         `and(teaching_type.eq.محاضرة,section_number.eq.${student.section ?? 0}),` +
         `and(teaching_type.neq.محاضرة,section_number.eq.${student.section ?? 0},group_number.eq.${student.groupe ?? 0})`
@@ -587,7 +587,9 @@ export default function StudentPage() {
         time_slots (id, day, start_time, end_time, slot_number),
         rooms (name)
       `)
-      .in('assignment_id', assignmentIds);
+      .in('assignment_id', assignmentIds)
+      .eq('academic_year', '2026-2027')
+      .eq('semester', 1);
 
     console.log('schedules found:', schedData?.length, schedData);
     if (!schedData) { setLoadingSchedule(false); return; }
