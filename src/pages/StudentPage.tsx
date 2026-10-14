@@ -423,95 +423,11 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
       {/* زر الطلب الجديد — يظهر فقط إذا لم يسبق له الطلب */}
       {student.sit_ins === 'Validée' && !hasExistingRequest && (
         <>
-          <button
-            onClick={() => setOpen(o => !o)}
-            className="flex items-center gap-2 text-sm font-medium text-[#1a3a6b] hover:text-[#0f2544] transition-colors"
-          >
-            {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {open ? 'إلغاء' : 'طلب تغيير الفوج'}
-          </button>
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <span className="text-red-500 text-lg">🔒</span>
+            <p className="text-sm text-red-700 font-medium">انتهى أجل تغيير الأفواج</p>
+          </div>
 
-          {open && (
-            <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">الفوج المطلوب</label>
-                {availableGroupes.length === 0 ? (
-                  <p className="text-xs text-gray-400">لا توجد أفواج متاحة للتغيير</p>
-                ) : (() => {
-                  // تجميع الأفواج حسب المجموعة
-                  // gpSection = num_groups من level_semesters (مثلاً 5 لأولى ليسانس، 8 لماستر 2 جنائي)
-                  const maxGroupe = Math.max(...availableGroupes, student.groupe ?? 0);
-                  const gpSection = groupsPerSection > 0 ? groupsPerSection : maxGroupe;
-                  const numSections = Math.ceil(maxGroupe / gpSection);
-                  const sections: number[][] = [];
-                  for (let s = 0; s < numSections; s++) {
-                    const groupesInSection = [];
-                    for (let g = s * gpSection + 1; g <= (s + 1) * gpSection && g <= maxGroupe; g++) {
-                      if (availableGroupes.includes(g)) groupesInSection.push(g);
-                    }
-                    if (groupesInSection.length > 0) sections.push(groupesInSection);
-                  }
-                  return (
-                    <div className="space-y-3">
-                      {sections.map((groupes, idx) => {
-                        const sectionNum = Math.ceil(groupes[0] / gpSection);
-                        return (
-                          <div key={idx}>
-                            <p className="text-[10px] text-gray-400 mb-1.5">المجموعة {sectionNum}</p>
-                            <div className="flex flex-wrap gap-2">
-                              {groupes.map(g => (
-                                <button
-                                  key={g}
-                                  type="button"
-                                  onClick={() => setRequestedGroupe(String(g))}
-                                  className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${
-                                    requestedGroupe === String(g)
-                                      ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
-                                      : 'bg-white text-gray-700 border-gray-200 hover:border-[#1a3a6b]'
-                                  }`}
-                                >
-                                  ف {g}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">المبرر</label>
-                <textarea
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                  rows={3}
-                  placeholder="اشرح سبب طلب تغيير الفوج..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 resize-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">مستند مرفق (اختياري)</label>
-                <label className="flex items-center gap-2 border border-dashed border-gray-300 rounded-xl px-4 py-3 cursor-pointer hover:border-[#1a3a6b] transition-colors">
-                  <Upload className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-500">{file ? file.name : 'اختر ملفاً (PDF، صورة...)'}</span>
-                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={e => setFile(e.target.files?.[0] || null)} />
-                </label>
-              </div>
-              {msg && (
-                <p className={`text-xs px-3 py-2 rounded-lg ${msg.startsWith('✓') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                  {msg}
-                </p>
-              )}
-              <button type="submit" disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0f2544] text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
-                <Send className="w-4 h-4" />
-                {submitting ? 'جارٍ الإرسال...' : 'إرسال الطلب'}
-              </button>
-            </form>
-          )}
         </>
       )}
     </div>
