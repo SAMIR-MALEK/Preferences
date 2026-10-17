@@ -225,7 +225,7 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
                                 <td key={day} className="px-2 py-1.5">
                                   {entry ? (
                                     <div className="bg-red-50 border border-red-200 rounded-lg p-1.5 space-y-0.5">
-                                      <div className="font-semibold text-red-700 text-[11px] leading-tight">{entry.module_name}</div>
+                                      <div className="font-semibold text-red-700 text-[11px] leading-tight" title={entry.module_name}>{entry.module_name}</div>
                                       <div className="text-red-500 text-[10px]">{entry.specialite}</div>
                                       <div className="text-red-400 text-[10px]">{entry.prof_name}</div>
                                       <div className="text-red-400 text-[10px]">{entry.teaching_type}</div>
@@ -344,7 +344,7 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
                               <span className="text-xs text-gray-500">{r.type}</span>
                             </div>
                             <div className="text-xs text-gray-600 space-y-0.5">
-                              <div><span className="text-gray-400">الوحدة:</span> {entry.module_name}</div>
+                              <div><span className="text-gray-400">المقياس:</span> {entry.module_name}</div>
                               <div><span className="text-gray-400">التخصص:</span> {entry.specialite}</div>
                               <div><span className="text-gray-400">الأستاذ:</span> {entry.prof_name}</div>
                               <div><span className="text-gray-400">النوع:</span> {entry.teaching_type}</div>
@@ -492,7 +492,7 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
                   </div>
                   <div className="bg-red-50 rounded-xl p-4 space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-500">الوحدة</span>
+                      <span className="text-gray-500">المقياس</span>
                       <span className="font-medium text-gray-800 text-right">{entry.module_name}</span>
                     </div>
                     <div className="flex justify-between">
