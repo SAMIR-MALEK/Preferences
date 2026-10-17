@@ -49,7 +49,8 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
   // الوضع B
   const [selectedDay, setSelectedDay] = useState<string>(DAYS[0]);
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  // الوضع C — popup
+  // الوضع C
+  const [mapDay, setMapDay] = useState<string>(DAYS[0]);
   const [popupCell, setPopupCell] = useState<{ room: Room; slot: TimeSlot } | null>(null);
 
   useEffect(() => {
@@ -65,49 +66,51 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
       .select('*')
       .order('slot_number');
 
-    // جلب الجداول مع الإسناد والوحدات والأساتذة والمستويات
+    // جلب الجداول: schedules يحتوي على assignment_id و room_id و time_slot_id
     const { data: schedulesData } = await supabase
       .from('schedules')
-      .select(`
-        id,
-        room_id,
-        time_slot_id,
-        academic_year,
-        semester,
-        status,
-        assignments (
-          id,
-          status,
-          teaching_type,
-          module:modules ( name_ar ),
-          professor:professors ( last_name, first_name ),
-          level:levels ( name_ar )
-        )
-      `)
+      .select('id, room_id, time_slot_id, assignment_id')
       .in('status', ['نهائي', 'مؤقت'])
       .eq('academic_year', '2026-2027')
-      .eq('semester', 1);
+      .eq('semester', 1)
+      .not('room_id', 'is', null);
 
     const slots = (slotsData ?? []) as TimeSlot[];
     setTimeSlots(slots);
 
+    const schRows = (schedulesData ?? []) as any[];
+    if (schRows.length === 0) { setOccupancy([]); setLoadingData(false); return; }
+
+    // جلب تفاصيل الإسنادات دفعة واحدة
+    const assignmentIds = [...new Set(schRows.map((s: any) => s.assignment_id).filter(Boolean))];
+    const { data: assignmentsData } = await supabase
+      .from('assignments')
+      .select(`
+        id,
+        teaching_type,
+        module:modules ( name_ar ),
+        professor:professors ( last_name, first_name ),
+        level:levels ( name_ar )
+      `)
+      .in('id', assignmentIds);
+
+    const aMap = new Map((assignmentsData ?? []).map((a: any) => [a.id, a]));
+
     // تحويل البيانات إلى مصفوفة إشغال مسطّحة
     const entries: OccupancyEntry[] = [];
-    for (const sch of (schedulesData ?? []) as any[]) {
-      if (!sch.room_id || !sch.time_slot_id) continue;
-      const assignment = Array.isArray(sch.assignments)
-        ? sch.assignments.find((a: any) => ['نهائي', 'مؤقت'].includes(a.status))
-        : null;
-      if (!assignment) continue;
+    for (const sch of schRows) {
+      if (!sch.room_id || !sch.time_slot_id || !sch.assignment_id) continue;
+      const a = aMap.get(sch.assignment_id) as any;
+      if (!a) continue;
       entries.push({
         room_id: sch.room_id,
         time_slot_id: sch.time_slot_id,
-        specialite: assignment.level?.name_ar ?? '—',
-        module_name: assignment.module?.name_ar ?? '—',
-        prof_name: assignment.professor
-          ? `${assignment.professor.last_name} ${assignment.professor.first_name}`
+        specialite: a.level?.name_ar ?? '—',
+        module_name: a.module?.name_ar ?? '—',
+        prof_name: a.professor
+          ? `${a.professor.last_name} ${a.professor.first_name}`
           : '—',
-        teaching_type: assignment.teaching_type ?? '—',
+        teaching_type: a.teaching_type ?? '—',
       });
     }
     setOccupancy(entries);
@@ -368,7 +371,7 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
       {/* ── الوضع C: خريطة شاملة ─────────────────────────────────────────── */}
       {mode === 'C' && (
         <div className="space-y-3">
-          {/* مفتاح الألوان */}
+          {/* مفتاح الألوان + فلتر الأيام */}
           <div className="flex items-center gap-4 text-xs text-gray-500 bg-white rounded-xl px-4 py-2.5 border border-gray-100 shadow-sm flex-wrap">
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 rounded bg-green-200 border border-green-300" />
@@ -381,14 +384,35 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
             <span className="text-gray-400">· انقر على خلية مشغولة للتفاصيل</span>
           </div>
 
-          {/* الجدول المجمع — يُجمَّع حسب اليوم */}
-          {DAYS.map(day => {
-            const daySlots = timeSlots.filter(s => s.day === day).sort((a, b) => a.slot_number - b.slot_number);
-            if (daySlots.length === 0) return null;
+          {/* أزرار الأيام */}
+          <div className="flex gap-2 flex-wrap">
+            {DAYS.map(day => (
+              <button
+                key={day}
+                onClick={() => setMapDay(day)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  mapDay === day
+                    ? 'bg-[#1a3a6b] text-white'
+                    : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {day}
+              </button>
+            ))}
+          </div>
+
+          {/* جدول اليوم المختار */}
+          {(() => {
+            const daySlots = timeSlots.filter(s => s.day === mapDay).sort((a, b) => a.slot_number - b.slot_number);
+            if (daySlots.length === 0) return (
+              <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">
+                لا توجد حصص لهذا اليوم
+              </div>
+            );
             return (
-              <div key={day} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                  <span className="font-bold text-gray-700 text-sm">{day}</span>
+                  <span className="font-bold text-gray-700 text-sm">{mapDay}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -441,7 +465,7 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
                 </div>
               </div>
             );
-          })}
+          })()}
 
           {/* popup التفاصيل */}
           {popupCell && (() => {
@@ -774,7 +798,7 @@ export default function AdminRoomsPage() {
         <>
           <div>
             <h2 className="text-xl font-bold text-gray-900 font-display">حالة القاعات</h2>
-            <p className="text-gray-500 text-sm mt-0.5">الجدول الزمني الحالي — السنة الجامعية ٢٠٢٦–٢٠٢٧ · الفصل الأول</p>
+            <p className="text-gray-500 text-sm mt-0.5">الجدول الزمني الحالي — السنة الجامعية 2026-2027 · السداسي الأول</p>
           </div>
           <RoomStatus rooms={rooms} />
         </>
