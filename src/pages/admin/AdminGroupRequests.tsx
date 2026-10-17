@@ -418,18 +418,18 @@ export default function AdminGroupRequests({ role, department }: Props) {
       <GlobalSummary requests={requests} speciality={specialityFilter} />
 
       {availableSpecialities.length > 1 && (
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex items-center gap-2">
           <span className="text-[11px] text-gray-400 shrink-0">التخصص:</span>
-          <button onClick={() => setSpeciality('all')}
-            className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-              specialityFilter === 'all' ? 'bg-[#0a1628] text-white border-[#0a1628]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-            }`}>الكل</button>
-          {availableSpecialities.map(sp => (
-            <button key={sp} onClick={() => setSpeciality(sp)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                specialityFilter === sp ? 'bg-[#0a1628] text-white border-[#0a1628]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-              }`}>{sp}</button>
-          ))}
+          <select
+            value={specialityFilter}
+            onChange={e => setSpeciality(e.target.value)}
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1a3a6b] bg-white text-gray-700"
+          >
+            <option value="all">الكل</option>
+            {availableSpecialities.map(sp => (
+              <option key={sp} value={sp}>{sp}</option>
+            ))}
+          </select>
         </div>
       )}
 
