@@ -70,7 +70,6 @@ function RoomStatus({ rooms }: { rooms: Room[] }) {
     const { data: schedulesData } = await supabase
       .from('schedules')
       .select('id, room_id, time_slot_id, assignment_id')
-      .in('status', ['نهائي', 'مؤقت'])
       .eq('academic_year', '2026-2027')
       .eq('semester', 1)
       .not('room_id', 'is', null);
