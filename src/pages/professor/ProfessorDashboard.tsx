@@ -3,7 +3,7 @@ import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum, toArabicFixed } from '../../lib/utils';
-import { Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight } from 'lucide-react';
+import { Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import WishesFormPage from './WishesFormPage';
 import ProfessorProfilePage from './ProfessorProfilePage';
 import type { Wish } from '../../types';
@@ -13,7 +13,7 @@ import jsPDF from 'jspdf';
 import XLSX from 'xlsx-js-style';
 import { unzipSync, strToU8, zipSync } from 'fflate';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -25,32 +25,253 @@ function isProfileComplete(p: any): boolean {
   );
 }
 
+// ─── Navbar Component ────────────────────────────────────────────────
+function ProfNavbar({
+  tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount
+}: {
+  tab: ProfTab;
+  setTab: (t: ProfTab) => void;
+  profileComplete: boolean;
+  profData: any;
+  isVacataire: boolean;
+  signOut: () => void;
+  pendingThesisCount: number;
+}) {
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  function toggleMenu(name: string) {
+    setOpenMenu(prev => prev === name ? null : name);
+  }
+
+  function go(t: ProfTab) {
+    setTab(t);
+    setOpenMenu(null);
+  }
+
+  const scheduleItems = [
+    { tab: 'schedule' as ProfTab, label: 'جدول الحصص', desc: 'عرض توقيت حصصك الأسبوعية', icon: '📅', disabled: !profileComplete },
+    { tab: 's1' as ProfTab, label: 'الرغبات — السداسي 1', desc: 'تسجيل وتعديل رغباتك', icon: '📝', disabled: !profileComplete },
+    { tab: 's2' as ProfTab, label: 'الرغبات — السداسي 2', desc: 'تسجيل وتعديل رغباتك', icon: '📝', disabled: !profileComplete },
+    { tab: 'card' as ProfTab, label: 'بطاقة الرغبات', desc: 'طباعة بطاقتك الموحدة', icon: '🪪', disabled: !profileComplete },
+  ];
+
+  const thesisItems = [
+    { tab: 'thesis' as ProfTab, label: 'اقتراح العناوين', desc: 'المرحلة الأولى — جارٍ', icon: '📋', badge: pendingThesisCount > 0 ? String(pendingThesisCount) : null, disabled: !profileComplete, active: true },
+    { tab: null, label: 'العناوين المقبولة', desc: 'المرحلة الثانية', icon: '✅', badge: 'قريباً', disabled: true },
+    { tab: null, label: 'طلبات الطلبة', desc: 'المرحلة الثالثة', icon: '🎓', badge: 'قريباً', disabled: true },
+    { tab: null, label: 'متابعة المذكرات', desc: 'المرحلة الرابعة', icon: '📊', badge: 'قريباً', disabled: true },
+  ];
+
+  const profileItems = [
+    { tab: 'profile' as ProfTab, label: 'بياناتي الشخصية', desc: 'معلوماتك وملفك الأكاديمي', icon: '👤', disabled: false },
+    { tab: 'card' as ProfTab, label: 'بطاقة الرغبات', desc: 'طباعة البطاقة الموحدة', icon: '🪪', disabled: !profileComplete },
+  ];
+
+  const isScheduleActive = ['schedule','s1','s2','card'].includes(tab);
+  const isThesisActive = tab === 'thesis';
+  const isProfileActive = ['profile'].includes(tab);
+
+  return (
+    <nav className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
+      <div className="max-w-5xl mx-auto px-4">
+        <div className="flex items-center h-14 gap-2">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 ml-auto sm:ml-0">
+            <div className="w-8 h-8 rounded-lg bg-[#c9a227] flex items-center justify-center flex-shrink-0">
+              <GraduationCap className="w-4 h-4 text-white" />
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-white font-bold text-xs">المنصة البيداغوجية</p>
+              <p className="text-[#c9a227] text-[10px]">كلية الحقوق — برج بوعريريج</p>
+            </div>
+          </div>
+
+          {/* Nav items */}
+          <div className="flex items-center gap-0.5 flex-1 justify-center">
+
+            {/* التكليف البيداغوجي */}
+            <div className="relative" onMouseLeave={() => setOpenMenu(null)}>
+              <button
+                onMouseEnter={() => setOpenMenu('schedule')}
+                onClick={() => toggleMenu('schedule')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all select-none ${
+                  isScheduleActive
+                    ? 'bg-white/15 text-white'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">التكليف البيداغوجي</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${openMenu === 'schedule' ? 'rotate-180' : ''}`} />
+              </button>
+              {openMenu === 'schedule' && (
+                <div className="absolute top-full right-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50">
+                  {scheduleItems.map((item, i) => (
+                    <button
+                      key={i}
+                      onClick={() => !item.disabled && go(item.tab)}
+                      disabled={item.disabled}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 transition-colors text-right ${
+                        item.disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'
+                      } ${tab === item.tab ? 'bg-blue-50' : ''}`}
+                    >
+                      <span className="text-base flex-shrink-0 mt-0.5">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold ${tab === item.tab ? 'text-[#1a3a6b]' : 'text-gray-800'}`}>{item.label}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{item.desc}</p>
+                      </div>
+                      {tab === item.tab && <div className="w-1.5 h-1.5 rounded-full bg-[#1a3a6b] mt-1.5 flex-shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* مذكرات التخرج */}
+            <div className="relative" onMouseLeave={() => setOpenMenu(null)}>
+              <button
+                onMouseEnter={() => setOpenMenu('thesis')}
+                onClick={() => toggleMenu('thesis')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all select-none border ${
+                  isThesisActive
+                    ? 'bg-[#c9a227] text-white border-transparent'
+                    : 'text-amber-300 hover:text-white hover:bg-[#c9a227]/20 border-[#c9a227]/30'
+                }`}
+              >
+                <ScrollText className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">مذكرات التخرج</span>
+                {pendingThesisCount > 0 && !isThesisActive && (
+                  <span className="bg-[#c9a227] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {pendingThesisCount}
+                  </span>
+                )}
+                <ChevronDown className={`w-3 h-3 transition-transform ${openMenu === 'thesis' ? 'rotate-180' : ''}`} />
+              </button>
+              {openMenu === 'thesis' && (
+                <div className="absolute top-full right-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50">
+                  {thesisItems.map((item, i) => (
+                    <button
+                      key={i}
+                      onClick={() => !item.disabled && item.tab && go(item.tab)}
+                      disabled={item.disabled}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 transition-colors text-right ${
+                        item.disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-amber-50 cursor-pointer'
+                      } ${tab === item.tab ? 'bg-amber-50' : ''}`}
+                    >
+                      <span className="text-base flex-shrink-0 mt-0.5">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-xs font-semibold ${tab === item.tab ? 'text-[#c9a227]' : 'text-gray-800'}`}>{item.label}</p>
+                          {item.badge && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                              item.badge === 'قريباً'
+                                ? 'bg-gray-100 text-gray-400'
+                                : 'bg-[#c9a227] text-white'
+                            }`}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{item.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* معلوماتي */}
+            <div className="relative" onMouseLeave={() => setOpenMenu(null)}>
+              <button
+                onMouseEnter={() => setOpenMenu('profinfo')}
+                onClick={() => toggleMenu('profinfo')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium transition-all select-none ${
+                  isProfileActive
+                    ? 'bg-white/15 text-white'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <User className="w-3 h-3" />
+                <span className="hidden sm:inline">معلوماتي</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${openMenu === 'profinfo' ? 'rotate-180' : ''}`} />
+              </button>
+              {openMenu === 'profinfo' && (
+                <div className="absolute top-full right-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50">
+                  {profileItems.map((item, i) => (
+                    <button
+                      key={i}
+                      onClick={() => !item.disabled && go(item.tab)}
+                      disabled={item.disabled}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 transition-colors text-right ${
+                        item.disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'
+                      } ${tab === item.tab ? 'bg-blue-50' : ''}`}
+                    >
+                      <span className="text-base flex-shrink-0 mt-0.5">{item.icon}</span>
+                      <div>
+                        <p className={`text-xs font-semibold ${tab === item.tab ? 'text-[#1a3a6b]' : 'text-gray-800'}`}>{item.label}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{item.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* User info + logout */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isVacataire && (profData as any)?.photo_url ? (
+              <a href={(profData as any).photo_url} download={`صورة_${profData?.last_name}`} target="_blank" rel="noopener noreferrer">
+                <img src={(profData as any).photo_url} alt="صورة"
+                  className="w-8 h-8 rounded-full object-cover border-2 border-[#c9a227] hover:opacity-80 transition-opacity cursor-pointer" />
+              </a>
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#c9a227]/20 border border-[#c9a227]/40 flex items-center justify-center flex-shrink-0">
+                <span className="text-[#c9a227] font-bold text-xs">
+                  {profData?.last_name?.[0] || '؟'}
+                </span>
+              </div>
+            )}
+            <div className="hidden sm:block text-right">
+              <p className="text-white text-xs font-medium leading-tight">{profData?.last_name} {profData?.first_name}</p>
+              <p className="text-[#c9a227] text-[10px] leading-tight">{isVacataire ? 'أستاذ مؤقت' : profData?.rank}</p>
+            </div>
+            <button onClick={signOut} className="text-gray-400 hover:text-red-400 transition-colors p-1" title="تسجيل الخروج">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+      {/* Active underline indicator */}
+      <div className="h-0.5 bg-gradient-to-r from-transparent via-[#c9a227]/40 to-transparent" />
+    </nav>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 export default function ProfessorDashboard() {
   const { user, signOut } = useAuth();
   const prof = user?.professor;
   const isVacataire = ((prof as any)?.username as string || '').startsWith('V');
 
-  // Reload prof data after changes
   const [profData, setProfData] = useState(prof);
   const [hasResults, setHasResults] = useState(false);
   const [resultsPublished, setResultsPublished] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
+  const [pendingThesisCount, setPendingThesisCount] = useState(0);
   useEffect(() => { setProfData(prof); }, [prof]);
 
   const profileComplete = isProfileComplete(profData);
-  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'schedule' : 'profile'); // سيُحدَّث بعد جلب resultsPublished
+  const [tab, setTab] = useState<ProfTab>(profileComplete ? 'schedule' : 'profile');
 
-  // إن لم يكتمل الملف الشخصي، يبقى الأستاذ محصوراً في تبويب "معلوماتي" دائماً
   useEffect(() => {
-    // جلب إعداد النشر
     supabase.from('academic_settings')
       .select('*')
       .eq('academic_year', '2026-2027')
       .single()
       .then(({ data }) => { if(data) { setSettings(data); const pub = data.results_published === true; setResultsPublished(pub); setRegistrationOpen(data.registration_s1_open === true); } });
 
-    // فحص وجود نتائج إسناد أولية
     if (!prof?.id) return;
     supabase.from('assignments')
       .select('id', { count: 'exact', head: true })
@@ -59,6 +280,13 @@ export default function ProfessorDashboard() {
       .eq('semester', 1)
       .eq('status', 'نهائي')
       .then(({ count }) => setHasResults((count || 0) > 0));
+
+    supabase.from('thesis_proposals')
+      .select('id', { count: 'exact', head: true })
+      .eq('professor_id', prof.id)
+      .eq('academic_year', '2026-2027')
+      .eq('status', 'مقترح')
+      .then(({ count }) => setPendingThesisCount(count || 0));
   }, [prof?.id]);
 
   useEffect(() => {
@@ -74,84 +302,19 @@ export default function ProfessorDashboard() {
 
   const s1Locked = profData?.wishes_locked_s1 || false;
   const s2Locked = profData?.wishes_locked_s2 || false;
-  const s2Unlocked = true; // حرية تنقّل كاملة بين السداسيين — لا إلزام بتأكيد الأول قبل الوصول للثاني
-
-  const tabs = [
-    { id: 'schedule' as ProfTab, label: 'التكليف البيداغوجي', icon: Clock, disabled: !profileComplete, highlighted: true },
-    ...(resultsPublished ? [{ id: 'results' as ProfTab, label: 'الإسناد النهائي', icon: Award, disabled: !profileComplete, small: true }] : []),
-    { id: 'profile' as ProfTab, label: 'معلوماتي', icon: User, small: true },
-  ];
+  const s2Unlocked = true;
 
   return (
     <div className="min-h-screen bg-[#f1f4f9] font-arabic" dir="rtl">
-      {/* Navbar */}
-      <nav className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex items-center justify-between h-14">
-            {/* Logo */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#c9a227] flex items-center justify-center">
-                <GraduationCap className="w-4 h-4 text-white" />
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-white font-bold text-xs font-display">المنصة البيداغوجية</p>
-                <p className="text-[#c9a227] text-[10px]">كلية الحقوق — برج بوعريريج</p>
-              </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex gap-1">
-              {tabs.map(t => {
-                const Icon = t.icon;
-                const isActive = tab === t.id;
-                return (
-                  <button key={t.id}
-                    onClick={() => !t.disabled && setTab(t.id)}
-                    disabled={t.disabled}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                    style={{
-                      background: isActive ? (t.id === 'results' ? '#c9a227' : '#c9a227') : (t.id === 'results' ? 'rgba(201,162,39,0.25)' : 'transparent'),
-                      color: isActive ? 'white' : t.disabled ? 'rgba(255,255,255,.25)' : (t.id === 'results' ? '#fde68a' : 'rgba(255,255,255,.65)'),
-                      cursor: t.disabled ? 'not-allowed' : 'pointer',
-                      fontWeight: t.id === 'results' ? 'bold' : 'normal',
-                      fontSize: t.id === 'results' ? '13px' : ((t as any).small ? '10px' : '11px'),
-                      opacity: (t as any).small ? 0.75 : 1,
-                      border: t.id === 'results' && !isActive ? '1px solid rgba(201,162,39,0.5)' : 'none',
-                    }}>
-                    <Icon className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">{t.label}</span>
-                    {/* Status dots */}
-                    {t.id === 's1' && s1Locked && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                    )}
-                    {t.id === 's2' && s2Locked && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* User */}
-            <div className="flex items-center gap-2">
-              {isVacataire && (profData as any)?.photo_url ? (
-                <a href={(profData as any).photo_url} download={`صورة_${profData?.last_name}`} target="_blank" rel="noopener noreferrer"
-                  title="تحميل الصورة الشخصية">
-                  <img src={(profData as any).photo_url} alt="صورة شخصية"
-                    className="w-8 h-8 rounded-full object-cover border-2 border-[#c9a227] hover:opacity-80 transition-opacity cursor-pointer" />
-                </a>
-              ) : null}
-              <div className="hidden sm:block text-left">
-                <p className="text-white text-xs font-medium">{profData?.last_name} {profData?.first_name}</p>
-                <p className="text-[#c9a227] text-[10px]">{isVacataire ? 'أستاذ مؤقت' : profData?.rank}</p>
-              </div>
-              <button onClick={signOut} className="text-gray-400 hover:text-red-400 transition-colors p-1">
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <ProfNavbar
+        tab={tab}
+        setTab={setTab}
+        profileComplete={profileComplete}
+        profData={profData}
+        isVacataire={isVacataire}
+        signOut={signOut}
+        pendingThesisCount={pendingThesisCount}
+      />
 
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-5">
@@ -211,6 +374,7 @@ export default function ProfessorDashboard() {
         {tab === 'card' && <WishCard prof={profData} />}
         {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
         {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
+        {tab === 'thesis' && profData && <ThesisProposalsTab prof={profData} />}
       </div>
     </div>
   );
@@ -228,7 +392,6 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Banner */}
       <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: 'radial-gradient(#c9a227 1px,transparent 1px)', backgroundSize: '18px 18px' }} />
@@ -253,7 +416,6 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
         </div>
       </div>
 
-      {/* Steps */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <h3 className="font-display font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
           <span className="w-5 h-5 rounded-full bg-[#1a3a6b] text-white text-[10px] flex items-center justify-center">!</span>
@@ -272,14 +434,14 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
                 {s.done ? '✓' : s.n}
               </div>
               <div className="flex-1 pt-0.5">
-                <span className="text-sm" style={{ color: s.done ? '#15803d' : s.locked ? '#94a3b8' : '#475569' }}>
+                <span className="text-sm" style={{ color: s.done ? '#15803d' : (s as any).locked ? '#94a3b8' : '#475569' }}>
                   {s.t}
                   {s.done && <span className="text-green-500 text-xs mr-2">✓ مكتمل</span>}
-                  {s.locked && <span className="text-gray-400 text-xs mr-2">🔒 مقفل</span>}
+                  {(s as any).locked && <span className="text-gray-400 text-xs mr-2">🔒 مقفل</span>}
                 </span>
               </div>
-              {s.tab && !s.locked && !s.done && (
-                <button onClick={() => setTab(s.tab)}
+              {(s as any).tab && !(s as any).locked && !s.done && (
+                <button onClick={() => setTab((s as any).tab)}
                   className="flex items-center gap-1 text-xs font-medium transition-colors flex-shrink-0"
                   style={{ color: s.tc }}>
                   ابدأ <ChevronRight className="w-3 h-3" />
@@ -290,7 +452,6 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
         </div>
       </div>
 
-      {/* Semester cards */}
       <div className="grid grid-cols-2 gap-3">
         {[
           { sem: 1, tab: 's1', color: '#1a3a6b', bg: 'rgba(26,58,107,.07)', locked: s1Locked },
@@ -298,9 +459,7 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
         ].map(s => (
           <div key={s.sem}
             className="bg-white rounded-2xl p-4 border-2 shadow-sm transition-all"
-            style={{
-              borderColor: s.locked ? '#bbf7d0' : `${s.color}33`,
-            }}>
+            style={{ borderColor: s.locked ? '#bbf7d0' : `${s.color}33` }}>
             <div className="flex justify-between items-start mb-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: s.bg }}>
                 <Clock className="w-5 h-5" style={{ color: s.color }} />
@@ -312,12 +471,10 @@ function ProfHome({ prof, s1Locked, s2Locked, s2Unlocked, profileComplete, setTa
                 : <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full animate-pulse">● جارٍ</span>
               }
             </div>
-            <h3 className="font-display font-bold text-gray-800 text-sm mb-1">
-              السداسي {s.sem === 1 ? 'الأول' : 'الثاني'}
-            </h3>
+            <h3 className="font-display font-bold text-gray-800 text-sm mb-1">السداسي {s.sem === 1 ? 'الأول' : 'الثاني'}</h3>
             <p className="text-gray-400 text-xs mb-3">خمس رغبات إجبارية — متاح في أي وقت</p>
             <button
-              onClick={() => setTab(s.tab)}
+              onClick={() => setTab(s.tab as ProfTab)}
               className="w-full py-2 rounded-xl text-xs font-medium transition-all"
               style={{
                 background: s.locked ? 'rgba(26,58,107,.08)' : `linear-gradient(135deg,${s.color},${s.sem === 1 ? '#0d2040' : '#a07820'})`,
@@ -379,9 +536,7 @@ function WishCard({ prof }: any) {
         <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${color}1a` }}>
           <Clock className="w-3.5 h-3.5" style={{ color }} />
         </div>
-        <span className="font-display font-bold text-sm text-gray-800">
-          السداسي {sem === 1 ? 'الأول' : 'الثاني'}
-        </span>
+        <span className="font-display font-bold text-sm text-gray-800">السداسي {sem === 1 ? 'الأول' : 'الثاني'}</span>
         <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${color}1a`, color }}>
           {toArabicNum(list.length)} رغبات
         </span>
@@ -450,10 +605,7 @@ function WishCard({ prof }: any) {
         </div>
       </div>
 
-      {/* The printable card */}
-      <div ref={cardRef}
-        className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
-        {/* Card header */}
+      <div ref={cardRef} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
         <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] p-5 text-white">
           <div className="flex justify-between items-start gap-3">
             <div>
@@ -472,7 +624,6 @@ function WishCard({ prof }: any) {
           </div>
         </div>
 
-        {/* Prof info */}
         <div className="p-4 border-b border-gray-100 bg-gray-50">
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -491,13 +642,11 @@ function WishCard({ prof }: any) {
           </div>
         </div>
 
-        {/* Wishes */}
         <div className="p-4">
           <SemSection sem={1} list={s1Wishes} color="#1a3a6b" />
           <SemSection sem={2} list={s2Wishes} color="#c9a227" />
         </div>
 
-        {/* Signatures */}
         <div className="px-4 pb-5">
           <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
             <div className="grid grid-cols-2 gap-8 mt-5">
@@ -544,7 +693,6 @@ function AssignmentCard({ prof }: any) {
 
   if (loading) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
 
-  // تجميع الإسنادات
   const lectures: any[] = [];
   const tds: any[] = [];
   assigned.forEach(a => {
@@ -587,7 +735,6 @@ function AssignmentCard({ prof }: any) {
       </div>
 
       <div ref={cardRef} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
-        {/* Header */}
         <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] p-5 text-white">
           <div className="flex justify-between items-start gap-3">
             <div>
@@ -606,7 +753,6 @@ function AssignmentCard({ prof }: any) {
           </div>
         </div>
 
-        {/* Prof info */}
         <div className="p-4 border-b border-gray-100 bg-gray-50">
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -625,7 +771,6 @@ function AssignmentCard({ prof }: any) {
           </div>
         </div>
 
-        {/* Assignments */}
         <div className="p-4 space-y-4">
           {lectures.length > 0 && (
             <div>
@@ -671,7 +816,6 @@ function AssignmentCard({ prof }: any) {
           </div>
         </div>
 
-        {/* Signatures */}
         <div className="px-4 pb-5">
           <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
             <div className="grid grid-cols-2 gap-8 mt-5">
@@ -689,14 +833,12 @@ function AssignmentCard({ prof }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// كشف الغيابات — تحميل Excel لفوج واحد
 function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment: any }) {
   const [loading, setLoading] = useState(false);
 
   async function download() {
     setLoading(true);
     try {
-      // جلب التخصصات الفريدة في هذا الفوج
       const { data: specRows } = await supabase
         .from('students').select('specialite').eq('groupe', assignment.group_number);
       const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))];
@@ -714,9 +856,8 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       const groupStr = String(assignment.group_number).padStart(2, '0');
       const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
       const sessions = 14;
-      const totalCols = sessions + 2; // A: رقم، B: اسم، C-P: حصص
+      const totalCols = sessions + 2;
 
-      // ─── بناء الورقة يدوياً (بدون table_to_sheet) ────────────────────
       const ws: any = {};
       const blackBorder = { style: 'thin', color: { rgb: '000000' } };
       const fullBorder  = { top: blackBorder, bottom: blackBorder, left: blackBorder, right: blackBorder };
@@ -737,21 +878,17 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
       ws['!merges'] = [];
 
-      // صف 0: الجامعة (colspan 16 → A-P)
       cell(0, 0, 'جامعة محمد البشير الإبراهيمي — برج بوعريريج', true, 'center', {});
       for (let c = 1; c < totalCols; c++) empty(0, c, {});
       ws['!merges'].push(merge(0, 0, totalCols - 1));
 
-      // صف 1: الكلية
       cell(1, 0, 'كلية الحقوق والعلوم السياسية', true, 'center', {});
       for (let c = 1; c < totalCols; c++) empty(1, c, {});
       ws['!merges'].push(merge(1, 0, totalCols - 1));
 
-      // صف 2: فارغ
       for (let c = 0; c < totalCols; c++) empty(2, c, {});
       ws['!merges'].push(merge(2, 0, totalCols - 1));
 
-      // صف 3: المستوى(0-4) | الفوج(5-7) | الأستاذ(8-15)
       cell(3, 0, `المستوى: ${levelName}`, false, 'right', {});
       for (let c = 1; c < 5; c++) empty(3, c, {});
       ws['!merges'].push(merge(3, 0, 4));
@@ -764,7 +901,6 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       for (let c = 9; c < totalCols; c++) empty(3, c, {});
       ws['!merges'].push(merge(3, 8, totalCols - 1));
 
-      // صف 4: النوع(0-4) | المقياس(5-15)
       cell(4, 0, `النوع: ${assignment.teaching_type || ''}`, false, 'right', {});
       for (let c = 1; c < 5; c++) empty(4, c, {});
       ws['!merges'].push(merge(4, 0, 4));
@@ -773,11 +909,9 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       for (let c = 6; c < totalCols; c++) empty(4, c, {});
       ws['!merges'].push(merge(4, 5, totalCols - 1));
 
-      // صف 5: فارغ
       for (let c = 0; c < totalCols; c++) empty(5, c, {});
       ws['!merges'].push(merge(5, 0, totalCols - 1));
 
-      // صف 6: رؤوس الأعمدة — مع حدود وخلفية رمادية خفيفة
       const headerFill = { fgColor: { rgb: 'D9D9D9' } };
       const hdrCell = (r: number, c: number, v: any, halign: string) => {
         const addr = XLSX.utils.encode_cell({ r, c });
@@ -793,7 +927,6 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
         hdrCell(6, 2 + i, `ح${i + 1}`, 'center');
       }
 
-      // صفوف الطلبة — مع حدود على كل الخلايا
       (students || []).forEach((s: any, i: number) => {
         const r = 7 + i;
         const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
@@ -821,14 +954,11 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       const fname = `كشف_ف${groupStr}_${levelName.replace(/\s+/g, '_')}_${(assignment.module_name || '').replace(/\s+/g, '_')}.xlsx`;
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
 
-      // ─── تعديل XML مباشرة لإضافة rightToLeft="1" ────────────────────
       const unzipped = unzipSync(new Uint8Array(wbout));
       const sheetKey = 'xl/worksheets/sheet1.xml';
       if (unzipped[sheetKey]) {
         let xml = new TextDecoder().decode(unzipped[sheetKey]);
-        // إضافة rightToLeft إلى sheetView الأول
         xml = xml.replace(/<sheetView /g, '<sheetView rightToLeft="1" ');
-        // إذا لم يكن هناك sheetViews أصلاً
         if (!xml.includes('<sheetViews>')) {
           xml = xml.replace('<sheetData>', '<sheetViews><sheetView rightToLeft="1" tabSelected="1" workbookViewId="0"/></sheetViews><sheetData>');
         }
@@ -865,16 +995,475 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// التخصصات الثابتة مع الحدود
+const SPECIALITIES = [
+  { id: 'قانون_الأعمال', label: 'قانون الأعمال', min: 3, max: 5, color: '#1a3a6b' },
+  { id: 'القانون_الجنائي', label: 'القانون الجنائي', min: 3, max: 5, color: '#7c3aed' },
+  { id: 'التهيئة_والتعمير', label: 'التهيئة والتعمير', min: 1, max: 2, color: '#0891b2' },
+  { id: 'قانون_الصحة', label: 'قانون الصحة', min: 1, max: 3, color: '#16a34a' },
+  { id: 'الإعلام_الآلي_والأنترنت', label: 'الإعلام الآلي والأنترنت', min: 1, max: 3, color: '#ea580c' },
+];
+
+// مذكرات التخرج — المرحلة 1: اقتراح العناوين بالتخصصات الثابتة
+function ThesisProposalsTab({ prof }: any) {
+  const [proposals, setProposals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [activeForm, setActiveForm] = useState<string | null>(null); // speciality id
+  const [editItem, setEditItem] = useState<any>(null);
+  const [form, setForm] = useState({ title_ar: '', title_fr: '', description: '' });
+  const [error, setError] = useState('');
+
+  const ACADEMIC_YEAR = '2026-2027';
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from('thesis_proposals')
+      .select('*')
+      .eq('professor_id', prof?.id)
+      .eq('academic_year', ACADEMIC_YEAR)
+      .order('speciality')
+      .order('proposal_order', { ascending: true });
+    setProposals(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [prof?.id]);
+
+  function bySpec(specId: string) {
+    return proposals
+      .filter(p => p.speciality === specId)
+      .sort((a, b) => a.proposal_order - b.proposal_order);
+  }
+
+  function openAdd(specId: string) {
+    setEditItem(null);
+    setForm({ title_ar: '', title_fr: '', description: '' });
+    setError('');
+    setActiveForm(specId);
+  }
+
+  function openEdit(item: any) {
+    setEditItem(item);
+    setForm({
+      title_ar: item.title_ar || '',
+      title_fr: item.title_fr || '',
+      description: item.description || '',
+    });
+    setError('');
+    setActiveForm(item.speciality);
+  }
+
+  function cancelForm() {
+    setActiveForm(null);
+    setEditItem(null);
+    setError('');
+  }
+
+  async function save(specId: string) {
+    if (!form.title_ar.trim()) { setError('العنوان بالعربية إلزامي'); return; }
+    setSaving(true);
+    setError('');
+
+    if (editItem) {
+      const { error: err } = await supabase.from('thesis_proposals').update({
+        title_ar: form.title_ar.trim(),
+        title_fr: form.title_fr.trim() || null,
+        description: form.description.trim() || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', editItem.id);
+      setSaving(false);
+      if (err) { setError('حدث خطأ، حاول مجدداً'); return; }
+    } else {
+      const existing = bySpec(specId);
+      const spec = SPECIALITIES.find(s => s.id === specId)!;
+      if (existing.length >= spec.max) {
+        setError(`الحد الأقصى لهذا التخصص ${spec.max} عناوين`);
+        setSaving(false);
+        return;
+      }
+      const { error: err } = await supabase.from('thesis_proposals').insert({
+        professor_id: prof?.id,
+        academic_year: ACADEMIC_YEAR,
+        title_ar: form.title_ar.trim(),
+        title_fr: form.title_fr.trim() || null,
+        speciality: specId,
+        description: form.description.trim() || null,
+        status: 'مقترح',
+        proposal_order: existing.length + 1,
+      });
+      setSaving(false);
+      if (err) { setError('حدث خطأ، حاول مجدداً'); return; }
+    }
+
+    setActiveForm(null);
+    setEditItem(null);
+    load();
+  }
+
+  async function remove(item: any) {
+    await supabase.from('thesis_proposals').delete().eq('id', item.id);
+    // إعادة ترقيم الترتيب في هذا التخصص
+    const remaining = bySpec(item.speciality).filter(p => p.id !== item.id);
+    for (let i = 0; i < remaining.length; i++) {
+      await supabase.from('thesis_proposals').update({ proposal_order: i + 1 }).eq('id', remaining[i].id);
+    }
+    load();
+  }
+
+  async function moveUp(item: any) {
+    const list = bySpec(item.speciality);
+    const idx = list.findIndex(p => p.id === item.id);
+    if (idx <= 0) return;
+    const prev = list[idx - 1];
+    await supabase.from('thesis_proposals').update({ proposal_order: idx }).eq('id', item.id);
+    await supabase.from('thesis_proposals').update({ proposal_order: idx + 1 }).eq('id', prev.id);
+    load();
+  }
+
+  async function moveDown(item: any) {
+    const list = bySpec(item.speciality);
+    const idx = list.findIndex(p => p.id === item.id);
+    if (idx >= list.length - 1) return;
+    const next = list[idx + 1];
+    await supabase.from('thesis_proposals').update({ proposal_order: idx + 2 }).eq('id', item.id);
+    await supabase.from('thesis_proposals').update({ proposal_order: idx + 1 }).eq('id', next.id);
+    load();
+  }
+
+  // تحقق من اكتمال الحد الأدنى في كل التخصصات
+  const allMinMet = SPECIALITIES.every(spec => bySpec(spec.id).length >= spec.min);
+  const totalProposals = proposals.filter(p => p.status === 'مقترح').length;
+
+  async function submitAll() {
+    if (!allMinMet) return;
+    setSubmitting(true);
+    // تغيير الحالة إلى "مُرسَل" (يمكن تعديل الاسم حسب الاتفاق)
+    const ids = proposals.filter(p => p.status === 'مقترح').map(p => p.id);
+    if (ids.length > 0) {
+      await supabase.from('thesis_proposals').update({ status: 'مُرسَل' }).in('id', ids);
+    }
+    setSubmitting(false);
+    load();
+  }
+
+  if (loading) return (
+    <div className="flex justify-center p-10">
+      <div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      {/* Header */}
+      <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'radial-gradient(#c9a227 1px,transparent 1px)', backgroundSize: '18px 18px' }} />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-6 h-6 rounded-lg bg-[#c9a227]/20 border border-[#c9a227]/30 flex items-center justify-center">
+              <ScrollText className="w-3.5 h-3.5 text-[#c9a227]" />
+            </div>
+            <span className="text-[#c9a227] text-xs font-semibold">مذكرات التخرج — ماستر 2</span>
+          </div>
+          <h2 className="font-display font-bold text-base mt-1">اقتراح عناوين المذكرات</h2>
+          <p className="text-gray-300 text-xs mt-1">الموسم الجامعي {ACADEMIC_YEAR} — يُرجى تعبئة جميع التخصصات بالحد الأدنى المطلوب</p>
+        </div>
+        <div className="relative mt-3 pt-3 border-t border-white/10">
+          <div className="flex items-center justify-between text-xs text-gray-300">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> مقترح</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> مقبول</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> مرفوض</span>
+            </div>
+            <span className="font-bold text-white">{totalProposals} عنوان مقترح</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Speciality cards */}
+      {SPECIALITIES.map(spec => {
+        const list = bySpec(spec.id);
+        const count = list.length;
+        const pct = Math.min(100, Math.round((count / spec.max) * 100));
+        const metMin = count >= spec.min;
+        const atMax = count >= spec.max;
+        const isFormOpen = activeForm === spec.id && !editItem;
+
+        return (
+          <div key={spec.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* Card header */}
+            <div className="px-5 py-4 border-b border-gray-50">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-gray-800 text-sm">{spec.label}</h3>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      metMin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {metMin ? '✓ اكتمل الحد الأدنى' : `الحد الأدنى: ${spec.min}`}
+                    </span>
+                    <span className="text-[10px] text-gray-400">الحد الأقصى: {spec.max}</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${pct}%`,
+                          background: metMin ? spec.color : '#f59e0b',
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold flex-shrink-0" style={{ color: metMin ? spec.color : '#f59e0b' }}>
+                      {count}/{spec.max}
+                    </span>
+                  </div>
+                </div>
+                {!atMax && (
+                  <button
+                    onClick={() => isFormOpen ? cancelForm() : openAdd(spec.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-shrink-0"
+                    style={{
+                      background: isFormOpen ? 'rgba(239,68,68,0.08)' : `${spec.color}15`,
+                      color: isFormOpen ? '#ef4444' : spec.color,
+                      border: `1px solid ${isFormOpen ? 'rgba(239,68,68,0.2)' : spec.color + '30'}`,
+                    }}>
+                    {isFormOpen ? <><X className="w-3 h-3" /> إلغاء</> : <><Plus className="w-3 h-3" /> إضافة</>}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Proposals list */}
+            {list.length > 0 && (
+              <div className="divide-y divide-gray-50">
+                {list.map((p, i) => {
+                  const isEditing = editItem?.id === p.id && activeForm === spec.id;
+                  const canEdit = p.status === 'مقترح';
+
+                  if (isEditing) {
+                    return (
+                      <div key={p.id} className="px-5 py-4 bg-blue-50/50">
+                        <InlineForm
+                          form={form} setForm={setForm} error={error}
+                          saving={saving}
+                          onSave={() => save(spec.id)}
+                          onCancel={cancelForm}
+                          color={spec.color}
+                          isEdit
+                        />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={p.id} className="px-5 py-3 flex items-start gap-3">
+                      {/* Priority badge */}
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5"
+                        style={{ background: spec.color, color: 'white' }}>
+                        {p.proposal_order}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <StatusBadge status={p.status} />
+                        </div>
+                        <p className="font-semibold text-gray-800 text-sm leading-relaxed">{p.title_ar}</p>
+                        {p.title_fr && (
+                          <p className="text-gray-400 text-[11px] mt-0.5" dir="ltr">{p.title_fr}</p>
+                        )}
+                        {p.description && (
+                          <p className="text-gray-400 text-[11px] mt-1 leading-relaxed">{p.description}</p>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      {canEdit && (
+                        <div className="flex flex-col gap-1 flex-shrink-0">
+                          <button onClick={() => moveUp(p)} disabled={i === 0}
+                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => moveDown(p)} disabled={i === list.length - 1}
+                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => openEdit(p)}
+                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-[#1a3a6b] hover:bg-blue-50 transition-all">
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => remove(p)}
+                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add form */}
+            {isFormOpen && (
+              <div className="px-5 py-4 border-t border-gray-50 bg-gray-50/50">
+                <InlineForm
+                  form={form} setForm={setForm} error={error}
+                  saving={saving}
+                  onSave={() => save(spec.id)}
+                  onCancel={cancelForm}
+                  color={spec.color}
+                />
+              </div>
+            )}
+
+            {list.length === 0 && !isFormOpen && (
+              <div className="px-5 py-6 text-center">
+                <p className="text-gray-300 text-xs">لا توجد عناوين بعد — اضغط "إضافة" للبدء</p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Submit button */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex-1">
+            <p className="font-bold text-gray-800 text-sm mb-1">إرسال جميع المقترحات للجنة العلمية</p>
+            <p className="text-gray-400 text-xs">
+              {allMinMet
+                ? 'جميع التخصصات مكتملة — يمكنك الإرسال الآن'
+                : `يجب استيفاء الحد الأدنى في كل التخصصات قبل الإرسال`}
+            </p>
+            {!allMinMet && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {SPECIALITIES.filter(s => bySpec(s.id).length < s.min).map(s => (
+                  <span key={s.id} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                    {s.label}: {bySpec(s.id).length}/{s.min}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={submitAll}
+            disabled={!allMinMet || submitting || proposals.every(p => p.status !== 'مقترح')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex-shrink-0"
+            style={{
+              background: allMinMet && !submitting ? 'linear-gradient(135deg,#1a3a6b,#0d2040)' : 'rgba(148,163,184,0.2)',
+              color: allMinMet && !submitting ? 'white' : '#94a3b8',
+              cursor: allMinMet && !submitting ? 'pointer' : 'not-allowed',
+            }}>
+            <Send className="w-4 h-4" />
+            {submitting ? 'جارٍ الإرسال...' : 'إرسال للجنة'}
+          </button>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-800">
+        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+        <span>الترتيب مهم — في حال قبلت اللجنة عدداً أقل من مقترحاتك، ستُؤخذ حسب الأولوية من الأعلى إلى الأسفل. يمكنك إعادة الترتيب بالسهمين قبل الإرسال.</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Inline Form ───────────────────────────────────────────────────
+function InlineForm({ form, setForm, error, saving, onSave, onCancel, color, isEdit = false }: any) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-[10px] font-semibold text-gray-500 mb-1">
+          العنوان بالعربية <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          value={form.title_ar}
+          onChange={e => setForm((f: any) => ({ ...f, title_ar: e.target.value }))}
+          rows={2}
+          placeholder="أدخل عنوان المذكرة بالعربية..."
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none"
+          style={{ '--tw-ring-color': color } as any}
+          dir="rtl"
+          autoFocus
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] font-semibold text-gray-500 mb-1">العنوان بالفرنسية (اختياري)</label>
+        <input
+          value={form.title_fr}
+          onChange={e => setForm((f: any) => ({ ...f, title_fr: e.target.value }))}
+          placeholder="Titre en français..."
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none"
+          dir="ltr"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] font-semibold text-gray-500 mb-1">ملاحظات (اختياري)</label>
+        <textarea
+          value={form.description}
+          onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))}
+          rows={2}
+          placeholder="وصف مختصر أو توجيهات..."
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none"
+          dir="rtl"
+        />
+      </div>
+      {error && (
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+          style={{ background: color }}>
+          <Send className="w-3.5 h-3.5" />
+          {saving ? 'جارٍ...' : (isEdit ? 'حفظ التعديل' : 'إضافة العنوان')}
+        </button>
+        <button onClick={onCancel} className="px-3 py-2 rounded-xl text-xs text-gray-400 hover:bg-gray-100 transition-colors">
+          إلغاء
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Status Badge ──────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; text: string; border: string }> = {
+    'مقترح':  { bg: 'rgba(59,130,246,0.08)',  text: '#1d4ed8', border: 'rgba(59,130,246,0.2)' },
+    'مُرسَل': { bg: 'rgba(139,92,246,0.08)',  text: '#6d28d9', border: 'rgba(139,92,246,0.2)' },
+    'مقبول':  { bg: 'rgba(34,197,94,0.08)',   text: '#15803d', border: 'rgba(34,197,94,0.2)' },
+    'مرفوض':  { bg: 'rgba(239,68,68,0.08)',   text: '#b91c1c', border: 'rgba(239,68,68,0.2)' },
+    'معلّق':  { bg: 'rgba(245,158,11,0.08)',  text: '#92400e', border: 'rgba(245,158,11,0.2)' },
+  };
+  const sc = map[status] || map['مقترح'];
+  return (
+    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+      style={{ background: sc.bg, color: sc.text, borderColor: sc.border }}>
+      {status}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 function ProfScheduleTab({ prof }: any) {
   const [scheduled, setScheduled] = useState<any[]>([]);
   const [unscheduled, setUnscheduled] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalHours, setTotalHours] = useState(0);
-  const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 
   useEffect(() => {
     async function load() {
-      // جلب كل إسنادات الأستاذ
       const { data: assignments } = await supabase.from('assignments')
         .select('id, module_id, teaching_type, section_number, group_number, weekly_hours, level_id')
         .eq('professor_id', prof?.id)
@@ -886,7 +1475,6 @@ function ProfScheduleTab({ prof }: any) {
       const total = assignments.reduce((s: number, a: any) => s + (a.weekly_hours || 0), 0);
       setTotalHours(total);
 
-      // جلب المقاييس والمستويات منفصلاً
       const moduleIds = [...new Set(assignments.map((a: any) => a.module_id))];
       const levelIds = [...new Set(assignments.map((a: any) => a.level_id).filter(Boolean))];
       const [{ data: mods }, { data: lvls }] = await Promise.all([
@@ -896,7 +1484,6 @@ function ProfScheduleTab({ prof }: any) {
       const modMap = new Map((mods || []).map((m: any) => [m.id, m]));
       const lvlMap = new Map((lvls || []).map((l: any) => [l.id, l.name_ar]));
 
-      // جلب الحصص المبرمجة
       const allIds = assignments.map((a: any) => a.id);
       const { data: sch } = await supabase.from('schedules')
         .select('id, assignment_id, room_id, time_slot_id, time_slot:time_slots(day, start_time, end_time, slot_number)')
@@ -904,7 +1491,6 @@ function ProfScheduleTab({ prof }: any) {
         .eq('academic_year', '2026-2027')
         .eq('semester', 1);
 
-      // جلب القاعات
       const roomIds = [...new Set((sch || []).map((s: any) => s.room_id).filter(Boolean))];
       const { data: rooms } = roomIds.length > 0
         ? await supabase.from('rooms').select('id, name').in('id', roomIds)
@@ -934,7 +1520,6 @@ function ProfScheduleTab({ prof }: any) {
         };
       }).filter((s: any) => s.day);
 
-      // ترتيب باليوم والوقت
       const dayOrder = Object.fromEntries(['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map((d,i) => [d,i]));
       scheduledItems.sort((a: any, b: any) => {
         const di = (dayOrder[a.day]??99) - (dayOrder[b.day]??99);
@@ -942,7 +1527,6 @@ function ProfScheduleTab({ prof }: any) {
       });
       setScheduled(scheduledItems);
 
-      // غير المبرمجة — بدون تكرار للأعمال الموجهة
       const scheduledIds = new Set(scheduledItems.map((s: any) => s.assignment_id));
       const unsch: any[] = [];
       const tdSeen = new Set<string>();
@@ -982,13 +1566,11 @@ function ProfScheduleTab({ prof }: any) {
         <span>⚠</span> في حالة أي ملاحظة حول البرنامج يرجى الاتصال برئيسي القسمين
       </div>
 
-      {/* الحجم الساعي */}
       <div className="bg-[#1a3a6b] text-white rounded-2xl p-4 flex items-center justify-between">
         <p className="text-sm font-bold">الحجم الساعي الإجمالي</p>
         <p className="text-[#c9a227] font-bold text-lg">{totalHours.toFixed(2)} س/أسبوع</p>
       </div>
 
-      {/* الحصص المبرمجة */}
       {byDay.length > 0 && (
         <div>
           <h3 className="font-bold text-gray-800 text-sm mb-3">📋 الحصص المبرمجة</h3>
@@ -1029,7 +1611,6 @@ function ProfScheduleTab({ prof }: any) {
         </div>
       )}
 
-      {/* غير المبرمجة */}
       {unscheduled.length > 0 && (
         <div>
           <h3 className="font-bold text-gray-800 text-sm mb-3">⏳ سيُبرمج توقيتها لاحقاً</h3>
