@@ -1089,7 +1089,7 @@ function ThesisProposalsTab({ prof }: any) {
       if (err) { setError('حدث خطأ، حاول مجدداً'); return; }
     } else {
       const existing = bySpec(specId);
-      const spec = SPECIALITIES.find(s => s.id === specId)!;
+      const spec = specialities.find((s: any) => String(s.id) === String(specId))!;
       if (existing.length >= spec.max) {
         setError(`الحد الأقصى لهذا التخصص ${spec.max} عناوين`);
         setSaving(false);
