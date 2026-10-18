@@ -994,18 +994,12 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// التخصصات الثابتة مع الحدود
-const SPECIALITIES = [
-  { id: 'قانون_الأعمال', label: 'قانون الأعمال', min: 3, max: 5, color: '#1a3a6b' },
-  { id: 'القانون_الجنائي', label: 'القانون الجنائي', min: 3, max: 5, color: '#7c3aed' },
-  { id: 'التهيئة_والتعمير', label: 'التهيئة والتعمير', min: 1, max: 2, color: '#0891b2' },
-  { id: 'قانون_الصحة', label: 'قانون الصحة', min: 1, max: 3, color: '#16a34a' },
-  { id: 'الإعلام_الآلي_والأنترنت', label: 'الإعلام الآلي والأنترنت', min: 1, max: 3, color: '#ea580c' },
-];
+// ألوان افتراضية للتخصصات (تُطبَّق بالترتيب)
+const SPEC_COLORS = ['#1a3a6b', '#7c3aed', '#0891b2', '#16a34a', '#ea580c', '#db2777', '#d97706'];
 
-// مذكرات التخرج — المرحلة 1: اقتراح العناوين بالتخصصات الثابتة
+// مذكرات التخرج — المرحلة 1: اقتراح العناوين بتخصصات ديناميكية
 function ThesisProposalsTab({ prof }: any) {
+  const [specialities, setSpecialities] = useState<any[]>([]);
   const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1019,12 +1013,29 @@ function ThesisProposalsTab({ prof }: any) {
 
   async function load() {
     setLoading(true);
+    // جلب التخصصات الفعّالة من levels
+    const { data: levelsData } = await supabase
+      .from('levels')
+      .select('id, name_ar, thesis_min, thesis_max')
+      .eq('thesis_enabled', true)
+      .ilike('name_ar', 'ماستر 2%')
+      .order('name_ar', { ascending: true });
+
+    const specs = (levelsData || []).map((l: any, i: number) => ({
+      id: l.id,
+      label: l.name_ar,
+      min: l.thesis_min ?? 1,
+      max: l.thesis_max ?? 3,
+      color: SPEC_COLORS[i % SPEC_COLORS.length],
+    }));
+    setSpecialities(specs);
+
+    // جلب المقترحات
     const { data } = await supabase
       .from('thesis_proposals')
       .select('*')
       .eq('professor_id', prof?.id)
       .eq('academic_year', ACADEMIC_YEAR)
-      .order('speciality')
       .order('proposal_order', { ascending: true });
     setProposals(data || []);
     setLoading(false);
@@ -1032,9 +1043,9 @@ function ThesisProposalsTab({ prof }: any) {
 
   useEffect(() => { load(); }, [prof?.id]);
 
-  function bySpec(specId: string) {
+  function bySpec(specId: string | number) {
     return proposals
-      .filter(p => p.speciality === specId)
+      .filter(p => String(p.speciality) === String(specId))
       .sort((a, b) => a.proposal_order - b.proposal_order);
   }
 
@@ -1089,7 +1100,7 @@ function ThesisProposalsTab({ prof }: any) {
         academic_year: ACADEMIC_YEAR,
         title_ar: form.title_ar.trim(),
         title_fr: form.title_fr.trim() || null,
-        speciality: specId,
+        speciality: String(specId),
         description: form.description.trim() || null,
         status: 'مقترح',
         proposal_order: existing.length + 1,
@@ -1134,7 +1145,7 @@ function ThesisProposalsTab({ prof }: any) {
   }
 
   // تحقق من اكتمال الحد الأدنى في كل التخصصات
-  const allMinMet = SPECIALITIES.every(spec => bySpec(spec.id).length >= spec.min);
+  const allMinMet = specialities.length > 0 && specialities.every(spec => bySpec(spec.id).length >= spec.min);
   const totalProposals = proposals.filter(p => p.status === 'مقترح').length;
 
   async function submitAll() {
@@ -1184,7 +1195,12 @@ function ThesisProposalsTab({ prof }: any) {
       </div>
 
       {/* Speciality cards */}
-      {SPECIALITIES.map(spec => {
+      {specialities.length === 0 && !loading && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center text-amber-700 text-sm">
+          لم يتم تفعيل أي تخصص بعد — يرجى مراجعة الإدارة
+        </div>
+      )}
+      {specialities.map(spec => {
         const list = bySpec(spec.id);
         const count = list.length;
         const pct = Math.min(100, Math.round((count / spec.max) * 100));
@@ -1342,7 +1358,7 @@ function ThesisProposalsTab({ prof }: any) {
             </p>
             {!allMinMet && (
               <div className="mt-2 flex flex-wrap gap-1">
-                {SPECIALITIES.filter(s => bySpec(s.id).length < s.min).map(s => (
+                {specialities.filter(s => bySpec(s.id).length < s.min).map(s => (
                   <span key={s.id} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
                     {s.label}: {bySpec(s.id).length}/{s.min}
                   </span>
