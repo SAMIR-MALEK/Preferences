@@ -1334,7 +1334,7 @@ function ThesisProposalsTab({ prof }: any) {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <div className="flex items-start gap-3">
           <div className="flex-1">
-            <p className="font-bold text-gray-800 text-sm mb-1">إرسال جميع المقترحات للجنة العلمية</p>
+            <p className="font-bold text-gray-800 text-sm mb-1">إرسال جميع المقترحات</p>
             <p className="text-gray-400 text-xs">
               {allMinMet
                 ? 'جميع التخصصات مكتملة — يمكنك الإرسال الآن'
@@ -1360,7 +1360,7 @@ function ThesisProposalsTab({ prof }: any) {
               cursor: allMinMet && !submitting ? 'pointer' : 'not-allowed',
             }}>
             <Send className="w-4 h-4" />
-            {submitting ? 'جارٍ الإرسال...' : 'إرسال للجنة'}
+            {submitting ? 'جارٍ الإرسال...' : 'إرسال'}
           </button>
         </div>
       </div>
@@ -1368,7 +1368,7 @@ function ThesisProposalsTab({ prof }: any) {
       {/* Info */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-800">
         <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
-        <span>الترتيب مهم — في حال قبلت اللجنة عدداً أقل من مقترحاتك، ستُؤخذ حسب الأولوية من الأعلى إلى الأسفل. يمكنك إعادة الترتيب بالسهمين قبل الإرسال.</span>
+        <span>الترتيب مهم - سيؤخذ الترتيب بعين الاعتبار عند انتقاء العناوين المقبولة، يمكنك ترتيب العناوين قبل التأكيد.</span>
       </div>
     </div>
   );
@@ -1394,22 +1394,26 @@ function InlineForm({ form, setForm, error, saving, onSave, onCancel, color, isE
         />
       </div>
       <div>
-        <label className="block text-[10px] font-semibold text-gray-500 mb-1">العنوان بالفرنسية (اختياري)</label>
+        <label className="block text-[10px] font-semibold text-gray-500 mb-1">
+          العنوان بالإنجليزية <span className="text-gray-400 font-normal">(اختياري)</span>
+        </label>
         <input
           value={form.title_fr}
           onChange={e => setForm((f: any) => ({ ...f, title_fr: e.target.value }))}
-          placeholder="Titre en français..."
+          placeholder="Title in English (optional)..."
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none"
           dir="ltr"
         />
       </div>
       <div>
-        <label className="block text-[10px] font-semibold text-gray-500 mb-1">ملاحظات (اختياري)</label>
+        <label className="block text-[10px] font-semibold text-gray-500 mb-1">
+          الإشكالية أو أي ملاحظات أخرى <span className="text-gray-400 font-normal">(اختياري)</span>
+        </label>
         <textarea
           value={form.description}
           onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))}
           rows={2}
-          placeholder="وصف مختصر أو توجيهات..."
+          placeholder="ستظهر هذه المعلومات للطلبة في حالة إضافتها..."
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none"
           dir="rtl"
         />
