@@ -1013,21 +1013,32 @@ function ThesisProposalsTab({ prof }: any) {
 
   async function load() {
     setLoading(true);
-    // جلب التخصصات الفعّالة من levels
-    const { data: levelsData } = await supabase
+    // جلب كل levels بدون فلتر ثم نصفّي على العميل
+    const { data: levelsData, error: levelsError } = await supabase
       .from('levels')
-      .select('id, name_ar, thesis_min, thesis_max')
-      .eq('thesis_enabled', true)
-      .ilike('name_ar', 'ماستر 2%')
+      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled')
       .order('name_ar', { ascending: true });
 
-    const specs = (levelsData || []).map((l: any, i: number) => ({
-      id: l.id,
-      label: l.name_ar,
-      min: l.thesis_min ?? 1,
-      max: l.thesis_max ?? 3,
-      color: SPEC_COLORS[i % SPEC_COLORS.length],
-    }));
+    console.log('[Thesis] levels raw:', levelsData, 'error:', levelsError);
+
+    // فلترة ماستر 2 على العميل (يتعامل مع أي تشكيل في النص)
+    const master2 = (levelsData || []).filter((l: any) => {
+      const name = (l.name_ar || '').trim();
+      return name.includes('ماستر 2') || name.includes('Master 2') || name.includes('master 2');
+    });
+
+    console.log('[Thesis] master2 rows:', master2);
+
+    // نعرض كل ماستر 2 — إذا لم يكن العمود thesis_enabled موجوداً نتجاهل الفلتر
+    const specs = master2
+      .filter((l: any) => l.thesis_enabled !== false) // يُظهر إذا true أو null (عمود غير موجود)
+      .map((l: any, i: number) => ({
+        id: l.id,
+        label: l.name_ar,
+        min: l.thesis_min ?? 1,
+        max: l.thesis_max ?? 3,
+        color: SPEC_COLORS[i % SPEC_COLORS.length],
+      }));
     setSpecialities(specs);
 
     // جلب المقترحات
