@@ -1053,7 +1053,7 @@ function ThesisProposalsTab({ prof }: any) {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [prof?.id]);
+  useEffect(() => { load(); }, []); // نجلب levels بمجرد فتح التبويب بغض النظر عن prof
 
   function bySpec(specId: string | number) {
     return proposals
