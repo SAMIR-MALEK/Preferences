@@ -1008,6 +1008,7 @@ function ThesisProposalsTab({ prof }: any) {
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ title_ar: '', title_fr: '', description: '' });
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState('');
 
   const ACADEMIC_YEAR = '2026-2027';
 
@@ -1019,15 +1020,15 @@ function ThesisProposalsTab({ prof }: any) {
       .select('id, name_ar, thesis_min, thesis_max, thesis_enabled')
       .order('name_ar', { ascending: true });
 
-    console.log('[Thesis] levels raw:', levelsData, 'error:', levelsError);
+    // معلومات تشخيصية مؤقتة
+    const allNames = (levelsData || []).map((l: any) => l.name_ar).join(' | ');
+    setDebugInfo(`إجمالي: ${(levelsData || []).length} — الأسماء: ${allNames} — خطأ: ${levelsError?.message || 'لا'}`);
 
     // فلترة ماستر 2 على العميل (يتعامل مع أي تشكيل في النص)
     const master2 = (levelsData || []).filter((l: any) => {
       const name = (l.name_ar || '').trim();
       return name.includes('ماستر 2') || name.includes('Master 2') || name.includes('master 2');
     });
-
-    console.log('[Thesis] master2 rows:', master2);
 
     // نعرض كل ماستر 2 — إذا لم يكن العمود thesis_enabled موجوداً نتجاهل الفلتر
     const specs = master2
@@ -1206,6 +1207,12 @@ function ThesisProposalsTab({ prof }: any) {
       </div>
 
       {/* Speciality cards */}
+      {/* معلومات تشخيصية مؤقتة */}
+      {debugInfo && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 break-all mb-2">
+          <strong>تشخيص:</strong> {debugInfo}
+        </div>
+      )}
       {specialities.length === 0 && !loading && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center text-amber-700 text-sm">
           لم يتم تفعيل أي تخصص بعد — يرجى مراجعة الإدارة
