@@ -7,8 +7,231 @@ import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
 import * as XLSX from 'xlsx';
 import {
   UserPlus, Search, Lock, Unlock, Pencil,
-  CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2, FileText
+  CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2, FileText, Shield
 } from 'lucide-react';
+
+// ── أدوار الأساتذة ──
+const GENERAL_ROLES = [
+  { key: 'dept_head',     label: 'رئيس القسم' },
+  { key: 'vice_dean',     label: 'نائب العميد' },
+  { key: 'dean',          label: 'العميد' },
+  { key: 'sci_member',    label: 'عضو اللجنة العلمية' },
+  { key: 'sci_head',      label: 'رئيس اللجنة العلمية' },
+];
+
+const LINKED_ROLES = [
+  { key: 'spec_head',   label: 'مسؤول تخصص', needsSpec: true  },
+  { key: 'branch_head', label: 'مسؤول شعبة',  needsSpec: false },
+  { key: 'field_head',  label: 'مسؤول ميدان', needsSpec: false },
+];
+
+type LinkedRoleRow = { id?: string; role: string; speciality: string | null };
+
+interface RolesModalProps {
+  prof: Professor;
+  specialities: string[];
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
+  const [generalRoles, setGeneralRoles] = useState<string[]>([]);
+  const [linkedRows, setLinkedRows] = useState<LinkedRoleRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [loadingRoles, setLoadingRoles] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoadingRoles(true);
+      // أدوار عامة من professors.roles
+      const { data: pData } = await supabase
+        .from('professors')
+        .select('roles')
+        .eq('id', prof.id)
+        .single();
+      setGeneralRoles((pData?.roles as string[]) || []);
+
+      // أدوار مرتبطة بتخصص
+      const { data: rData } = await supabase
+        .from('professor_roles')
+        .select('id, role, speciality')
+        .eq('professor_id', prof.id);
+      setLinkedRows((rData as LinkedRoleRow[]) || []);
+      setLoadingRoles(false);
+    }
+    load();
+  }, [prof.id]);
+
+  function toggleGeneral(key: string) {
+    setGeneralRoles(prev =>
+      prev.includes(key) ? prev.filter(r => r !== key) : [...prev, key]
+    );
+  }
+
+  function addLinkedRow() {
+    setLinkedRows(prev => [...prev, { role: 'spec_head', speciality: null }]);
+  }
+
+  function removeLinkedRow(idx: number) {
+    setLinkedRows(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateLinkedRow(idx: number, field: keyof LinkedRoleRow, value: string | null) {
+    setLinkedRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      // حفظ الأدوار العامة
+      await supabase.from('professors').update({ roles: generalRoles }).eq('id', prof.id);
+
+      // حذف القديم وإعادة الإدراج للأدوار المرتبطة
+      await supabase.from('professor_roles').delete().eq('professor_id', prof.id);
+
+      const toInsert = linkedRows
+        .filter(r => r.role)
+        .map(r => ({
+          professor_id: prof.id,
+          role: r.role,
+          speciality: r.speciality || null,
+        }));
+
+      if (toInsert.length > 0) {
+        await supabase.from('professor_roles').insert(toInsert);
+      }
+
+      onSaved();
+      onClose();
+    } catch {
+      // silent
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        {/* رأس المودال */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#1a3a6b]/10 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-[#1a3a6b]" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-sm">أدوار الأستاذ</h3>
+              <p className="text-xs text-gray-400">{prof.last_name} {prof.first_name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {loadingRoles ? (
+          <div className="flex justify-center py-8">
+            <svg className="animate-spin h-5 w-5 text-[#1a3a6b]" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          </div>
+        ) : (
+          <>
+            {/* الأدوار الإدارية العامة */}
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">المناصب الإدارية</p>
+              <div className="space-y-2">
+                {GENERAL_ROLES.map(r => (
+                  <label key={r.key} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={generalRoles.includes(r.key)}
+                      onChange={() => toggleGeneral(r.key)}
+                      className="w-4 h-4 accent-[#1a3a6b]"
+                    />
+                    <span className="text-sm text-gray-700">{r.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* الأدوار البيداغوجية المرتبطة */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">المسؤوليات البيداغوجية</p>
+                <button
+                  onClick={addLinkedRow}
+                  className="text-xs text-[#1a3a6b] hover:text-[#0d2040] font-medium flex items-center gap-1">
+                  + إضافة
+                </button>
+              </div>
+
+              {linkedRows.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-3">لا توجد مسؤوليات — اضغط «إضافة»</p>
+              )}
+
+              <div className="space-y-2">
+                {linkedRows.map((row, idx) => {
+                  const roleDef = LINKED_ROLES.find(r => r.key === row.role);
+                  return (
+                    <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-2">
+                      {/* نوع الدور */}
+                      <select
+                        value={row.role}
+                        onChange={e => updateLinkedRow(idx, 'role', e.target.value)}
+                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white">
+                        {LINKED_ROLES.map(r => (
+                          <option key={r.key} value={r.key}>{r.label}</option>
+                        ))}
+                      </select>
+
+                      {/* التخصص — يظهر فقط لمسؤول التخصص */}
+                      {roleDef?.needsSpec ? (
+                        <select
+                          value={row.speciality || ''}
+                          onChange={e => updateLinkedRow(idx, 'speciality', e.target.value || null)}
+                          className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white">
+                          <option value="">— اختر التخصص —</option>
+                          {specialities.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="flex-1 text-xs text-gray-400 px-2">كل التخصصات</span>
+                      )}
+
+                      <button
+                        onClick={() => removeLinkedRow(idx)}
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* أزرار الحفظ */}
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#1a3a6b] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors disabled:opacity-50">
+                <Save className="w-4 h-4" />
+                {saving ? 'جارٍ الحفظ...' : 'حفظ الأدوار'}
+              </button>
+              <button
+                onClick={onClose}
+                className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
+                إلغاء
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const emptyForm = {
   last_name: '',
@@ -59,7 +282,27 @@ export default function AdminProfessorsPage() {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; label: string } | null>(null);
 
-  useEffect(() => { loadProfessors(); }, []);
+  // مودال الأدوار
+  const [rolesProf, setRolesProf] = useState<Professor | null>(null);
+  const [specialities, setSpecialities] = useState<string[]>([]);
+
+  useEffect(() => { loadProfessors(); loadSpecialities(); }, []);
+
+  async function loadSpecialities() {
+    const { data } = await supabase
+      .from('professor_roles')
+      .select('speciality')
+      .not('speciality', 'is', null);
+    // جلب أيضاً من levels
+    const { data: lvl } = await supabase
+      .from('levels')
+      .select('speciality')
+      .not('speciality', 'is', null);
+    const set = new Set<string>();
+    (data || []).forEach((r: any) => r.speciality && set.add(r.speciality));
+    (lvl  || []).forEach((r: any) => r.speciality && set.add(r.speciality));
+    setSpecialities(Array.from(set).sort());
+  }
 
   async function loadProfessors() {
     setLoading(true);
@@ -619,6 +862,11 @@ export default function AdminProfessorsPage() {
                         )}
                         {!isDeptHead && (
                           <>
+                            <button onClick={() => setRolesProf(prof)}
+                              title="إدارة الأدوار"
+                              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                              <Shield className="w-4 h-4" />
+                            </button>
                             <button onClick={() => startEdit(prof)}
                               title="تعديل البيانات"
                               className="p-1.5 text-gray-400 hover:text-[#1a3a6b] hover:bg-[#1a3a6b]/5 rounded-lg transition-colors">
@@ -652,6 +900,16 @@ export default function AdminProfessorsPage() {
           </div>
         )}
       </div>
+
+      {/* Roles Modal */}
+      {rolesProf && (
+        <RolesModal
+          prof={rolesProf}
+          specialities={specialities}
+          onClose={() => setRolesProf(null)}
+          onSaved={() => { loadProfessors(); }}
+        />
+      )}
 
       {/* Confirm Delete Dialog */}
       {confirmDelete && (
