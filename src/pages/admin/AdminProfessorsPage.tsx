@@ -600,7 +600,12 @@ export default function AdminProfessorsPage() {
       )}
 
       {showForm && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-[#1a3a6b]/20 animate-slide-up">
+        <div className={editingId
+          ? "fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          : ""}>
+        <div className={editingId
+          ? "bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+          : "bg-white rounded-2xl p-6 shadow-sm border-2 border-[#1a3a6b]/20 animate-slide-up"} dir="rtl">
           <h3 className="font-bold text-gray-800 mb-4 font-display flex items-center gap-2">
             {editingId ? <Pencil className="w-5 h-5 text-[#1a3a6b]" /> : <UserPlus className="w-5 h-5 text-[#1a3a6b]" />}
             {editingId ? 'تعديل بيانات أستاذ' : 'إضافة أستاذ جديد'}
@@ -755,6 +760,7 @@ export default function AdminProfessorsPage() {
             </button>
           </div>
           </div>)} {/* end permanent form */}
+        </div>
         </div>
       )}
 
