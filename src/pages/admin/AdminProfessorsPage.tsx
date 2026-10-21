@@ -11,13 +11,7 @@ import {
 } from 'lucide-react';
 
 // ── أدوار الأساتذة ──
-const GENERAL_ROLES = [
-  { key: 'dept_head',     label: 'رئيس القسم' },
-  { key: 'vice_dean',     label: 'نائب العميد' },
-  { key: 'dean',          label: 'العميد' },
-  { key: 'sci_member',    label: 'عضو اللجنة العلمية' },
-  { key: 'sci_head',      label: 'رئيس اللجنة العلمية' },
-];
+const DEPARTMENTS = ['قانون عام', 'قانون خاص'];
 
 const LINKED_ROLES = [
   { key: 'spec_head',   label: 'مسؤول تخصص', needsSpec: true  },
@@ -27,6 +21,11 @@ const LINKED_ROLES = [
 
 type LinkedRoleRow = { id?: string; role: string; speciality: string | null };
 
+// القواعد:
+// dean / vice_dean: متنافيان + لا يجمعان مع dept_head
+// sci_head / sci_member: متنافيان
+// dept_head: يحتاج تحديد القسم
+
 interface RolesModalProps {
   prof: Professor;
   specialities: string[];
@@ -35,47 +34,52 @@ interface RolesModalProps {
 }
 
 function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
-  const [generalRoles, setGeneralRoles] = useState<string[]>([]);
+  // المنصب الإداري العلوي: 'dean' | 'vice_dean' | null
+  const [topRole, setTopRole]       = useState<string | null>(null);
+  // رئيس القسم + القسم
+  const [isDeptHead, setIsDeptHead] = useState(false);
+  const [deptName, setDeptName]     = useState('');
+  // اللجنة العلمية: 'sci_head' | 'sci_member' | null
+  const [sciRole, setSciRole]       = useState<string | null>(null);
+  // الأدوار البيداغوجية
   const [linkedRows, setLinkedRows] = useState<LinkedRoleRow[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]         = useState(false);
   const [loadingRoles, setLoadingRoles] = useState(true);
 
   useEffect(() => {
     async function load() {
       setLoadingRoles(true);
-      // أدوار عامة من professors.roles
       const { data: pData } = await supabase
-        .from('professors')
-        .select('roles')
-        .eq('id', prof.id)
-        .single();
-      setGeneralRoles((pData?.roles as string[]) || []);
+        .from('professors').select('roles').eq('id', prof.id).single();
+      const roles: string[] = (pData?.roles as string[]) || [];
 
-      // أدوار مرتبطة بتخصص
+      setTopRole(roles.includes('dean') ? 'dean' : roles.includes('vice_dean') ? 'vice_dean' : null);
+      setSciRole(roles.includes('sci_head') ? 'sci_head' : roles.includes('sci_member') ? 'sci_member' : null);
+
+      // رئيس القسم مخزون في professor_roles برول dept_head والـ speciality = اسم القسم
       const { data: rData } = await supabase
-        .from('professor_roles')
-        .select('id, role, speciality')
-        .eq('professor_id', prof.id);
-      setLinkedRows((rData as LinkedRoleRow[]) || []);
+        .from('professor_roles').select('id, role, speciality').eq('professor_id', prof.id);
+      const rows: LinkedRoleRow[] = (rData as LinkedRoleRow[]) || [];
+      const deptRow = rows.find(r => r.role === 'dept_head');
+      if (deptRow) { setIsDeptHead(true); setDeptName(deptRow.speciality || ''); }
+      setLinkedRows(rows.filter(r => r.role !== 'dept_head'));
       setLoadingRoles(false);
     }
     load();
   }, [prof.id]);
 
-  function toggleGeneral(key: string) {
-    setGeneralRoles(prev =>
-      prev.includes(key) ? prev.filter(r => r !== key) : [...prev, key]
-    );
+  // عند اختيار عميد/نائب → إلغاء رئيس القسم
+  function selectTopRole(val: string | null) {
+    setTopRole(val);
+    if (val) { setIsDeptHead(false); setDeptName(''); }
   }
 
   function addLinkedRow() {
     setLinkedRows(prev => [...prev, { role: 'spec_head', speciality: null }]);
   }
-
   function removeLinkedRow(idx: number) {
     setLinkedRows(prev => prev.filter((_, i) => i !== idx));
   }
-
   function updateLinkedRow(idx: number, field: keyof LinkedRoleRow, value: string | null) {
     setLinkedRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
   }
@@ -83,19 +87,23 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
   async function handleSave() {
     setSaving(true);
     try {
-      // حفظ الأدوار العامة
-      await supabase.from('professors').update({ roles: generalRoles }).eq('id', prof.id);
+      // بناء مصفوفة الأدوار العامة
+      const roles: string[] = [];
+      if (topRole) roles.push(topRole);
+      if (sciRole) roles.push(sciRole);
 
-      // حذف القديم وإعادة الإدراج للأدوار المرتبطة
+      await supabase.from('professors').update({ roles }).eq('id', prof.id);
+
+      // أدوار professor_roles: رئيس القسم + البيداغوجية
       await supabase.from('professor_roles').delete().eq('professor_id', prof.id);
+      const toInsert: { professor_id: string; role: string; speciality: string | null }[] = [];
 
-      const toInsert = linkedRows
-        .filter(r => r.role)
-        .map(r => ({
-          professor_id: prof.id,
-          role: r.role,
-          speciality: r.speciality || null,
-        }));
+      if (isDeptHead && deptName) {
+        toInsert.push({ professor_id: prof.id, role: 'dept_head', speciality: deptName });
+      }
+      linkedRows.filter(r => r.role).forEach(r => {
+        toInsert.push({ professor_id: prof.id, role: r.role, speciality: r.speciality || null });
+      });
 
       if (toInsert.length > 0) {
         await supabase.from('professor_roles').insert(toInsert);
@@ -103,11 +111,11 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
 
       onSaved();
       onClose();
-    } catch {
-      // silent
-    }
+    } catch { /* silent */ }
     setSaving(false);
   }
+
+  const inputCls = "w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white";
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -137,71 +145,100 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
           </div>
         ) : (
           <>
-            {/* الأدوار الإدارية العامة */}
-            <div className="mb-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">المناصب الإدارية</p>
-              <div className="space-y-2">
-                {GENERAL_ROLES.map(r => (
-                  <label key={r.key} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={generalRoles.includes(r.key)}
-                      onChange={() => toggleGeneral(r.key)}
-                      className="w-4 h-4 accent-[#1a3a6b]"
-                    />
-                    <span className="text-sm text-gray-700">{r.label}</span>
-                  </label>
+            {/* ① الإدارة العليا */}
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">الإدارة العليا</p>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { key: 'dean',      label: 'العميد' },
+                  { key: 'vice_dean', label: 'نائب العميد' },
+                ].map(r => (
+                  <button key={r.key} type="button"
+                    onClick={() => selectTopRole(topRole === r.key ? null : r.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      topRole === r.key
+                        ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-[#1a3a6b]'
+                    }`}>
+                    {r.label}
+                  </button>
                 ))}
               </div>
             </div>
 
-            {/* الأدوار البيداغوجية المرتبطة */}
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">المسؤوليات البيداغوجية</p>
-                <button
-                  onClick={addLinkedRow}
-                  className="text-xs text-[#1a3a6b] hover:text-[#0d2040] font-medium flex items-center gap-1">
-                  + إضافة
-                </button>
+            {/* ② رئيس القسم */}
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">رئيس القسم</p>
+              <div className="flex items-center gap-3">
+                <label className={`flex items-center gap-2 cursor-pointer ${topRole ? 'opacity-40 pointer-events-none' : ''}`}>
+                  <input type="checkbox" checked={isDeptHead}
+                    onChange={e => { setIsDeptHead(e.target.checked); if (!e.target.checked) setDeptName(''); }}
+                    className="w-4 h-4 accent-[#1a3a6b]" />
+                  <span className="text-sm text-gray-700">رئيس قسم</span>
+                </label>
+                {isDeptHead && (
+                  <select value={deptName} onChange={e => setDeptName(e.target.value)}
+                    className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white">
+                    <option value="">— اختر القسم —</option>
+                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                )}
               </div>
+              {topRole && <p className="text-xs text-amber-600 mt-1">لا يمكن الجمع مع {topRole === 'dean' ? 'العميد' : 'نائب العميد'}</p>}
+            </div>
 
+            {/* ③ اللجنة العلمية */}
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">اللجنة العلمية</p>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { key: 'sci_head',   label: 'رئيس اللجنة' },
+                  { key: 'sci_member', label: 'عضو اللجنة' },
+                ].map(r => (
+                  <button key={r.key} type="button"
+                    onClick={() => setSciRole(sciRole === r.key ? null : r.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      sciRole === r.key
+                        ? 'bg-purple-600 text-white border-purple-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-purple-400'
+                    }`}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ④ المسؤوليات البيداغوجية */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">المسؤوليات البيداغوجية</p>
+                <button onClick={addLinkedRow}
+                  className="text-xs text-[#1a3a6b] hover:text-[#0d2040] font-medium">+ إضافة</button>
+              </div>
               {linkedRows.length === 0 && (
-                <p className="text-xs text-gray-400 text-center py-3">لا توجد مسؤوليات — اضغط «إضافة»</p>
+                <p className="text-xs text-gray-400 text-center py-2">لا توجد مسؤوليات — اضغط «إضافة»</p>
               )}
-
               <div className="space-y-2">
                 {linkedRows.map((row, idx) => {
                   const roleDef = LINKED_ROLES.find(r => r.key === row.role);
                   return (
                     <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-2">
-                      {/* نوع الدور */}
-                      <select
-                        value={row.role}
+                      <select value={row.role}
                         onChange={e => updateLinkedRow(idx, 'role', e.target.value)}
-                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white">
-                        {LINKED_ROLES.map(r => (
-                          <option key={r.key} value={r.key}>{r.label}</option>
-                        ))}
+                        className={inputCls + " flex-1"}>
+                        {LINKED_ROLES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
                       </select>
-
-                      {/* التخصص — يظهر فقط لمسؤول التخصص */}
                       {roleDef?.needsSpec ? (
-                        <select
-                          value={row.speciality || ''}
+                        <select value={row.speciality || ''}
                           onChange={e => updateLinkedRow(idx, 'speciality', e.target.value || null)}
-                          className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white">
-                          <option value="">— اختر التخصص —</option>
-                          {specialities.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
+                          className={inputCls + " flex-1"}>
+                          <option value="">— التخصص —</option>
+                          {specialities.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       ) : (
                         <span className="flex-1 text-xs text-gray-400 px-2">كل التخصصات</span>
                       )}
-
-                      <button
-                        onClick={() => removeLinkedRow(idx)}
+                      <button onClick={() => removeLinkedRow(idx)}
                         className="p-1 text-gray-400 hover:text-red-500 transition-colors">
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -213,15 +250,12 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
 
             {/* أزرار الحفظ */}
             <div className="flex gap-3 pt-1">
-              <button
-                onClick={handleSave}
-                disabled={saving}
+              <button onClick={handleSave} disabled={saving}
                 className="flex-1 flex items-center justify-center gap-2 bg-[#1a3a6b] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 {saving ? 'جارٍ الحفظ...' : 'حفظ الأدوار'}
               </button>
-              <button
-                onClick={onClose}
+              <button onClick={onClose}
                 className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
                 إلغاء
               </button>
