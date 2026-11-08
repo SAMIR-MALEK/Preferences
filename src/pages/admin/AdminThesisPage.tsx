@@ -190,12 +190,23 @@ export default function AdminThesisPage() {
       setProposals([]);
     }
 
-    // ⑤ كل الأساتذة الدائمين
+    // ⑤ الأساتذة الدائمون فقط — رتبة رسمية + كود لا يبدأ بـ V
+    const PERMANENT_RANKS = [
+      'أستاذ التعليم العالي',
+      'أستاذ محاضر - أ',
+      'أستاذ محاضر - ب',
+      'أستاذ مساعد - أ',
+      'أستاذ مساعد - ب',
+    ];
     const { data: allProfs } = await supabase
       .from('professors')
-      .select('id, last_name, first_name')
+      .select('id, last_name, first_name, rank, username')
+      .in('rank', PERMANENT_RANKS)
       .order('last_name');
-    setAllProfessors(allProfs || []);
+    // استبعاد من كودهم يبدأ بـ V (مؤقتون مدرجون بالخطأ برتبة دائمة)
+    setAllProfessors((allProfs || []).filter((p: any) =>
+      !p.username?.toUpperCase().startsWith('V')
+    ));
 
     setLoading(false);
   }
