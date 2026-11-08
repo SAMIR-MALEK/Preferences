@@ -405,7 +405,6 @@ export default function AdminThesisPage() {
                           <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b] w-8">#</th>
                           <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b]">الأستاذ</th>
                           <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b]">العنوان بالعربية</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b]">العنوان بالإنجليزية</th>
                           <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b] w-20">الحالة</th>
                         </tr>
                       </thead>
@@ -415,7 +414,6 @@ export default function AdminThesisPage() {
                             <td className="px-3 py-3 text-xs font-bold text-gray-400 text-center">{i + 1}</td>
                             <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{p.professor_name}</td>
                             <td className="px-3 py-3 text-sm font-medium text-gray-800 leading-relaxed">{p.title_ar}</td>
-                            <td className="px-3 py-3 text-xs text-gray-400 leading-relaxed" dir="ltr">{p.title_fr || '—'}</td>
                             <td className="px-3 py-3"><StatusBadge status={p.status} /></td>
                           </tr>
                         ))}
