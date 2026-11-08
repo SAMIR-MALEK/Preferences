@@ -147,16 +147,25 @@ export default function AdminThesisPage() {
         .eq('academic_year', ACADEMIC_YEAR)
         .order('proposal_order', { ascending: true });
 
-      // إذا رجع فارغاً نحاول speciality (بعض الإدخالات تخزن الـ UUID في speciality)
+      // إذا رجع فارغاً نحاول speciality
       let propData = propByLevel;
       if (!propData || propData.length === 0) {
         const { data: propBySpec } = await supabase
           .from('thesis_proposals')
-          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id')
+          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id, academic_year')
           .in('speciality', levelIds)
           .eq('academic_year', ACADEMIC_YEAR)
           .order('proposal_order', { ascending: true });
         propData = propBySpec;
+      }
+      // إذا لا يزال فارغاً — نحاول بدون فلتر academic_year (تشخيص)
+      if (!propData || propData.length === 0) {
+        const { data: propNoYear } = await supabase
+          .from('thesis_proposals')
+          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id, academic_year')
+          .or(`level_id.in.(${levelIds.join(',')}),speciality.in.(${levelIds.join(',')})`)
+          .order('proposal_order', { ascending: true });
+        propData = propNoYear;
       }
 
       // نجلب أسماء الأساتذة منفصلاً
