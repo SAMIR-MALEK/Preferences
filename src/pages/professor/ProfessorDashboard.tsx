@@ -38,6 +38,18 @@ function ProfNavbar({
   pendingThesisCount: number;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const navRef = useRef<HTMLDivElement>(null);
+
+  // إغلاق القوائم عند الضغط خارج شريط التنقل
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   function toggleMenu(name: string) {
     setOpenMenu(prev => prev === name ? null : name);
@@ -72,7 +84,7 @@ function ProfNavbar({
   const isProfileActive = ['profile'].includes(tab);
 
   return (
-    <nav className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
+    <nav ref={navRef} className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
       <div className="max-w-5xl mx-auto px-4">
         <div className="flex items-center h-14 gap-2">
           {/* Logo */}
@@ -90,9 +102,8 @@ function ProfNavbar({
           <div className="flex items-center gap-0.5 flex-1 justify-center">
 
             {/* التكليف البيداغوجي */}
-            <div className="relative" onMouseLeave={() => setOpenMenu(null)}>
+            <div className="relative">
               <button
-                onMouseEnter={() => setOpenMenu('schedule')}
                 onClick={() => toggleMenu('schedule')}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all select-none ${
                   isScheduleActive
@@ -128,9 +139,8 @@ function ProfNavbar({
             </div>
 
             {/* مذكرات التخرج */}
-            <div className="relative" onMouseLeave={() => setOpenMenu(null)}>
+            <div className="relative">
               <button
-                onMouseEnter={() => setOpenMenu('thesis')}
                 onClick={() => toggleMenu('thesis')}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all select-none border ${
                   isThesisActive
@@ -181,9 +191,8 @@ function ProfNavbar({
             </div>
 
             {/* معلوماتي */}
-            <div className="relative" onMouseLeave={() => setOpenMenu(null)}>
+            <div className="relative">
               <button
-                onMouseEnter={() => setOpenMenu('profinfo')}
                 onClick={() => toggleMenu('profinfo')}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium transition-all select-none ${
                   isProfileActive
