@@ -136,16 +136,28 @@ export default function AdminThesisPage() {
     const filtered = levelsData || [];
     setSpecs(filtered);
 
-    // ④ العناوين المقترحة — بدون join على professors لتجنب RLS
+    // ④ العناوين المقترحة — نحاول level_id أولاً، ثم speciality كـ fallback
     if (filtered.length > 0) {
-      const levelIds = filtered.map((l: any) => l.id);
-      const { data: propData } = await supabase
+      const levelIds = filtered.map((l: any) => String(l.id));
+      // نجرب level_id أولاً
+      const { data: propByLevel } = await supabase
         .from('thesis_proposals')
-        .select('id, title_ar, title_fr, description, status, created_at, level_id, proposal_order, professor_id')
+        .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id')
         .in('level_id', levelIds)
         .eq('academic_year', ACADEMIC_YEAR)
-        .order('level_id')
         .order('proposal_order', { ascending: true });
+
+      // إذا رجع فارغاً نحاول speciality (بعض الإدخالات تخزن الـ UUID في speciality)
+      let propData = propByLevel;
+      if (!propData || propData.length === 0) {
+        const { data: propBySpec } = await supabase
+          .from('thesis_proposals')
+          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id')
+          .in('speciality', levelIds)
+          .eq('academic_year', ACADEMIC_YEAR)
+          .order('proposal_order', { ascending: true });
+        propData = propBySpec;
+      }
 
       // نجلب أسماء الأساتذة منفصلاً
       const professorIds = [...new Set((propData || []).map((p: any) => p.professor_id))];
@@ -285,7 +297,10 @@ export default function AdminThesisPage() {
 
         <div className="divide-y divide-gray-50">
           {specs.map(spec => {
-            const specProposals = proposals.filter(p => p.level_id === spec.id);
+            const specProposals = proposals.filter(p =>
+              String(p.level_id) === String(spec.id) ||
+              String(p.speciality) === String(spec.id)
+            );
             const count = specProposals.length;
 
             return (
