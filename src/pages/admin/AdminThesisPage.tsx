@@ -71,6 +71,7 @@ export default function AdminThesisPage() {
   const [expandedSpec, setExpandedSpec] = useState<string | null>(null);
   const [confirm, setConfirm]       = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [allProfessors, setAllProfessors] = useState<any[]>([]);
+  const [showNotSent, setShowNotSent] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -291,18 +292,73 @@ export default function AdminThesisPage() {
         </div>
 
         {/* إحصائيات سريعة */}
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {[
-            { label: 'تخصصات مفتوحة', value: specs.filter(s => s.thesis_enabled).length },
-            { label: 'عناوين مقترحة', value: proposals.filter(p => p.status === 'مقترح' || p.status === 'مُرسَل').length },
-            { label: 'أساتذة مشاركون', value: new Set(proposals.map(p => p.professor_id)).size },
-          ].map(stat => (
-            <div key={stat.label} className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-xl font-bold text-white">{stat.value}</p>
-              <p className="text-[10px] text-gray-300 mt-0.5">{stat.label}</p>
+        {(() => {
+          const sentIds = new Set(proposals.map((p: any) => p.professor_id));
+          const notSentCount = allProfessors.filter((p: any) => !sentIds.has(p.id)).length;
+          return (
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'تخصصات مفتوحة', value: specs.filter(s => s.thesis_enabled).length, clickable: false },
+                { label: 'عناوين مقترحة', value: proposals.filter(p => p.status === 'مقترح' || p.status === 'مُرسَل').length, clickable: false },
+                { label: 'أساتذة مشاركون', value: new Set(proposals.map(p => p.professor_id)).size, clickable: false },
+                { label: 'لم يرسلوا بعد', value: notSentCount, clickable: true },
+              ].map(stat => (
+                stat.clickable ? (
+                  <button key={stat.label}
+                    onClick={() => setShowNotSent(v => !v)}
+                    className={`rounded-xl p-3 text-center transition-all ${
+                      showNotSent ? 'bg-amber-400/30 ring-2 ring-amber-400/50' : 'bg-white/10 hover:bg-white/20'
+                    }`}>
+                    <p className="text-xl font-bold text-amber-300">{stat.value}</p>
+                    <p className="text-[10px] text-amber-200 mt-0.5 flex items-center justify-center gap-1">
+                      {stat.label}
+                      {showNotSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </p>
+                  </button>
+                ) : (
+                  <div key={stat.label} className="bg-white/10 rounded-xl p-3 text-center">
+                    <p className="text-xl font-bold text-white">{stat.value}</p>
+                    <p className="text-[10px] text-gray-300 mt-0.5">{stat.label}</p>
+                  </div>
+                )
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
+
+        {/* قائمة من لم يرسلوا — منبثقة داخل الهيدر */}
+        {showNotSent && (() => {
+          const sentIds = new Set(proposals.map((p: any) => p.professor_id));
+          const notSent = allProfessors.filter((p: any) => !sentIds.has(p.id));
+          return notSent.length > 0 ? (
+            <div className="mt-3 bg-white/10 rounded-xl overflow-hidden">
+              <div className="max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-[#0f2347]">
+                    <tr>
+                      <th className="px-3 py-2 text-right text-xs font-bold text-amber-300 w-8">#</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold text-amber-300">اللقب</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold text-amber-300">الاسم</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {notSent.map((p: any, i: number) => (
+                      <tr key={p.id} className="hover:bg-white/5">
+                        <td className="px-3 py-2.5 text-xs text-gray-400 text-center">{i + 1}</td>
+                        <td className="px-3 py-2.5 text-sm text-white font-medium">{p.last_name}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-300">{p.first_name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 bg-green-500/20 rounded-xl px-4 py-3 text-green-200 text-xs flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" /> جميع الأساتذة الدائمون أرسلوا مقترحاتهم
+            </div>
+          );
+        })()}
       </div>
 
       {deadlinePassed && (
