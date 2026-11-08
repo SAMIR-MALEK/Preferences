@@ -299,30 +299,82 @@ export default function AdminThesisPage() {
           return (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: 'تخصصات مفتوحة', value: specs.filter(s => s.thesis_enabled).length, clickable: false },
-                { label: 'عناوين مقترحة', value: proposals.filter(p => p.status === 'مقترح' || p.status === 'مُرسَل').length, clickable: false },
-                { label: 'أساتذة مشاركون', value: new Set(proposals.map(p => p.professor_id)).size, clickable: false },
-                { label: 'لم يرسلوا بعد', value: notSentCount, clickable: true },
-              ].map(stat => (
-                stat.clickable ? (
-                  <button key={stat.label}
-                    onClick={() => setShowNotSent(v => !v)}
-                    className={`rounded-xl p-3 text-center transition-all ${
-                      showNotSent ? 'bg-amber-400/30 ring-2 ring-amber-400/50' : 'bg-white/10 hover:bg-white/20'
-                    }`}>
-                    <p className="text-xl font-bold text-amber-300">{stat.value}</p>
-                    <p className="text-[10px] text-amber-200 mt-0.5 flex items-center justify-center gap-1">
-                      {stat.label}
-                      {showNotSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </p>
-                  </button>
-                ) : (
+                { label: 'تخصصات مفتوحة', value: specs.filter(s => s.thesis_enabled).length, kind: 'plain' },
+                { label: 'عناوين مقترحة', value: proposals.filter(p => p.status === 'مقترح' || p.status === 'مُرسَل').length, kind: 'plain' },
+                { label: 'أساتذة أرسلوا', value: new Set(proposals.map(p => p.professor_id)).size, kind: 'sent' },
+                { label: 'لم يرسلوا بعد', value: notSentCount, kind: 'notsent' },
+              ].map(stat => {
+                if (stat.kind === 'sent') {
+                  return (
+                    <button key={stat.label}
+                      onClick={() => { setShowSent(v => !v); setShowNotSent(false); }}
+                      className={`rounded-xl p-3 text-center transition-all ${
+                        showSent ? 'bg-green-400/30 ring-2 ring-green-400/50' : 'bg-white/10 hover:bg-white/20'
+                      }`}>
+                      <p className="text-xl font-bold text-green-300">{stat.value}</p>
+                      <p className="text-[10px] text-green-200 mt-0.5 flex items-center justify-center gap-1">
+                        {stat.label}
+                        {showSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </p>
+                    </button>
+                  );
+                }
+                if (stat.kind === 'notsent') {
+                  return (
+                    <button key={stat.label}
+                      onClick={() => { setShowNotSent(v => !v); setShowSent(false); }}
+                      className={`rounded-xl p-3 text-center transition-all ${
+                        showNotSent ? 'bg-amber-400/30 ring-2 ring-amber-400/50' : 'bg-white/10 hover:bg-white/20'
+                      }`}>
+                      <p className="text-xl font-bold text-amber-300">{stat.value}</p>
+                      <p className="text-[10px] text-amber-200 mt-0.5 flex items-center justify-center gap-1">
+                        {stat.label}
+                        {showNotSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </p>
+                    </button>
+                  );
+                }
+                return (
                   <div key={stat.label} className="bg-white/10 rounded-xl p-3 text-center">
                     <p className="text-xl font-bold text-white">{stat.value}</p>
                     <p className="text-[10px] text-gray-300 mt-0.5">{stat.label}</p>
                   </div>
-                )
-              ))}
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {/* قائمة من أرسلوا — منبثقة داخل الهيدر */}
+        {showSent && (() => {
+          const sentIds = new Set(proposals.map((p: any) => p.professor_id));
+          const sent = allProfessors.filter((p: any) => sentIds.has(p.id));
+          return sent.length > 0 ? (
+            <div className="mt-3 bg-white/10 rounded-xl overflow-hidden">
+              <div className="max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-[#0f2347]">
+                    <tr>
+                      <th className="px-3 py-2 text-right text-xs font-bold text-green-300 w-8">#</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold text-green-300">اللقب</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold text-green-300">الاسم</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {sent.map((p: any, i: number) => (
+                      <tr key={p.id} className="hover:bg-white/5">
+                        <td className="px-3 py-2.5 text-xs text-gray-400 text-center">{i + 1}</td>
+                        <td className="px-3 py-2.5 text-sm text-white font-medium">{p.last_name}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-300">{p.first_name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 bg-white/10 rounded-xl px-4 py-3 text-gray-300 text-xs">
+              لم يرسل أي أستاذ بعد
             </div>
           );
         })()}
