@@ -40,17 +40,22 @@ export default function AdminThesisPage() {
     setSpecs(filtered);
 
     // العناوين المقترحة لأساتذة القسم
-    const { data: propData } = await supabase
-      .from('thesis_proposals')
-      .select(`
-        id, title, description, created_at,
-        level_id,
-        professor:professors(id, full_name)
-      `)
-      .order('created_at', { ascending: false });
-
-    const levelIds = new Set(filtered.map((l: any) => l.id));
-    setProposals((propData || []).filter((p: any) => levelIds.has(p.level_id)));
+    const levelIds = filtered.map((l: any) => l.id);
+    let propData: any[] = [];
+    if (levelIds.length > 0) {
+      const { data } = await supabase
+        .from('thesis_proposals')
+        .select(`
+          id, title_ar, title_fr, description, status, created_at,
+          level_id,
+          professor:professors(id, full_name)
+        `)
+        .in('level_id', levelIds)
+        .eq('academic_year', '2026-2027')
+        .order('created_at', { ascending: false });
+      propData = data || [];
+    }
+    setProposals(propData);
 
     setLoading(false);
   }
@@ -194,7 +199,8 @@ export default function AdminThesisPage() {
                 <div className="mt-3 space-y-2 pl-2 border-r-2 border-amber-200 pr-3">
                   {proposals.filter(p => p.level_id === spec.id).map(p => (
                     <div key={p.id} className="bg-amber-50 rounded-xl p-3">
-                      <p className="text-xs font-semibold text-gray-800">{p.title}</p>
+                      <p className="text-xs font-semibold text-gray-800">{p.title_ar}</p>
+                      {p.title_fr && <p className="text-[11px] text-gray-400 mt-0.5 italic">{p.title_fr}</p>}
                       {p.description && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{p.description}</p>}
                       <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-gray-400">
                         <User className="w-3 h-3" />
