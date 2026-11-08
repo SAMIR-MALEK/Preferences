@@ -1443,7 +1443,7 @@ function ThesisProposalsTab({ prof }: any) {
             </div>
             <div>
               <p className="font-bold text-green-800 text-sm">تم الإرسال بنجاح</p>
-              <p className="text-green-600 text-xs mt-0.5">لقد تم إرسال عناوينك المقترحة وسيتم مراجعتها من قِبل رئيس القسم</p>
+              <p className="text-green-600 text-xs mt-0.5">لقد تم إرسال عناوينك المقترحة وسيتم مراجعتها</p>
             </div>
           </div>
         ) : (
