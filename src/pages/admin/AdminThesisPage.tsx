@@ -72,6 +72,7 @@ export default function AdminThesisPage() {
   const [confirm, setConfirm]       = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [allProfessors, setAllProfessors] = useState<any[]>([]);
   const [showNotSent, setShowNotSent] = useState(false);
+  const [showSent, setShowSent]       = useState(false);
 
   useEffect(() => { load(); }, []);
 
