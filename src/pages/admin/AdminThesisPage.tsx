@@ -28,11 +28,12 @@ export default function AdminThesisPage() {
       .single();
     setDeadline(settingsData?.thesis_deadline || null);
 
-    // تخصصات القسم فقط — فلتر مباشر بعمود department
+    // ماستر 2 فقط من القسم — المذكرات تخص ماستر 2
     const { data: levelsData } = await supabase
       .from('levels')
       .select('id, name_ar, thesis_min, thesis_max, thesis_enabled, department')
       .eq('department', department)
+      .ilike('name_ar', 'ماستر 2%')
       .order('name_ar');
 
     const filtered = levelsData || [];
