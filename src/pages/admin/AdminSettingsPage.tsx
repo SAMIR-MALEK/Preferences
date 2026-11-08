@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Settings, Save, CheckCircle, Calendar, Bell, Lock, Unlock, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
-import { logAction } from '../../lib/logAction';
+import { Settings, Save, CheckCircle, Calendar, Bell, Lock, Unlock, Eye, EyeOff, ScrollText } from 'lucide-react';
 
 export default function AdminSettingsPage() {
-  const { user } = useAuth();
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,7 +22,6 @@ export default function AdminSettingsPage() {
 
   async function toggleSave(field: string, value: boolean) {
     await supabase.from('academic_settings').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', settings.id);
-    await logAction(user?.admin?.id, user?.admin?.full_name, field, 'settings', { field, value });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   }
 
@@ -40,6 +36,7 @@ export default function AdminSettingsPage() {
         appeals_open: settings.appeals_open,
         appeals_deadline: settings.appeals_deadline,
         platform_title: settings.platform_title,
+        thesis_deadline: settings.thesis_deadline || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', settings.id);
@@ -167,6 +164,32 @@ export default function AdminSettingsPage() {
                 dir="ltr"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Thesis Deadline */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h3 className="font-bold text-gray-800 mb-4 font-display text-sm flex items-center gap-2">
+            <ScrollText className="w-4 h-4 text-amber-600" />
+            مذكرات التخرج
+          </h3>
+          <div>
+            <label className="text-sm text-gray-600 mb-1.5 block">الموعد النهائي لاقتراح العناوين</label>
+            <p className="text-xs text-gray-400 mb-2">يسري على القسمين معاً — رئيسا القسمين يفتحان/يغلقان في حدود هذا التاريخ</p>
+            <input
+              type="date"
+              value={settings.thesis_deadline || ''}
+              onChange={e => setSettings({ ...settings, thesis_deadline: e.target.value })}
+              className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30 bg-gray-50"
+              dir="ltr"
+            />
+            {settings.thesis_deadline && (
+              <p className={`text-xs mt-2 font-medium ${new Date(settings.thesis_deadline) >= new Date() ? 'text-green-600' : 'text-red-500'}`}>
+                {new Date(settings.thesis_deadline) >= new Date()
+                  ? `✓ مفتوح حتى ${new Date(settings.thesis_deadline).toLocaleDateString('ar-DZ')}`
+                  : `✗ انتهى الموعد منذ ${new Date(settings.thesis_deadline).toLocaleDateString('ar-DZ')}`}
+              </p>
+            )}
           </div>
         </div>
 

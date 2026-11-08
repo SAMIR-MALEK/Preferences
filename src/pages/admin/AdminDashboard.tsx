@@ -6,7 +6,7 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield
+  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -26,10 +26,11 @@ import AdminSchedulePage      from './AdminSchedulePage';
 import AdminGroupRequests     from './AdminGroupRequests';
 import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
+import AdminThesisPage        from './AdminThesisPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -100,13 +101,15 @@ export default function AdminDashboard() {
     { id: 'students',      label: 'الطلبة',              icon: GraduationCap },
     { id: 'grouprequests', label: 'طلبات الأفواج',       icon: ClipboardList, badge: stats.groupRequests },
     { id: 'profschedule',  label: 'برامج الأساتذة',      icon: CalendarDays },
+    { id: 'thesis',        label: 'مذكرات التخرج',       icon: ScrollText   },
     { id: 'settings',      label: 'الإعدادات',           icon: Settings   },
   ];
 
-  // رئيس القسم لا يرى تبويبي الإسناد والإعدادات وإرسال البريد (حكر على العميد/نائب العميد)
+  // رئيس القسم: يرى مذكرات التخرج، لا يرى الإسناد والإعدادات والبريد
+  // العميد/نائب العميد: يرى الإعدادات، لا يرى مذكرات التخرج (للاطلاع مستقبلاً)
   const nav = isDeptHead
     ? allNav.filter(item => !['assignment', 'settings', 'email'].includes(item.id))
-    : allNav;
+    : allNav.filter(item => item.id !== 'thesis');
 
   return (
     <div
@@ -235,6 +238,7 @@ export default function AdminDashboard() {
           />
         )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
+        {isDeptHead  && tab === 'thesis'     && <AdminThesisPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
