@@ -28,18 +28,14 @@ export default function AdminThesisPage() {
       .single();
     setDeadline(settingsData?.thesis_deadline || null);
 
-    // تخصصات القسم فقط
-    // levels تحتوي على department_code — نصفّي حسب القسم
+    // تخصصات القسم فقط — فلتر مباشر بعمود department
     const { data: levelsData } = await supabase
       .from('levels')
-      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled, department_code')
+      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled, department')
+      .eq('department', department)
       .order('name_ar');
 
-    // نصفّي على العميل حسب قسم رئيس القسم
-    const deptKeyword = department === 'عام' ? 'عام' : 'خاص';
-    const filtered = (levelsData || []).filter((l: any) =>
-      l.name_ar?.includes(deptKeyword) || l.department_code?.includes(deptKeyword)
-    );
+    const filtered = levelsData || [];
     setSpecs(filtered);
 
     // العناوين المقترحة لأساتذة القسم
