@@ -1022,27 +1022,35 @@ function ThesisProposalsTab({ prof }: any) {
 
   async function load() {
     setLoading(true);
+    // جلب الموعد النهائي من academic_settings
+    const { data: settingsRow } = await supabase
+      .from('academic_settings')
+      .select('thesis_deadline')
+      .eq('academic_year', ACADEMIC_YEAR)
+      .single();
+    const deadline = settingsRow?.thesis_deadline;
+    const deadlinePassed = deadline ? new Date(deadline) < new Date() : false;
+
     // جلب كل levels بدون فلتر ثم نصفّي على العميل
-    const { data: levelsData, error: levelsError } = await supabase
+    const { data: levelsData } = await supabase
       .from('levels')
       .select('id, name_ar, thesis_min, thesis_max, thesis_enabled')
       .order('name_ar', { ascending: true });
 
-
-    // فلترة ماستر 2 على العميل (يتعامل مع أي تشكيل في النص)
+    // فلترة ماستر 2 على العميل
     const master2 = (levelsData || []).filter((l: any) => {
       const name = (l.name_ar || '').trim();
       return name.includes('ماستر 2') || name.includes('Master 2') || name.includes('master 2');
     });
 
-    // نعرض كل ماستر 2 — إذا لم يكن العمود thesis_enabled موجوداً نتجاهل الفلتر
+    // يُظهر التخصص فقط إذا thesis_enabled = true والموعد لم ينته
     const specs = master2
-      .filter((l: any) => l.thesis_enabled !== false) // يُظهر إذا true أو null (عمود غير موجود)
+      .filter((l: any) => l.thesis_enabled === true && !deadlinePassed)
       .map((l: any, i: number) => ({
         id: l.id,
         label: l.name_ar,
         min: l.thesis_min ?? 1,
-        max: l.thesis_max ?? 3,
+        max: l.thesis_max ?? null,
         color: SPEC_COLORS[i % SPEC_COLORS.length],
       }));
     setSpecialities(specs);
@@ -1117,6 +1125,7 @@ function ThesisProposalsTab({ prof }: any) {
         academic_year: ACADEMIC_YEAR,
         title_ar: form.title_ar.trim(),
         title_fr: form.title_fr.trim() || null,
+        level_id: String(specId),
         speciality: String(specId),
         description: form.description.trim() || null,
         status: 'مقترح',
