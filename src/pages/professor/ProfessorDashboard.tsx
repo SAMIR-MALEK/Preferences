@@ -1226,106 +1226,150 @@ function ThesisProposalsTab({ prof }: any) {
         </div>
       </div>
 
-      {/* Speciality cards */}
+      {/* Speciality sections — فصل واضح بين التخصصات */}
 
       {specialities.length === 0 && !loading && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center text-amber-700 text-sm">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-center text-amber-700 text-sm">
           لم يتم تفعيل أي تخصص بعد — يرجى مراجعة الإدارة
         </div>
       )}
-      {specialities.map(spec => {
-        const list = bySpec(spec.id);
-        const count = list.length;
-        const metMin = count >= spec.min;
-        const atMax = spec.max !== null && count >= spec.max;
-        const pct = spec.max !== null ? Math.min(100, Math.round((count / spec.max) * 100)) : Math.min(100, count * 20);
 
-        return (
-          <div key={spec.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {/* Card header */}
-            <div className="px-5 py-4" style={{ borderRightColor: spec.color, borderRightWidth: 3 }}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-gray-800 text-sm truncate">{spec.label}</h3>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      metMin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {metMin ? '✓ اكتمل الحد الأدنى' : `الحد الأدنى: ${spec.min}`}
-                    </span>
-                    <span className="text-[10px] text-gray-400">
-                      {count} من {spec.max ?? '∞'} عنوان
-                    </span>
-                  </div>
-                  <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%`, background: metMin ? spec.color : '#f59e0b' }} />
-                  </div>
-                </div>
-                {!atMax && (
-                  <button
-                    onClick={() => openAdd(spec.id)}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all"
-                    style={{ background: `${spec.color}15`, color: spec.color, border: `1px solid ${spec.color}30` }}>
-                    <Plus className="w-3.5 h-3.5" /> إضافة عنوان
-                  </button>
-                )}
-              </div>
-            </div>
+      <div className="flex flex-col gap-8">
+        {specialities.map((spec, specIdx) => {
+          const list = bySpec(spec.id);
+          const count = list.length;
+          const metMin = count >= spec.min;
+          const atMax = spec.max !== null && count >= spec.max;
+          const pct = spec.max !== null ? Math.min(100, Math.round((count / spec.max) * 100)) : Math.min(100, count * 20);
 
-            {/* Proposals list */}
-            {list.length > 0 && (
-              <div className="divide-y divide-gray-50 border-t border-gray-50">
-                {list.map((p, i) => {
-                  const canEdit = p.status === 'مقترح';
-                  return (
-                    <div key={p.id} className="px-4 py-3 flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5"
-                        style={{ background: `${spec.color}15`, color: spec.color }}>
-                        {p.proposal_order}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <StatusBadge status={p.status} />
-                        <p className="font-semibold text-gray-800 text-sm leading-relaxed mt-1">{p.title_ar}</p>
-                        {p.title_fr && <p className="text-gray-400 text-[11px] mt-0.5" dir="ltr">{p.title_fr}</p>}
-                        {p.description && <p className="text-gray-500 text-[11px] mt-1 leading-relaxed">{p.description}</p>}
-                      </div>
-                      {canEdit && (
-                        <div className="flex gap-1 flex-shrink-0">
-                          <button onClick={() => moveUp(p)} disabled={i === 0} title="رفع الأولوية"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => moveDown(p)} disabled={i === list.length - 1} title="خفض الأولوية"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => openEdit(p)} title="تعديل"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-[#1a3a6b] hover:bg-blue-50 transition-all">
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => remove(p)} title="حذف"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+          return (
+            <div key={spec.id} className="rounded-2xl overflow-hidden border-2" style={{ borderColor: `${spec.color}40` }}>
+
+              {/* ═══ رأس التخصص ═══ */}
+              <div className="px-6 py-5" style={{ background: `${spec.color}10`, borderBottom: `2px solid ${spec.color}30` }}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    {/* رقم التخصص + الاسم */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                        style={{ background: spec.color }}>
+                        {specIdx + 1}
+                      </span>
+                      <h3 className="font-bold text-gray-800 text-base leading-snug">{spec.label}</h3>
                     </div>
-                  );
-                })}
-              </div>
-            )}
 
-            {list.length === 0 && (
-              <div className="px-5 py-5 text-center border-t border-gray-50">
-                <ScrollText className="w-6 h-6 text-gray-200 mx-auto mb-2" />
-                <p className="text-gray-400 text-xs">لم تُضف أي عناوين بعد</p>
-                <p className="text-gray-300 text-[10px] mt-0.5">اضغط "إضافة عنوان" للبدء</p>
+                    {/* شريط الإحصاء */}
+                    <div className="flex items-center gap-4 flex-wrap mr-12">
+                      <span className="text-sm text-gray-600">
+                        <span className="font-bold text-lg" style={{ color: spec.color }}>{count}</span>
+                        <span className="mr-1 text-gray-400">
+                          {spec.max !== null ? `من ${spec.max}` : ''} عنوان مقترح
+                        </span>
+                      </span>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                        metMin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {metMin ? '✓ تجاوزت الحد الأدنى' : `الحد الأدنى المطلوب: ${spec.min} عناوين`}
+                      </span>
+                    </div>
+
+                    {/* شريط التقدم */}
+                    {spec.max !== null && (
+                      <div className="mt-3 mr-12">
+                        <div className="h-2 bg-white rounded-full overflow-hidden" style={{ border: `1px solid ${spec.color}20` }}>
+                          <div className="h-full rounded-full transition-all duration-700"
+                            style={{ width: `${pct}%`, background: metMin ? spec.color : '#f59e0b' }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* زر إضافة عنوان */}
+                  {!atMax ? (
+                    <button
+                      onClick={() => openAdd(spec.id)}
+                      className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow"
+                      style={{ background: spec.color, color: '#fff' }}>
+                      <Plus className="w-4 h-4" />
+                      <span>إضافة عنوان</span>
+                    </button>
+                  ) : (
+                    <span className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-400">
+                      ✓ اكتمل العدد الأقصى
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        );
-      })}
+
+              {/* ═══ قائمة العناوين المقترحة ═══ */}
+              {list.length > 0 ? (
+                <div className="bg-white divide-y divide-gray-100">
+                  {list.map((p, i) => {
+                    const canEdit = p.status === 'مقترح';
+                    return (
+                      <div key={p.id} className="px-6 py-5">
+                        {/* سطر أول: الرقم + الحالة + أزرار */}
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0"
+                              style={{ background: `${spec.color}15`, color: spec.color }}>
+                              {p.proposal_order}
+                            </span>
+                            <StatusBadge status={p.status} />
+                            {p.status === 'مُرسَل' && (
+                              <span className="text-xs text-gray-400 flex items-center gap-1">
+                                <Lock className="w-3 h-3" /> مُغلق
+                              </span>
+                            )}
+                          </div>
+                          {canEdit && (
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => moveUp(p)} disabled={i === 0} title="رفع الأولوية"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
+                                <ArrowUp className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => moveDown(p)} disabled={i === list.length - 1} title="خفض الأولوية"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
+                                <ArrowDown className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => openEdit(p)} title="تعديل"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-[#1a3a6b] hover:bg-blue-50 transition-all">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => remove(p)} title="حذف"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* عنوان المذكرة */}
+                        <div className="mr-11">
+                          <p className="font-semibold text-gray-800 text-base leading-relaxed">{p.title_ar}</p>
+                          {p.title_fr && (
+                            <p className="text-gray-400 text-sm mt-1 leading-relaxed" dir="ltr">{p.title_fr}</p>
+                          )}
+                          {p.description && (
+                            <p className="text-gray-500 text-sm mt-2 leading-relaxed border-r-2 border-gray-100 pr-3">{p.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white px-6 py-10 text-center">
+                  <ScrollText className="w-10 h-10 mx-auto mb-3" style={{ color: `${spec.color}40` }} />
+                  <p className="text-gray-500 text-sm font-medium">لم تُضف أي عناوين بعد لهذا التخصص</p>
+                  <p className="text-gray-400 text-xs mt-1">اضغط على "إضافة عنوان" للبدء</p>
+                </div>
+              )}
+
+            </div>
+          );
+        })}
+      </div>
 
       {/* Modal الإضافة/التعديل — خارج حلقة التخصصات */}
       {activeForm && (
@@ -1342,46 +1386,98 @@ function ThesisProposalsTab({ prof }: any) {
         />
       )}
 
-      {/* Submit button */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex-1">
-            <p className="font-bold text-gray-800 text-sm mb-1">إرسال جميع المقترحات</p>
-            <p className="text-gray-400 text-xs">
-              {allMinMet
-                ? 'جميع التخصصات مكتملة — يمكنك الإرسال الآن'
-                : `يجب استيفاء الحد الأدنى في كل التخصصات قبل الإرسال`}
-            </p>
-            {!allMinMet && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {specialities.filter(s => bySpec(s.id).length < s.min).map(s => (
-                  <span key={s.id} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                    {s.label}: {bySpec(s.id).length} / الحد الأدنى {s.min}
-                  </span>
-                ))}
+      {/* Modal تأكيد الإرسال */}
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSubmitConfirm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <Send className="w-5 h-5 text-blue-600" />
               </div>
-            )}
+              <div>
+                <h3 className="font-bold text-gray-800 text-sm mb-1">تأكيد الإرسال النهائي</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  بعد الإرسال لن تتمكن من تعديل أو حذف العناوين المُرسَلة. هل أنت متأكد؟
+                </p>
+                <p className="text-amber-600 text-xs mt-2 font-medium">
+                  ⚠ سيتم إرسال {totalProposals} عنوان إلى رئيس القسم للمراجعة
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={submitAll} disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                <Send className="w-4 h-4" />
+                {submitting ? 'جارٍ الإرسال...' : 'إرسال الآن'}
+              </button>
+              <button onClick={() => setShowSubmitConfirm(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium transition-colors">
+                مراجعة أولاً
+              </button>
+            </div>
           </div>
-          <button
-            onClick={submitAll}
-            disabled={!allMinMet || submitting || proposals.every(p => p.status !== 'مقترح')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex-shrink-0"
-            style={{
-              background: allMinMet && !submitting ? 'linear-gradient(135deg,#1a3a6b,#0d2040)' : 'rgba(148,163,184,0.2)',
-              color: allMinMet && !submitting ? 'white' : '#94a3b8',
-              cursor: allMinMet && !submitting ? 'pointer' : 'not-allowed',
-            }}>
-            <Send className="w-4 h-4" />
-            {submitting ? 'جارٍ الإرسال...' : 'إرسال'}
-          </button>
         </div>
+      )}
+
+      {/* Submit button */}
+      <div className={`rounded-2xl border shadow-sm p-4 ${
+        alreadySubmitted
+          ? 'bg-green-50 border-green-200'
+          : 'bg-white border-gray-100'
+      }`}>
+        {alreadySubmitted ? (
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="font-bold text-green-800 text-sm">تم الإرسال بنجاح</p>
+              <p className="text-green-600 text-xs mt-0.5">عناوينك بيد رئيس القسم للمراجعة — لا يمكن التعديل الآن</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3">
+            <div className="flex-1">
+              <p className="font-bold text-gray-800 text-sm mb-1">الإرسال النهائي لرئيس القسم</p>
+              {allMinMet ? (
+                <p className="text-green-600 text-xs">✓ جميع التخصصات استوفت الحد الأدنى — جاهز للإرسال</p>
+              ) : (
+                <>
+                  <p className="text-amber-600 text-xs mb-2">يجب استيفاء الحد الأدنى في كل تخصص قبل الإرسال</p>
+                  <div className="flex flex-wrap gap-1">
+                    {specialities.filter(s => bySpec(s.id).length < s.min).map(s => (
+                      <span key={s.id} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                        {s.label}: {bySpec(s.id).length}/{s.min}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <button
+              onClick={() => allMinMet && setShowSubmitConfirm(true)}
+              disabled={!allMinMet}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex-shrink-0"
+              style={{
+                background: allMinMet ? 'linear-gradient(135deg,#1a3a6b,#0d2040)' : 'rgba(148,163,184,0.15)',
+                color: allMinMet ? 'white' : '#94a3b8',
+                cursor: allMinMet ? 'pointer' : 'not-allowed',
+              }}>
+              <Send className="w-4 h-4" />
+              إرسال
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Info */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-800">
-        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
-        <span>الترتيب مهم - سيؤخذ الترتيب بعين الاعتبار عند انتقاء العناوين المقبولة، يمكنك ترتيب العناوين قبل التأكيد.</span>
-      </div>
+      {!alreadySubmitted && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-800">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+          <span>الترتيب مهم — سيؤخذ بعين الاعتبار عند الانتقاء. رتّب عناوينك حسب الأولوية قبل الإرسال النهائي.</span>
+        </div>
+      )}
     </div>
   );
 }
