@@ -543,49 +543,6 @@ export default function AdminThesisPage() {
         </div>
       </div>
 
-      {/* ── أساتذة لم يرسلوا بعد ── */}
-      {(() => {
-        const sentIds = new Set(proposals.map((p: any) => p.professor_id));
-        const notSent = allProfessors.filter((p: any) => !sentIds.has(p.id));
-        return notSent.length > 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 bg-amber-50/50 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-gray-800 text-sm">أساتذة لم يرسلوا مقترحاتهم بعد</h3>
-                <p className="text-xs text-gray-400 mt-0.5">لم يُسجَّل لهم أي عنوان مقترح حتى الآن</p>
-              </div>
-              <span className="bg-amber-100 text-amber-700 font-bold text-sm px-3 py-1 rounded-full">
-                {notSent.length}
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-2.5 text-right text-xs font-bold text-gray-500 w-8">#</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-bold text-gray-500">اللقب</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-bold text-gray-500">الاسم</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {notSent.map((p: any, i: number) => (
-                    <tr key={p.id} className="hover:bg-amber-50/30 transition-colors">
-                      <td className="px-4 py-3 text-xs text-gray-400 text-center">{i + 1}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-800">{p.last_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{p.first_name}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 text-green-700 text-sm flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 flex-shrink-0" />
-            جميع الأساتذة الدائمون أرسلوا مقترحاتهم
-          </div>
-        );
-      })()}
 
     </div>
   );
