@@ -1031,11 +1031,32 @@ function ThesisProposalsTab({ prof }: any) {
     const deadline = settingsRow?.thesis_deadline;
     const deadlinePassed = deadline ? new Date(deadline) < new Date() : false;
 
-    // جلب كل levels بدون فلتر ثم نصفّي على العميل
+    // جلب قسم الأستاذ من جدول levels عبر professor_roles أو حقل department
+    // نجلب levels مع department لفلترة قسم الأستاذ
     const { data: levelsData } = await supabase
       .from('levels')
-      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled')
+      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled, department')
       .order('name_ar', { ascending: true });
+
+    // جلب قسم الأستاذ: نبحث عن أي level مرتبط به عبر professor_roles
+    const { data: roleRow } = await supabase
+      .from('professor_roles')
+      .select('speciality')
+      .eq('professor_id', prof?.id)
+      .limit(1)
+      .maybeSingle();
+
+    // نجد قسم الأستاذ: إما من roleRow.speciality أو نطابق مع أي level يحمل name_ar قريب
+    // الطريقة الأبسط: نجلب كل ماستر 2 ثم نطابق department مع اسم التخصص في professor_roles
+    // إذا لم نجد نعرض كل ماستر 2 (fallback)
+    let profDepartment: string | null = null;
+    if (roleRow?.speciality) {
+      // speciality قد يكون UUID لـ level أو اسم — نجرب UUID أولاً
+      const matchedLevel = (levelsData || []).find((l: any) => String(l.id) === String(roleRow.speciality));
+      if (matchedLevel) {
+        profDepartment = matchedLevel.department;
+      }
+    }
 
     // فلترة ماستر 2 على العميل
     const master2 = (levelsData || []).filter((l: any) => {
@@ -1043,14 +1064,19 @@ function ThesisProposalsTab({ prof }: any) {
       return name.includes('ماستر 2') || name.includes('Master 2') || name.includes('master 2');
     });
 
+    // فلتر بالقسم إذا عرفناه
+    const filtered = profDepartment
+      ? master2.filter((l: any) => l.department === profDepartment)
+      : master2;
+
     // يُظهر التخصص فقط إذا thesis_enabled = true والموعد لم ينته
-    const specs = master2
+    const specs = filtered
       .filter((l: any) => l.thesis_enabled === true && !deadlinePassed)
       .map((l: any, i: number) => ({
         id: l.id,
         label: l.name_ar,
         min: l.thesis_min ?? 1,
-        max: l.thesis_max ?? null,
+        max: l.thesis_max,          // null = لا حد أقصى
         color: SPEC_COLORS[i % SPEC_COLORS.length],
       }));
     setSpecialities(specs);
@@ -1115,7 +1141,8 @@ function ThesisProposalsTab({ prof }: any) {
     } else {
       const existing = bySpec(specId);
       const spec = specialities.find((s: any) => String(s.id) === String(specId))!;
-      if (existing.length >= spec.max) {
+      // spec.max = null تعني لا حد أقصى
+      if (spec.max !== null && existing.length >= spec.max) {
         setError(`الحد الأقصى لهذا التخصص ${spec.max} عناوين`);
         setSaving(false);
         return;
@@ -1230,9 +1257,10 @@ function ThesisProposalsTab({ prof }: any) {
       {specialities.map(spec => {
         const list = bySpec(spec.id);
         const count = list.length;
-        const pct = Math.min(100, Math.round((count / spec.max) * 100));
         const metMin = count >= spec.min;
-        const atMax = count >= spec.max;
+        // null = لا حد أقصى
+        const atMax = spec.max !== null && count >= spec.max;
+        const pct = spec.max !== null ? Math.min(100, Math.round((count / spec.max) * 100)) : Math.min(100, count * 20);
         const isFormOpen = activeForm === spec.id && !editItem;
 
         return (
@@ -1248,7 +1276,7 @@ function ThesisProposalsTab({ prof }: any) {
                     }`}>
                       {metMin ? '✓ اكتمل الحد الأدنى' : `الحد الأدنى: ${spec.min}`}
                     </span>
-                    <span className="text-[10px] text-gray-400">الحد الأقصى: {spec.max}</span>
+                    <span className="text-[10px] text-gray-400">الحد الأقصى: {spec.max ?? '∞'}</span>
                   </div>
                   {/* Progress bar */}
                   <div className="mt-2 flex items-center gap-2">
@@ -1262,7 +1290,7 @@ function ThesisProposalsTab({ prof }: any) {
                       />
                     </div>
                     <span className="text-[10px] font-bold flex-shrink-0" style={{ color: metMin ? spec.color : '#f59e0b' }}>
-                      {count}/{spec.max}
+                      {count}/{spec.max ?? '∞'}
                     </span>
                   </div>
                 </div>
@@ -1387,7 +1415,7 @@ function ThesisProposalsTab({ prof }: any) {
               <div className="mt-2 flex flex-wrap gap-1">
                 {specialities.filter(s => bySpec(s.id).length < s.min).map(s => (
                   <span key={s.id} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                    {s.label}: {bySpec(s.id).length}/{s.min}
+                    {s.label}: {bySpec(s.id).length} / الحد الأدنى {s.min}
                   </span>
                 ))}
               </div>
