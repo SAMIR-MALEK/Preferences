@@ -1171,17 +1171,23 @@ function ThesisProposalsTab({ prof }: any) {
 
   // تحقق من اكتمال الحد الأدنى في كل التخصصات
   const allMinMet = specialities.length > 0 && specialities.every(spec => bySpec(spec.id).length >= spec.min);
-  const totalProposals = proposals.filter(p => p.status === 'مقترح').length;
+  // العداد: كل العناوين (مقترح + مُرسَل)
+  const totalProposals = proposals.length;
+  // هل أُرسلت بالفعل (كلها مُرسَل)
+  const alreadySubmitted = proposals.length > 0 && proposals.every(p => p.status === 'مُرسَل');
+
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
   async function submitAll() {
     if (!allMinMet) return;
     setSubmitting(true);
-    // تغيير الحالة إلى "مُرسَل" (يمكن تعديل الاسم حسب الاتفاق)
-    const ids = proposals.filter(p => p.status === 'مقترح').map(p => p.id);
-    if (ids.length > 0) {
-      await supabase.from('thesis_proposals').update({ status: 'مُرسَل' }).in('id', ids);
-    }
+    // كل العناوين بأي حالة تصبح مُرسَل
+    await supabase.from('thesis_proposals')
+      .update({ status: 'مُرسَل' })
+      .eq('professor_id', prof?.id)
+      .eq('academic_year', ACADEMIC_YEAR);
     setSubmitting(false);
+    setShowSubmitConfirm(false);
     load();
   }
 
@@ -1211,10 +1217,11 @@ function ThesisProposalsTab({ prof }: any) {
           <div className="flex items-center justify-between text-xs text-gray-300">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> مقترح</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400 inline-block" /> مُرسَل</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> مقبول</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> مرفوض</span>
             </div>
-            <span className="font-bold text-white">{totalProposals} عنوان مقترح</span>
+            <span className="font-bold text-white">{totalProposals} عنوان</span>
           </div>
         </div>
       </div>
