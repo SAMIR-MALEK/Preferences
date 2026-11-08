@@ -1031,52 +1031,24 @@ function ThesisProposalsTab({ prof }: any) {
     const deadline = settingsRow?.thesis_deadline;
     const deadlinePassed = deadline ? new Date(deadline) < new Date() : false;
 
-    // جلب قسم الأستاذ من جدول levels عبر professor_roles أو حقل department
-    // نجلب levels مع department لفلترة قسم الأستاذ
+    // جلب كل ماستر 2 المفعّل — الأستاذ يرى كل التخصصات المفتوحة
     const { data: levelsData } = await supabase
       .from('levels')
-      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled, department')
+      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled')
       .order('name_ar', { ascending: true });
 
-    // جلب قسم الأستاذ: نبحث عن أي level مرتبط به عبر professor_roles
-    const { data: roleRow } = await supabase
-      .from('professor_roles')
-      .select('speciality')
-      .eq('professor_id', prof?.id)
-      .limit(1)
-      .maybeSingle();
-
-    // نجد قسم الأستاذ: إما من roleRow.speciality أو نطابق مع أي level يحمل name_ar قريب
-    // الطريقة الأبسط: نجلب كل ماستر 2 ثم نطابق department مع اسم التخصص في professor_roles
-    // إذا لم نجد نعرض كل ماستر 2 (fallback)
-    let profDepartment: string | null = null;
-    if (roleRow?.speciality) {
-      // speciality قد يكون UUID لـ level أو اسم — نجرب UUID أولاً
-      const matchedLevel = (levelsData || []).find((l: any) => String(l.id) === String(roleRow.speciality));
-      if (matchedLevel) {
-        profDepartment = matchedLevel.department;
-      }
-    }
-
-    // فلترة ماستر 2 على العميل
-    const master2 = (levelsData || []).filter((l: any) => {
-      const name = (l.name_ar || '').trim();
-      return name.includes('ماستر 2') || name.includes('Master 2') || name.includes('master 2');
-    });
-
-    // فلتر بالقسم إذا عرفناه
-    const filtered = profDepartment
-      ? master2.filter((l: any) => l.department === profDepartment)
-      : master2;
-
-    // يُظهر التخصص فقط إذا thesis_enabled = true والموعد لم ينته
-    const specs = filtered
-      .filter((l: any) => l.thesis_enabled === true && !deadlinePassed)
+    // فلترة ماستر 2 فقط + مفعّل + الموعد لم ينته
+    const specs = (levelsData || [])
+      .filter((l: any) => {
+        const name = (l.name_ar || '').trim();
+        const isMaster2 = name.includes('ماستر 2') || name.includes('Master 2') || name.includes('master 2');
+        return isMaster2 && l.thesis_enabled === true && !deadlinePassed;
+      })
       .map((l: any, i: number) => ({
         id: l.id,
         label: l.name_ar,
         min: l.thesis_min ?? 1,
-        max: l.thesis_max,          // null = لا حد أقصى
+        max: l.thesis_max,   // null = لا حد أقصى
         color: SPEC_COLORS[i % SPEC_COLORS.length],
       }));
     setSpecialities(specs);
@@ -1258,52 +1230,37 @@ function ThesisProposalsTab({ prof }: any) {
         const list = bySpec(spec.id);
         const count = list.length;
         const metMin = count >= spec.min;
-        // null = لا حد أقصى
         const atMax = spec.max !== null && count >= spec.max;
         const pct = spec.max !== null ? Math.min(100, Math.round((count / spec.max) * 100)) : Math.min(100, count * 20);
-        const isFormOpen = activeForm === spec.id && !editItem;
 
         return (
           <div key={spec.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {/* Card header */}
-            <div className="px-5 py-4 border-b border-gray-50">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-bold text-gray-800 text-sm">{spec.label}</h3>
+            <div className="px-5 py-4" style={{ borderRightColor: spec.color, borderRightWidth: 3 }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-gray-800 text-sm truncate">{spec.label}</h3>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       metMin ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                     }`}>
                       {metMin ? '✓ اكتمل الحد الأدنى' : `الحد الأدنى: ${spec.min}`}
                     </span>
-                    <span className="text-[10px] text-gray-400">الحد الأقصى: {spec.max ?? '∞'}</span>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{
-                          width: `${pct}%`,
-                          background: metMin ? spec.color : '#f59e0b',
-                        }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-bold flex-shrink-0" style={{ color: metMin ? spec.color : '#f59e0b' }}>
-                      {count}/{spec.max ?? '∞'}
+                    <span className="text-[10px] text-gray-400">
+                      {count} من {spec.max ?? '∞'} عنوان
                     </span>
+                  </div>
+                  <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: metMin ? spec.color : '#f59e0b' }} />
                   </div>
                 </div>
                 {!atMax && (
                   <button
-                    onClick={() => isFormOpen ? cancelForm() : openAdd(spec.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-shrink-0"
-                    style={{
-                      background: isFormOpen ? 'rgba(239,68,68,0.08)' : `${spec.color}15`,
-                      color: isFormOpen ? '#ef4444' : spec.color,
-                      border: `1px solid ${isFormOpen ? 'rgba(239,68,68,0.2)' : spec.color + '30'}`,
-                    }}>
-                    {isFormOpen ? <><X className="w-3 h-3" /> إلغاء</> : <><Plus className="w-3 h-3" /> إضافة</>}
+                    onClick={() => openAdd(spec.id)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                    style={{ background: `${spec.color}15`, color: spec.color, border: `1px solid ${spec.color}30` }}>
+                    <Plus className="w-3.5 h-3.5" /> إضافة عنوان
                   </button>
                 )}
               </div>
@@ -1311,65 +1268,38 @@ function ThesisProposalsTab({ prof }: any) {
 
             {/* Proposals list */}
             {list.length > 0 && (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 border-t border-gray-50">
                 {list.map((p, i) => {
-                  const isEditing = editItem?.id === p.id && activeForm === spec.id;
                   const canEdit = p.status === 'مقترح';
-
-                  if (isEditing) {
-                    return (
-                      <div key={p.id} className="px-5 py-4 bg-blue-50/50">
-                        <InlineForm
-                          form={form} setForm={setForm} error={error}
-                          saving={saving}
-                          onSave={() => save(spec.id)}
-                          onCancel={cancelForm}
-                          color={spec.color}
-                          isEdit
-                        />
-                      </div>
-                    );
-                  }
-
                   return (
-                    <div key={p.id} className="px-5 py-3 flex items-start gap-3">
-                      {/* Priority badge */}
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5"
-                        style={{ background: spec.color, color: 'white' }}>
+                    <div key={p.id} className="px-4 py-3 flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5"
+                        style={{ background: `${spec.color}15`, color: spec.color }}>
                         {p.proposal_order}
                       </div>
-
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <StatusBadge status={p.status} />
-                        </div>
-                        <p className="font-semibold text-gray-800 text-sm leading-relaxed">{p.title_ar}</p>
-                        {p.title_fr && (
-                          <p className="text-gray-400 text-[11px] mt-0.5" dir="ltr">{p.title_fr}</p>
-                        )}
-                        {p.description && (
-                          <p className="text-gray-400 text-[11px] mt-1 leading-relaxed">{p.description}</p>
-                        )}
+                        <StatusBadge status={p.status} />
+                        <p className="font-semibold text-gray-800 text-sm leading-relaxed mt-1">{p.title_ar}</p>
+                        {p.title_fr && <p className="text-gray-400 text-[11px] mt-0.5" dir="ltr">{p.title_fr}</p>}
+                        {p.description && <p className="text-gray-500 text-[11px] mt-1 leading-relaxed">{p.description}</p>}
                       </div>
-
-                      {/* Actions */}
                       {canEdit && (
-                        <div className="flex flex-col gap-1 flex-shrink-0">
-                          <button onClick={() => moveUp(p)} disabled={i === 0}
-                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
-                            <ArrowUp className="w-3 h-3" />
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button onClick={() => moveUp(p)} disabled={i === 0} title="رفع الأولوية"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
+                            <ArrowUp className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => moveDown(p)} disabled={i === list.length - 1}
-                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
-                            <ArrowDown className="w-3 h-3" />
+                          <button onClick={() => moveDown(p)} disabled={i === list.length - 1} title="خفض الأولوية"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-20 transition-all">
+                            <ArrowDown className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => openEdit(p)}
-                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-[#1a3a6b] hover:bg-blue-50 transition-all">
-                            <Edit2 className="w-3 h-3" />
+                          <button onClick={() => openEdit(p)} title="تعديل"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-[#1a3a6b] hover:bg-blue-50 transition-all">
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => remove(p)}
-                            className="w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
-                            <Trash2 className="w-3 h-3" />
+                          <button onClick={() => remove(p)} title="حذف"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}
@@ -1379,27 +1309,31 @@ function ThesisProposalsTab({ prof }: any) {
               </div>
             )}
 
-            {/* Add form */}
-            {isFormOpen && (
-              <div className="px-5 py-4 border-t border-gray-50 bg-gray-50/50">
-                <InlineForm
-                  form={form} setForm={setForm} error={error}
-                  saving={saving}
-                  onSave={() => save(spec.id)}
-                  onCancel={cancelForm}
-                  color={spec.color}
-                />
-              </div>
-            )}
-
-            {list.length === 0 && !isFormOpen && (
-              <div className="px-5 py-6 text-center">
-                <p className="text-gray-300 text-xs">لا توجد عناوين بعد — اضغط "إضافة" للبدء</p>
+            {list.length === 0 && (
+              <div className="px-5 py-5 text-center border-t border-gray-50">
+                <ScrollText className="w-6 h-6 text-gray-200 mx-auto mb-2" />
+                <p className="text-gray-400 text-xs">لم تُضف أي عناوين بعد</p>
+                <p className="text-gray-300 text-[10px] mt-0.5">اضغط "إضافة عنوان" للبدء</p>
               </div>
             )}
           </div>
         );
       })}
+
+      {/* Modal الإضافة/التعديل — خارج حلقة التخصصات */}
+      {activeForm && (
+        <ThesisModal
+          form={form}
+          setForm={setForm}
+          error={error}
+          saving={saving}
+          onSave={() => save(activeForm)}
+          onCancel={cancelForm}
+          color={specialities.find(s => s.id === activeForm)?.color ?? '#1a3a6b'}
+          specLabel={specialities.find(s => s.id === activeForm)?.label ?? ''}
+          isEdit={!!editItem}
+        />
+      )}
 
       {/* Submit button */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -1445,68 +1379,99 @@ function ThesisProposalsTab({ prof }: any) {
   );
 }
 
-// ─── Inline Form ───────────────────────────────────────────────────
-function InlineForm({ form, setForm, error, saving, onSave, onCancel, color, isEdit = false }: any) {
+// ─── Modal Form ───────────────────────────────────────────────────
+function ThesisModal({ form, setForm, error, saving, onSave, onCancel, color, specLabel, isEdit = false }: any) {
   return (
-    <div className="space-y-3">
-      <div>
-        <label className="block text-[10px] font-semibold text-gray-500 mb-1">
-          العنوان بالعربية <span className="text-red-500">*</span>
-        </label>
-        <textarea
-          value={form.title_ar}
-          onChange={e => setForm((f: any) => ({ ...f, title_ar: e.target.value }))}
-          rows={2}
-          placeholder="أدخل عنوان المذكرة بالعربية..."
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none"
-          style={{ '--tw-ring-color': color } as any}
-          dir="rtl"
-          autoFocus
-        />
-      </div>
-      <div>
-        <label className="block text-[10px] font-semibold text-gray-500 mb-1">
-          العنوان بالإنجليزية <span className="text-gray-400 font-normal">(اختياري)</span>
-        </label>
-        <input
-          value={form.title_fr}
-          onChange={e => setForm((f: any) => ({ ...f, title_fr: e.target.value }))}
-          placeholder="Title in English (optional)..."
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none"
-          dir="ltr"
-        />
-      </div>
-      <div>
-        <label className="block text-[10px] font-semibold text-gray-500 mb-1">
-          الإشكالية أو أي ملاحظات أخرى <span className="text-gray-400 font-normal">(اختياري)</span>
-        </label>
-        <textarea
-          value={form.description}
-          onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))}
-          rows={2}
-          placeholder="ستظهر هذه المعلومات للطلبة في حالة إضافتها..."
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none"
-          dir="rtl"
-        />
-      </div>
-      {error && (
-        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-          {error}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" dir="rtl">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+      {/* Modal */}
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between"
+          style={{ borderTopColor: color, borderTopWidth: 3 }}>
+          <div>
+            <p className="text-[10px] text-gray-400 font-medium">{specLabel}</p>
+            <h3 className="font-bold text-gray-800 text-sm mt-0.5">
+              {isEdit ? 'تعديل العنوان' : 'إضافة عنوان مذكرة'}
+            </h3>
+          </div>
+          <button onClick={onCancel}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      )}
-      <div className="flex gap-2">
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-          style={{ background: color }}>
-          <Send className="w-3.5 h-3.5" />
-          {saving ? 'جارٍ...' : (isEdit ? 'حفظ التعديل' : 'إضافة العنوان')}
-        </button>
-        <button onClick={onCancel} className="px-3 py-2 rounded-xl text-xs text-gray-400 hover:bg-gray-100 transition-colors">
-          إلغاء
-        </button>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">
+              عنوان المذكرة بالعربية <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={form.title_ar}
+              onChange={e => setForm((f: any) => ({ ...f, title_ar: e.target.value }))}
+              rows={3}
+              placeholder="مثال: دور القاضي الإداري في حماية الحقوق الأساسية..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gray-400 resize-none leading-relaxed"
+              dir="rtl"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">
+              العنوان بالفرنسية أو الإنجليزية
+              <span className="text-gray-400 font-normal mr-1">(اختياري)</span>
+            </label>
+            <input
+              value={form.title_fr}
+              onChange={e => setForm((f: any) => ({ ...f, title_fr: e.target.value }))}
+              placeholder="Titre en français ou en anglais..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gray-400"
+              dir="ltr"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">
+              الإشكالية أو ملاحظات
+              <span className="text-gray-400 font-normal mr-1">(اختياري)</span>
+            </label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))}
+              rows={2}
+              placeholder="وصف مختصر للموضوع أو الإشكالية البحثية..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gray-400 resize-none"
+              dir="rtl"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+          <button
+            onClick={onSave}
+            disabled={saving || !form.title_ar.trim()}
+            className="flex-1 flex items-center justify-center gap-2 text-white py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-40"
+            style={{ background: saving || !form.title_ar.trim() ? '#94a3b8' : color }}>
+            {saving
+              ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />جارٍ الحفظ...</>
+              : <><CheckCircle className="w-4 h-4" />{isEdit ? 'حفظ التعديل' : 'إضافة العنوان'}</>}
+          </button>
+          <button onClick={onCancel}
+            className="px-5 py-3 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors font-medium">
+            إلغاء
+          </button>
+        </div>
       </div>
     </div>
   );
