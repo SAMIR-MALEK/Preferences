@@ -1421,13 +1421,13 @@ function ThesisModal({ form, setForm, error, saving, onSave, onCancel, color, sp
 
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-2">
-              العنوان بالفرنسية
+              العنوان بالإنجليزية
               <span className="text-gray-400 font-normal mr-1">(اختياري)</span>
             </label>
             <input
               value={form.title_fr}
               onChange={e => setForm((f: any) => ({ ...f, title_fr: e.target.value }))}
-              placeholder="Titre en français..."
+              placeholder="Title in English (optional)..."
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gray-400"
               dir="ltr"
             />
