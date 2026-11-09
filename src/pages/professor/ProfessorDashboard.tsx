@@ -6,6 +6,8 @@ import { toArabicNum, toArabicFixed } from '../../lib/utils';
 import { Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import WishesFormPage from './WishesFormPage';
 import ProfessorProfilePage from './ProfessorProfilePage';
+import DisciplinaryNomination from './DisciplinaryNomination';
+import ProfessorNotices from './ProfessorNotices';
 import type { Wish } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
@@ -13,7 +15,7 @@ import jsPDF from 'jspdf';
 import XLSX from 'xlsx-js-style';
 import { unzipSync, strToU8, zipSync } from 'fflate';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -27,7 +29,7 @@ function isProfileComplete(p: any): boolean {
 
 // ─── Navbar Component ────────────────────────────────────────────────
 function ProfNavbar({
-  tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount
+  tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount, disciplinaryOpen
 }: {
   tab: ProfTab;
   setTab: (t: ProfTab) => void;
@@ -36,6 +38,7 @@ function ProfNavbar({
   isVacataire: boolean;
   signOut: () => void;
   pendingThesisCount: number;
+  disciplinaryOpen: boolean;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -77,11 +80,14 @@ function ProfNavbar({
   const profileItems = [
     { tab: 'profile' as ProfTab, label: 'بياناتي الشخصية', desc: 'معلوماتك وملفك الأكاديمي', icon: '👤', disabled: false },
     { tab: 'card' as ProfTab, label: 'بطاقة الرغبات', desc: 'طباعة البطاقة الموحدة', icon: '🪪', disabled: !profileComplete },
+    ...(disciplinaryOpen
+      ? [{ tab: 'disciplinary' as ProfTab, label: 'الترشح للمجلس التأديبي', desc: 'الكلية وقسم واحد', icon: '🛡️', disabled: !profileComplete }]
+      : []),
   ];
 
   const isScheduleActive = ['schedule','s1','s2','card'].includes(tab);
   const isThesisActive = tab === 'thesis';
-  const isProfileActive = ['profile'].includes(tab);
+  const isProfileActive = ['profile','disciplinary'].includes(tab);
 
   return (
     <nav ref={navRef} className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
@@ -313,6 +319,13 @@ export default function ProfessorDashboard() {
   const s2Locked = profData?.wishes_locked_s2 || false;
   const s2Unlocked = true;
 
+  // رسالتا الإشعار: اقتراحات المذكرات + الترشح للمجلس التأديبي (للأساتذة الدائمين فقط)
+  const proposalsOpen = settings?.proposals_open === true;
+  const disciplinaryOpen = settings?.disciplinary_open === true && !isVacataire;
+  const disciplinaryExpired = settings?.disciplinary_deadline
+    ? new Date() > new Date(settings.disciplinary_deadline)
+    : false;
+
   return (
     <div className="min-h-screen bg-[#f1f4f9] font-arabic" dir="rtl">
       <ProfNavbar
@@ -323,6 +336,7 @@ export default function ProfessorDashboard() {
         isVacataire={isVacataire}
         signOut={signOut}
         pendingThesisCount={pendingThesisCount}
+        disciplinaryOpen={disciplinaryOpen}
       />
 
       {/* Content */}
@@ -335,6 +349,14 @@ export default function ProfessorDashboard() {
               <p className="text-amber-600 text-xs mt-0.5">سيتم نشر نتائج الإسناد النهائية للسداسي الأول بعد التدقيق.</p>
             </div>
           </div>
+        )}
+        {profileComplete && (tab === 'schedule' || tab === 'home') && (
+          <ProfessorNotices
+            proposalsOpen={proposalsOpen}
+            nominationOpen={disciplinaryOpen && !disciplinaryExpired}
+            onOpenProposals={() => setTab('thesis')}
+            onOpenNomination={() => setTab('disciplinary')}
+          />
         )}
         {tab === 'home' && hasResults && resultsPublished && (
           <div
@@ -384,6 +406,7 @@ export default function ProfessorDashboard() {
         {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
         {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
         {tab === 'thesis' && profData && <ThesisProposalsTab prof={profData} />}
+        {tab === 'disciplinary' && profData && disciplinaryOpen && <DisciplinaryNomination />}
       </div>
     </div>
   );
