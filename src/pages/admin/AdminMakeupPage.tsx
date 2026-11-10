@@ -183,13 +183,12 @@ export default function AdminMakeupPage() {
 
                       {/* المقياس */}
                       <p className="font-semibold text-gray-800 text-sm">
-                        {req.assignment?.module?.name_ar}
+                        {req.assignment?.level?.name_ar} — {req.assignment?.module?.name_ar}
                         <span className="text-gray-400 font-normal mr-1 text-xs">
-                          — {TYPE_AR[req.assignment?.teaching_type] || req.assignment?.teaching_type}
-                          {req.assignment?.teaching_type === 'td'
-                            ? ` (فوج ${req.assignment?.group_number})`
-                            : ` (فصل ${req.assignment?.section_number})`}
-                          {' — '}{req.assignment?.level?.code}
+                          ({req.assignment?.teaching_type})
+                          {req.assignment?.teaching_type === 'أعمال موجهة'
+                            ? ` ف${req.assignment?.group_number}`
+                            : ` م${req.assignment?.section_number}`}
                         </span>
                       </p>
 
