@@ -27,10 +27,11 @@ import AdminGroupRequests     from './AdminGroupRequests';
 import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 import AdminThesisPage        from './AdminThesisPage';
+import AdminDisciplinaryPage  from './AdminDisciplinaryPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -102,11 +103,12 @@ export default function AdminDashboard() {
     { id: 'grouprequests', label: 'طلبات الأفواج',       icon: ClipboardList, badge: stats.groupRequests },
     { id: 'profschedule',  label: 'برامج الأساتذة',      icon: CalendarDays },
     { id: 'thesis',        label: 'مذكرات التخرج',       icon: ScrollText   },
+    { id: 'disciplinary',  label: 'المجلس التأديبي',     icon: Shield     },
     { id: 'settings',      label: 'الإعدادات',           icon: Settings   },
   ];
 
-  // رئيس القسم: يرى مذكرات التخرج، لا يرى الإسناد والإعدادات والبريد
-  // العميد/نائب العميد: يرى الإعدادات، لا يرى مذكرات التخرج (للاطلاع مستقبلاً)
+  // رئيس القسم: يرى مذكرات التخرج والمجلس التأديبي، لا يرى الإسناد والإعدادات والبريد
+  // العميد/نائب العميد: يرى المجلس التأديبي والإعدادات، لا يرى مذكرات التخرج (للاطلاع مستقبلاً)
   const nav = isDeptHead
     ? allNav.filter(item => !['assignment', 'settings', 'email'].includes(item.id))
     : allNav.filter(item => item.id !== 'thesis');
@@ -238,7 +240,8 @@ export default function AdminDashboard() {
           />
         )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
-        {isDeptHead  && tab === 'thesis'     && <AdminThesisPage />}
+        {isDeptHead  && tab === 'thesis'       && <AdminThesisPage />}
+        {tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
