@@ -32,23 +32,49 @@ export default function AdminMakeupPage() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase
+
+    // جلب الطلبات مع العلاقات المباشرة فقط
+    const { data: raw } = await supabase
       .from('makeup_requests')
       .select(`
         id, status, requested_date, notes, created_at, reviewed_at,
+        assignment_id,
         time_slot:time_slots ( day, start_time, end_time ),
         room:rooms ( name, code, capacity ),
-        professor:professors ( last_name, first_name ),
-        assignment:assignments (
-          teaching_type, section_number, group_number,
-          module:modules ( name_ar, level_id ),
-          level:levels ( name_ar, code, department )
-        )
+        professor:professors ( last_name, first_name )
       `)
       .eq('academic_year', ACADEMIC_YEAR)
       .order('created_at', { ascending: false });
 
-    let list = data || [];
+    if (!raw || raw.length === 0) { setRequests([]); setLoading(false); return; }
+
+    // جلب بيانات الـ assignments بشكل منفصل لتجنب خطأ TypeScript
+    const assignmentIds = [...new Set(raw.map((r: any) => r.assignment_id).filter(Boolean))];
+    const { data: assignmentsRaw } = await supabase
+      .from('assignments')
+      .select(`
+        id, teaching_type, section_number, group_number,
+        module:modules ( name_ar ),
+        level:levels ( name_ar, code, department )
+      `)
+      .in('id', assignmentIds);
+
+    const assignMap: Record<string, any> = {};
+    for (const a of (assignmentsRaw as any[]) || []) {
+      assignMap[a.id] = {
+        ...a,
+        module: Array.isArray(a.module) ? a.module[0] : a.module,
+        level:  Array.isArray(a.level)  ? a.level[0]  : a.level,
+      };
+    }
+
+    let list: any[] = (raw as any[]).map(r => ({
+      ...r,
+      time_slot:  Array.isArray(r.time_slot)  ? r.time_slot[0]  : r.time_slot,
+      room:       Array.isArray(r.room)        ? r.room[0]       : r.room,
+      professor:  Array.isArray(r.professor)   ? r.professor[0]  : r.professor,
+      assignment: assignMap[r.assignment_id] || null,
+    }));
 
     // رئيس القسم يرى فقط مقاييس قسمه
     if (isDeptHead && department) {
