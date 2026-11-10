@@ -8,6 +8,7 @@ import WishesFormPage from './WishesFormPage';
 import ProfessorProfilePage from './ProfessorProfilePage';
 import DisciplinaryNomination from './DisciplinaryNomination';
 import ProfessorNotices from './ProfessorNotices';
+import MakeupRequest from './MakeupRequest';
 import type { Wish } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
@@ -15,7 +16,7 @@ import jsPDF from 'jspdf';
 import XLSX from 'xlsx-js-style';
 import { unzipSync, strToU8, zipSync } from 'fflate';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary' | 'makeup';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -29,7 +30,7 @@ function isProfileComplete(p: any): boolean {
 
 // ─── Navbar Component ────────────────────────────────────────────────
 function ProfNavbar({
-  tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount, disciplinaryOpen
+  tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount, disciplinaryOpen, makeupOpen
 }: {
   tab: ProfTab;
   setTab: (t: ProfTab) => void;
@@ -39,6 +40,7 @@ function ProfNavbar({
   signOut: () => void;
   pendingThesisCount: number;
   disciplinaryOpen: boolean;
+  makeupOpen: boolean;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -83,11 +85,14 @@ function ProfNavbar({
     ...(disciplinaryOpen
       ? [{ tab: 'disciplinary' as ProfTab, label: 'الترشح للمجلس التأديبي', desc: 'الكلية وقسم واحد', icon: '🛡️', disabled: !profileComplete }]
       : []),
+    ...(makeupOpen
+      ? [{ tab: 'makeup' as ProfTab, label: 'طلب حصة تعويضية', desc: 'تعويض حصة غائبة', icon: '🔄', disabled: !profileComplete }]
+      : []),
   ];
 
   const isScheduleActive = ['schedule','s1','s2','card'].includes(tab);
   const isThesisActive = tab === 'thesis';
-  const isProfileActive = ['profile','disciplinary'].includes(tab);
+  const isProfileActive = ['profile','disciplinary','makeup'].includes(tab);
 
   return (
     <nav ref={navRef} className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
@@ -337,6 +342,7 @@ export default function ProfessorDashboard() {
         signOut={signOut}
         pendingThesisCount={pendingThesisCount}
         disciplinaryOpen={disciplinaryOpen}
+        makeupOpen={!isVacataire}
       />
 
       {/* Content */}
@@ -407,6 +413,7 @@ export default function ProfessorDashboard() {
         {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
         {tab === 'thesis' && profData && <ThesisProposalsTab prof={profData} />}
         {tab === 'disciplinary' && profData && disciplinaryOpen && <DisciplinaryNomination />}
+        {tab === 'makeup' && profData && <MakeupRequest />}
       </div>
     </div>
   );
