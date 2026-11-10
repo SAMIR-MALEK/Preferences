@@ -65,7 +65,7 @@ export default function MakeupRequest() {
       `)
       .eq('professor_id', prof.id)
       .eq('academic_year', ACADEMIC_YEAR)
-      .eq('status', 'assigned');
+      .in('status', ['مؤقت', 'نهائي']);
     setAssignments(ass || []);
 
     // time_slots النشطة

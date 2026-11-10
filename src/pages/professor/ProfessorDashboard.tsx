@@ -69,7 +69,10 @@ function ProfNavbar({
     { tab: 'schedule' as ProfTab, label: 'جدول الحصص', desc: 'عرض توقيت حصصك الأسبوعية', icon: '📅', disabled: !profileComplete },
     { tab: 's1' as ProfTab, label: 'الرغبات — السداسي 1', desc: 'تسجيل وتعديل رغباتك', icon: '📝', disabled: !profileComplete },
     { tab: 's2' as ProfTab, label: 'الرغبات — السداسي 2', desc: 'تسجيل وتعديل رغباتك', icon: '📝', disabled: !profileComplete },
-    { tab: 'card' as ProfTab, label: 'بطاقة الرغبات', desc: 'طباعة بطاقتك الموحدة', icon: '🪪', disabled: !profileComplete },
+    { tab: 'card' as ProfTab, label: 'بطاقة الرغبات', desc: 'طباعة البطاقة الموحدة', icon: '🪪', disabled: !profileComplete },
+    ...(makeupOpen
+      ? [{ tab: 'makeup' as ProfTab, label: 'طلب حصة تعويضية', desc: 'تعويض حصة غائبة عن الجدول', icon: '🔄', disabled: !profileComplete }]
+      : []),
   ];
 
   const thesisItems = [
@@ -85,14 +88,11 @@ function ProfNavbar({
     ...(disciplinaryOpen
       ? [{ tab: 'disciplinary' as ProfTab, label: 'الترشح للمجلس التأديبي', desc: 'الكلية وقسم واحد', icon: '🛡️', disabled: !profileComplete }]
       : []),
-    ...(makeupOpen
-      ? [{ tab: 'makeup' as ProfTab, label: 'طلب حصة تعويضية', desc: 'تعويض حصة غائبة', icon: '🔄', disabled: !profileComplete }]
-      : []),
   ];
 
-  const isScheduleActive = ['schedule','s1','s2','card'].includes(tab);
+  const isScheduleActive = ['schedule','s1','s2','card','makeup'].includes(tab);
   const isThesisActive = tab === 'thesis';
-  const isProfileActive = ['profile','disciplinary','makeup'].includes(tab);
+  const isProfileActive = ['profile','disciplinary'].includes(tab);
 
   return (
     <nav ref={navRef} className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
