@@ -187,9 +187,13 @@ export default function MakeupRequest() {
     await loadMyRequests(professor.id);
   }
 
-  // time_slots — كل التوقيتات النشطة (level_id فارغ في DB)
+  // time_slots — مصفاة حسب يوم الأسبوع المطابق للتاريخ المختار
   const selectedAss = assignments.find(a => a.id === assignmentId);
-  const filteredSlots = selectedAss ? timeSlots : [];
+  const DAYS_EN = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  const selectedDayAr = date ? DAYS_EN[new Date(date).getDay()] : null;
+  const filteredSlots = selectedAss && selectedDayAr
+    ? timeSlots.filter(ts => ts.day === selectedDayAr)
+    : [];
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[300px]" dir="rtl">
@@ -259,13 +263,20 @@ export default function MakeupRequest() {
                 تاريخ الحصة التعويضية
                 <span className="text-gray-400 font-normal mr-1">(48 ساعة على الأقل من الآن)</span>
               </label>
-              <input
-                type="date"
-                min={minDate}
-                value={date}
-                onChange={e => { setDate(e.target.value); setSlotId(''); setRoomId(''); }}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#1a3a6b]"
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  min={minDate}
+                  value={date}
+                  onChange={e => { setDate(e.target.value); setSlotId(''); setRoomId(''); }}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#1a3a6b]"
+                />
+                {selectedDayAr && (
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#1a3a6b] pointer-events-none">
+                    {selectedDayAr}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* الفترة الزمنية */}
@@ -280,7 +291,7 @@ export default function MakeupRequest() {
                   <option value="">— اختر الفترة —</option>
                   {filteredSlots.map(ts => (
                     <option key={ts.id} value={ts.id}>
-                      {DAYS_AR[ts.day] || ts.day} — {ts.start_time?.slice(0,5)} إلى {ts.end_time?.slice(0,5)}
+                      {ts.start_time?.slice(0,5)} — {ts.end_time?.slice(0,5)}
                     </option>
                   ))}
                 </select>
