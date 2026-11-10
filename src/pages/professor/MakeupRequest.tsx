@@ -187,11 +187,9 @@ export default function MakeupRequest() {
     await loadMyRequests(professor.id);
   }
 
-  // time_slots مصفاة حسب الـ assignment المختار (نفس level_id)
+  // time_slots — كل التوقيتات النشطة (level_id فارغ في DB)
   const selectedAss = assignments.find(a => a.id === assignmentId);
-  const filteredSlots = selectedAss
-    ? timeSlots.filter(ts => ts.level_id === selectedAss.level?.id)
-    : timeSlots;
+  const filteredSlots = selectedAss ? timeSlots : [];
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[300px]" dir="rtl">
