@@ -247,10 +247,10 @@ export default function MakeupRequest() {
                 <option value="">— اختر المقياس —</option>
                 {assignments.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.module?.name_ar} — {TYPE_AR[a.teaching_type] || a.teaching_type}
-                    {' '}({a.level?.code} — {a.teaching_type === 'td'
-                      ? `فوج ${a.group_number}`
-                      : `فصل ${a.section_number}`})
+                    {a.level?.name_ar} — {a.module?.name_ar} ({TYPE_AR[a.teaching_type] || a.teaching_type})
+                    {' '}{a.teaching_type === 'td'
+                      ? `— ف${a.group_number}`
+                      : `— م${a.section_number}`}
                   </option>
                 ))}
               </select>
@@ -358,12 +358,12 @@ export default function MakeupRequest() {
                         <span className="text-xs text-gray-400">{new Date(req.created_at).toLocaleDateString('ar-DZ')}</span>
                       </div>
                       <p className="font-medium text-gray-800 text-sm">
-                        {req.assignment?.module?.name_ar}
+                        {req.assignment?.level?.name_ar} — {req.assignment?.module?.name_ar}
                         <span className="text-gray-400 font-normal mr-1 text-xs">
-                          — {TYPE_AR[req.assignment?.teaching_type] || req.assignment?.teaching_type}
+                          ({TYPE_AR[req.assignment?.teaching_type] || req.assignment?.teaching_type})
                           {req.assignment?.teaching_type === 'td'
-                            ? ` (فوج ${req.assignment?.group_number})`
-                            : ` (فصل ${req.assignment?.section_number})`}
+                            ? ` ف${req.assignment?.group_number}`
+                            : ` م${req.assignment?.section_number}`}
                         </span>
                       </p>
                       <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
