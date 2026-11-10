@@ -72,7 +72,6 @@ export default function MakeupRequest() {
     const { data: ts } = await supabase
       .from('time_slots')
       .select('id, day, start_time, end_time, slot_number, level_id')
-      .eq('academic_year', ACADEMIC_YEAR)
       .eq('is_active', true)
       .order('day').order('start_time');
     setTimeSlots(ts || []);
@@ -247,7 +246,7 @@ export default function MakeupRequest() {
                 <option value="">— اختر المقياس —</option>
                 {assignments.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.level?.name_ar} — {a.module?.name_ar} ({TYPE_AR[a.teaching_type] || a.teaching_type})
+                    {a.level?.name_ar} — {a.module?.name_ar} ({a.teaching_type})
                     {' '}{a.teaching_type === 'أعمال موجهة'
                       ? `— ف${a.group_number}`
                       : `— م${a.section_number}`}
@@ -360,8 +359,8 @@ export default function MakeupRequest() {
                       <p className="font-medium text-gray-800 text-sm">
                         {req.assignment?.level?.name_ar} — {req.assignment?.module?.name_ar}
                         <span className="text-gray-400 font-normal mr-1 text-xs">
-                          ({TYPE_AR[req.assignment?.teaching_type] || req.assignment?.teaching_type})
-                          {req.assignment?.teaching_type === 'td'
+                          ({req.assignment?.teaching_type})
+                          {req.assignment?.teaching_type === 'أعمال موجهة'
                             ? ` ف${req.assignment?.group_number}`
                             : ` م${req.assignment?.section_number}`}
                         </span>
