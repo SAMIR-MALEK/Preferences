@@ -111,7 +111,7 @@ export default function AdminDashboard() {
   // العميد/نائب العميد: يرى المجلس التأديبي والإعدادات، لا يرى مذكرات التخرج (للاطلاع مستقبلاً)
   const nav = isDeptHead
     ? allNav.filter(item => !['assignment', 'settings', 'email'].includes(item.id))
-    : allNav.filter(item => item.id !== 'thesis');
+    : allNav;
 
   return (
     <div
@@ -240,7 +240,7 @@ export default function AdminDashboard() {
           />
         )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
-        {isDeptHead  && tab === 'thesis'       && <AdminThesisPage />}
+        {tab === 'thesis'                        && <AdminThesisPage />}
         {tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
