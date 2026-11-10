@@ -248,7 +248,7 @@ export default function MakeupRequest() {
                 {assignments.map(a => (
                   <option key={a.id} value={a.id}>
                     {a.level?.name_ar} — {a.module?.name_ar} ({TYPE_AR[a.teaching_type] || a.teaching_type})
-                    {' '}{a.teaching_type === 'td'
+                    {' '}{a.teaching_type === 'أعمال موجهة'
                       ? `— ف${a.group_number}`
                       : `— م${a.section_number}`}
                   </option>
