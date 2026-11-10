@@ -28,10 +28,11 @@ import AdminSessionsPage      from './AdminSessionsPage';
 import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 import AdminThesisPage        from './AdminThesisPage';
 import AdminDisciplinaryPage  from './AdminDisciplinaryPage';
+import AdminMakeupPage        from './AdminMakeupPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -104,6 +105,7 @@ export default function AdminDashboard() {
     { id: 'profschedule',  label: 'برامج الأساتذة',      icon: CalendarDays },
     { id: 'thesis',        label: 'مذكرات التخرج',       icon: ScrollText   },
     { id: 'disciplinary',  label: 'المجلس التأديبي',     icon: Shield     },
+    { id: 'makeup',        label: 'الحصص التعويضية',    icon: Clock      },
     { id: 'settings',      label: 'الإعدادات',           icon: Settings   },
   ];
 
@@ -242,6 +244,7 @@ export default function AdminDashboard() {
         {tab === 'profschedule' && <AdminProfScheduleTab />}
         {tab === 'thesis'                        && <AdminThesisPage />}
         {tab === 'disciplinary'              && <AdminDisciplinaryPage />}
+        {tab === 'makeup'                    && <AdminMakeupPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
