@@ -37,7 +37,7 @@ export default function AdminProfScheduleTab() {
     if (!assignments || assignments.length === 0) { setLoading(false); return; }
 
     const lvlIds = [...new Set(assignments.map((a: any) => a.level_id).filter(Boolean))];
-    const { data: lvlsData } = lvlIds.length > 0 ? await supabase.from('levels').select('id, name_ar').in('id', lvlIds) : { data: [] };
+    const { data: lvlsData } = lvlIds.length > 0 ? await supabase.from('levels').select('id, name_ar, department').in('id', lvlIds) : { data: [] };
     const lvlMap = new Map((lvlsData || []).map((l: any) => [l.id, l.name_ar]));
     const total = assignments.reduce((sum: number, a: any) => sum + (a.weekly_hours || 0), 0);
     setTotalHours(total);
@@ -75,6 +75,7 @@ export default function AdminProfScheduleTab() {
         slot_number: s.time_slot?.slot_number,
         module_name: a?.module?.name_ar || '—',
         level_name: lvlMap.get(a?.level_id) || a?.level?.name_ar || '—',
+        level_dept: (lvlsData || []).find((l: any) => l.id === a?.level_id)?.department || '',
         teaching_type: a?.teaching_type,
         section: a?.section_number,
         group: a?.group_number,
@@ -113,17 +114,62 @@ export default function AdminProfScheduleTab() {
       const overtimeHours = schedule.reduce((s, r) => s + r.weekly_hours, 0);
       return { slots: schedule, overtimeHours };
     } else {
-      // الدائم: ما زاد عن 9 ساعات
-      let cumul = 0;
-      const overtimeSlots: any[] = [];
+      // الدائم: نبحث عن مجموعة حصص كاملة (بنفس المقياس قدر الإمكان)
+      // يمكن حذفها ويبقى المجموع >= 9س
+      const total = schedule.reduce((s, r) => s + r.weekly_hours, 0);
+      if (total <= OVERTIME_THRESHOLD) return { slots: [], overtimeHours: 0 };
+
+      const needed = total - OVERTIME_THRESHOLD; // الساعات الواجب إخراجها
+
+      // تجميع الحصص حسب المقياس
+      const byModule: Record<string, any[]> = {};
       for (const s of schedule) {
-        cumul += s.weekly_hours;
-        if (cumul > OVERTIME_THRESHOLD) {
-          overtimeSlots.push(s);
+        const key = s.module_name;
+        if (!byModule[key]) byModule[key] = [];
+        byModule[key].push(s);
+      }
+
+      // دالة مساعدة: هل مجموعة حصص تساوي بالضبط الساعات المطلوبة؟
+      const sumHours = (arr: any[]) => arr.reduce((s, r) => s + r.weekly_hours, 0);
+
+      // 1. ابحث عن مقياس واحد مجموعه = needed بالضبط
+      for (const slots of Object.values(byModule)) {
+        if (Math.abs(sumHours(slots) - needed) < 0.01) {
+          return { slots, overtimeHours: sumHours(slots) };
         }
       }
-      const overtimeHours = overtimeSlots.reduce((s, r) => s + r.weekly_hours, 0);
-      return { slots: overtimeSlots, overtimeHours };
+
+      // 2. ابحث عن مقياس واحد مجموعه >= needed (أقل فرق)
+      let best: any[] | null = null;
+      let bestDiff = Infinity;
+      for (const slots of Object.values(byModule)) {
+        const h = sumHours(slots);
+        if (h >= needed && h - needed < bestDiff) {
+          bestDiff = h - needed;
+          best = slots;
+        }
+      }
+      if (best) return { slots: best, overtimeHours: sumHours(best) };
+
+      // 3. جمع مقياسين أو أكثر (نفس القسم أولاً) حتى نصل لـ needed
+      // ترتيب المقاييس: نفس القسم أولاً (يُحدد لاحقاً من level.department)
+      const moduleList = Object.entries(byModule).map(([name, slots]) => ({
+        name,
+        slots,
+        hours: sumHours(slots),
+        dept: (slots[0] as any)?.level_dept || '',
+      }));
+      // فرز: الأكثر ساعات أولاً
+      moduleList.sort((a, b) => b.hours - a.hours);
+
+      let accum = 0;
+      const chosen: any[] = [];
+      for (const m of moduleList) {
+        accum += m.hours;
+        chosen.push(...m.slots);
+        if (accum >= needed) break;
+      }
+      return { slots: chosen, overtimeHours: accum };
     }
   }
 
@@ -204,7 +250,8 @@ export default function AdminProfScheduleTab() {
 
     w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
     <style>
-      body{font-family:Arial;padding:24px;direction:rtl;font-size:12px}
+      @page{size:A4 portrait;margin:20mm 15mm}
+      body{font-family:Arial;padding:10px;direction:rtl;font-size:12px}
       h2{color:#1a3a6b;margin:4px 0}
       h3{color:#333;margin:4px 0;font-size:13px}
       table{width:100%;border-collapse:collapse;margin:14px 0}
@@ -212,7 +259,6 @@ export default function AdminProfScheduleTab() {
       th{background:#1a3a6b;color:white}
       .header{text-align:center;margin-bottom:16px;border-bottom:2px solid #1a3a6b;padding-bottom:12px}
       .total{font-weight:bold;color:#1a3a6b;margin:8px 0;font-size:13px}
-      .note{font-size:10px;color:#888;margin-bottom:12px}
       .sign{margin-top:50px;display:flex;justify-content:space-between;padding:0 20px}
       .sign-box{text-align:center;font-size:11px}
       .sign-box p{font-weight:bold;margin-bottom:35px}
@@ -230,7 +276,6 @@ export default function AdminProfScheduleTab() {
     <table style="width:auto;margin-bottom:10px;border:none">
       <tr><td style="border:none;font-weight:bold;padding:3px 8px">الأستاذ:</td><td style="border:none;padding:3px 8px">${selectedProf.last_name} ${selectedProf.first_name}</td></tr>
       <tr><td style="border:none;font-weight:bold;padding:3px 8px">الرتبة:</td><td style="border:none;padding:3px 8px">${vacataire ? 'أستاذ مؤقت' : (selectedProf.rank || '—')}</td></tr>
-      ${!vacataire ? `<tr><td style="border:none;font-weight:bold;padding:3px 8px">الحد الأقصى:</td><td style="border:none;padding:3px 8px">${OVERTIME_THRESHOLD} ساعة/أسبوع</td></tr>` : ''}
     </table>
 
     <table>
@@ -249,7 +294,6 @@ export default function AdminProfScheduleTab() {
     </table>
 
     <p class="total">مجموع الساعات الإضافية: ${overtimeHours.toFixed(2)} ساعة/أسبوع</p>
-    ${vacataire ? '<p class="note">* الأستاذ المؤقت: جميع حصصه تُحتسب ساعات إضافية بمعدل 1.5 ساعة/حصة</p>' : '<p class="note">* الساعات الإضافية هي ما يتجاوز الـ 9 ساعات الأسبوعية المقررة</p>'}
 
     <div class="sign">
       <div class="sign-box">
