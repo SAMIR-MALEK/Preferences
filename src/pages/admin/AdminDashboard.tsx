@@ -6,7 +6,8 @@ import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
-  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText
+  Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText,
+  ChevronDown
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -38,6 +39,13 @@ export default function AdminDashboard() {
   const { user, signOut } = useAuth();
   const [tab, setTab] = useState<AdminTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    main: true, components: true, pedagogy: true, students: true, system: false,
+  });
+
+  function toggleGroup(key: string) {
+    setOpenGroups(g => ({ ...g, [key]: !g[key] }));
+  }
   const [stats, setStats] = useState({
     profs: 0, locked: 0, modules: 0, wishes: 0, conflicts: 0, groupRequests: 0,
   });
@@ -85,35 +93,69 @@ export default function AdminDashboard() {
   const department = user?.admin?.department;
   const allowedLevelCodes = isDeptHead && department ? DEPARTMENT_LEVEL_CODES[department] : null;
 
-  const allNav: { id: AdminTab; label: string; icon: any; badge?: number }[] = [
-    { id: 'dashboard',  label: 'الإدارة',           icon: BarChart2  },
-    { id: 'professors', label: 'الأساتذة',           icon: Users      },
-    { id: 'import',     label: 'استيراد Excel',      icon: Upload     },
-    { id: 'sections',   label: 'المجموعات',          icon: Layers     },
-    { id: 'modules',    label: 'المقاييس',           icon: BookOpen   },
-    { id: 'specialties', label: 'التخصصات',           icon: GraduationCap },
-    { id: 'wishes',     label: 'استعراض الرغبات',   icon: Eye        },
-    { id: 'email',      label: 'إرسال بريد',         icon: Mail       },
-    { id: 'assignment', label: 'الإسناد',            icon: Award      },
-    { id: 'board',      label: 'لوحة الإسناد',       icon: Layers     },
-    { id: 'rooms',      label: 'القاعات',             icon: MapPin     },
-    { id: 'schedule',   label: 'التوقيت',             icon: CalendarDays },
-    { id: 'audit',      label: 'سجل التدقيق',         icon: Shield     },
-    { id: 'vacataire',  label: 'الأساتذة المؤقتون',     icon: Users      },
-    { id: 'students',      label: 'الطلبة',              icon: GraduationCap },
-    { id: 'grouprequests', label: 'طلبات الأفواج',       icon: ClipboardList, badge: stats.groupRequests },
-    { id: 'profschedule',  label: 'برامج الأساتذة',      icon: CalendarDays },
-    { id: 'thesis',        label: 'مذكرات التخرج',       icon: ScrollText   },
-    { id: 'disciplinary',  label: 'المجلس التأديبي',     icon: Shield     },
-    { id: 'makeup',        label: 'الحصص التعويضية',    icon: Clock      },
-    { id: 'settings',      label: 'الإعدادات',           icon: Settings   },
+  type NavItem = { id: AdminTab; label: string; icon: any; badge?: number };
+  type NavGroup = { key: string; label: string; items: NavItem[] };
+
+  const allGroups: NavGroup[] = [
+    {
+      key: 'main',
+      label: 'الرئيسية',
+      items: [
+        { id: 'dashboard', label: 'لوحة الإدارة', icon: BarChart2 },
+      ],
+    },
+    {
+      key: 'components',
+      label: 'المكونات',
+      items: [
+        { id: 'professors',  label: 'الأساتذة',          icon: Users         },
+        { id: 'vacataire',   label: 'الأساتذة المؤقتون', icon: Users         },
+        { id: 'students',    label: 'الطلبة',             icon: GraduationCap },
+        { id: 'sections',    label: 'المجموعات',          icon: Layers        },
+        { id: 'modules',     label: 'المقاييس',           icon: BookOpen      },
+        { id: 'specialties', label: 'التخصصات',           icon: GraduationCap },
+        { id: 'rooms',       label: 'القاعات',             icon: MapPin        },
+        { id: 'import',      label: 'استيراد Excel',      icon: Upload        },
+      ],
+    },
+    {
+      key: 'pedagogy',
+      label: 'التسيير البيداغوجي',
+      items: [
+        { id: 'wishes',       label: 'الرغبات',           icon: Eye           },
+        { id: 'assignment',   label: 'الإسناد',           icon: Award         },
+        { id: 'board',        label: 'لوحة الإسناد',      icon: Layers        },
+        { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays  },
+        { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays  },
+        { id: 'makeup',       label: 'الحصص التعويضية',  icon: Clock         },
+        { id: 'grouprequests',label: 'طلبات الأفواج',     icon: ClipboardList, badge: stats.groupRequests },
+      ],
+    },
+    {
+      key: 'students',
+      label: 'الطلبة والمذكرات',
+      items: [
+        { id: 'thesis',       label: 'مذكرات التخرج',    icon: ScrollText },
+        { id: 'disciplinary', label: 'المجلس التأديبي',  icon: Shield     },
+      ],
+    },
+    {
+      key: 'system',
+      label: 'النظام',
+      items: [
+        { id: 'email',    label: 'إرسال بريد',   icon: Mail     },
+        { id: 'audit',    label: 'سجل التدقيق',  icon: Shield   },
+        { id: 'settings', label: 'الإعدادات',    icon: Settings },
+      ],
+    },
   ];
 
-  // رئيس القسم: يرى مذكرات التخرج والمجلس التأديبي، لا يرى الإسناد والإعدادات والبريد
-  // العميد/نائب العميد: يرى المجلس التأديبي والإعدادات، لا يرى مذكرات التخرج (للاطلاع مستقبلاً)
-  const nav = isDeptHead
-    ? allNav.filter(item => !['assignment', 'settings', 'email'].includes(item.id))
-    : allNav;
+  // فلترة حسب الصلاحيات
+  const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit'];
+  const navGroups: NavGroup[] = allGroups.map(g => ({
+    ...g,
+    items: isDeptHead ? g.items.filter(i => !deptHeadHidden.includes(i.id)) : g.items,
+  })).filter(g => g.items.length > 0);
 
   return (
     <div
@@ -188,26 +230,49 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {nav.map(item => {
-            const Icon = item.icon;
-            return (
-              <button key={item.id} onClick={() => selectTab(item.id)}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-right"
-                style={{
-                  background: tab === item.id ? '#c9a227' : 'transparent',
-                  color: tab === item.id ? 'white' : 'rgba(255,255,255,.5)',
-                }}>
-                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                {item.label}
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className="mr-auto w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
-                    {item.badge}
-                  </span>
-                )}
+        <nav className="flex-1 p-2 overflow-y-auto space-y-1">
+          {navGroups.map(group => (
+            <div key={group.key}>
+              {/* Group header */}
+              <button
+                onClick={() => toggleGroup(group.key)}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider rounded-lg transition-colors"
+                style={{ color: 'rgba(255,255,255,0.35)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+              >
+                <span>{group.label}</span>
+                <ChevronDown
+                  className="w-3 h-3 transition-transform"
+                  style={{ transform: openGroups[group.key] ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+                />
               </button>
-            );
-          })}
+              {/* Group items */}
+              {openGroups[group.key] && (
+                <div className="space-y-0.5 mt-0.5">
+                  {group.items.map(item => {
+                    const Icon = item.icon;
+                    return (
+                      <button key={item.id} onClick={() => selectTab(item.id)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-right"
+                        style={{
+                          background: tab === item.id ? '#c9a227' : 'transparent',
+                          color: tab === item.id ? 'white' : 'rgba(255,255,255,.5)',
+                        }}>
+                        <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                        {item.label}
+                        {item.badge !== undefined && item.badge > 0 && (
+                          <span className="mr-auto w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
         </nav>
 
         <div className="p-2 border-t border-white/5">
