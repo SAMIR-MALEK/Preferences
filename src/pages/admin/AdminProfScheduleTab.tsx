@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Search, Printer, Clock } from 'lucide-react';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
-const OVERTIME_THRESHOLD = 9; // ساعات الحد الأقصى للأستاذ الدائم
+const OFFICIAL_MIN = 9; // الحد الأدنى الرسمي للدائم
 
 export default function AdminProfScheduleTab() {
   const [profs, setProfs] = useState<any[]>([]);
@@ -13,6 +13,7 @@ export default function AdminProfScheduleTab() {
   const [unscheduled, setUnscheduled] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalHours, setTotalHours] = useState(0);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.from('professors').select('id, last_name, first_name, username, rank')
@@ -27,6 +28,7 @@ export default function AdminProfScheduleTab() {
     setLoading(true);
     setSchedule([]);
     setUnscheduled([]);
+    setAlertMsg(null);
 
     const { data: assignments } = await supabase.from('assignments')
       .select('id, module_id, level_id, teaching_type, section_number, group_number, weekly_hours, level:levels(name_ar), module:modules(name_ar)')
@@ -37,7 +39,9 @@ export default function AdminProfScheduleTab() {
     if (!assignments || assignments.length === 0) { setLoading(false); return; }
 
     const lvlIds = [...new Set(assignments.map((a: any) => a.level_id).filter(Boolean))];
-    const { data: lvlsData } = lvlIds.length > 0 ? await supabase.from('levels').select('id, name_ar, department').in('id', lvlIds) : { data: [] };
+    const { data: lvlsData } = lvlIds.length > 0
+      ? await supabase.from('levels').select('id, name_ar, department').in('id', lvlIds)
+      : { data: [] };
     const lvlMap = new Map((lvlsData || []).map((l: any) => [l.id, l.name_ar]));
     const total = assignments.reduce((sum: number, a: any) => sum + (a.weekly_hours || 0), 0);
     setTotalHours(total);
@@ -47,7 +51,7 @@ export default function AdminProfScheduleTab() {
     const allIds = [...lecIds, ...tdIds];
 
     const { data: sch } = await supabase.from('schedules')
-      .select('id, assignment_id, room_id, time_slot_id, time_slot:time_slots(day, start_time, end_time, slot_number)')
+      .select('id, assignment_id, room_id, time_slot_id, is_overtime, overtime_updated_by, overtime_updated_at, time_slot:time_slots(day, start_time, end_time, slot_number)')
       .in('assignment_id', allIds)
       .eq('academic_year', '2026-2027')
       .eq('semester', 1);
@@ -65,7 +69,6 @@ export default function AdminProfScheduleTab() {
 
     const scheduled = (sch || []).map((s: any) => {
       const a = aMap.get(s.assignment_id) as any;
-      // للمؤقت: كل حصة = 1.5س بغض النظر عن النوع
       const hours = vacataire ? 1.5 : (a?.teaching_type === 'محاضرة' ? 2.25 : 1.5);
       return {
         id: s.id,
@@ -81,6 +84,8 @@ export default function AdminProfScheduleTab() {
         group: a?.group_number,
         room: roomMap.get(s.room_id) || '—',
         weekly_hours: hours,
+        is_overtime: s.overtime_updated_by ? s.is_overtime : null,
+        overtime_locked: !!s.overtime_updated_by,
       };
     }).filter((s: any) => s.day);
 
@@ -90,7 +95,8 @@ export default function AdminProfScheduleTab() {
       return di !== 0 ? di : (a.slot_number - b.slot_number);
     });
 
-    setSchedule(scheduled);
+    const withOvertime = applyOvertimeAlgorithm(scheduled, vacataire);
+    setSchedule(withOvertime);
 
     const unsch = assignments.filter((a: any) => !scheduledIds.has(a.id)).map((a: any) => ({
       module_name: a.module?.name_ar || '—',
@@ -104,73 +110,113 @@ export default function AdminProfScheduleTab() {
     setLoading(false);
   }
 
-  // حساب الساعات الإضافية
-  function getOvertimeSlots(): { slots: any[], overtimeHours: number } {
-    if (!selectedProf) return { slots: [], overtimeHours: 0 };
-    const vacataire = isVacataire(selectedProf);
-
+  // ============================================================
+  // الخوارزمية الصحيحة لحساب الساعات الإضافية
+  // ============================================================
+  function applyOvertimeAlgorithm(slots: any[], vacataire: boolean): any[] {
     if (vacataire) {
-      // المؤقت: كل الحصص إضافية
-      const overtimeHours = schedule.reduce((s, r) => s + r.weekly_hours, 0);
-      return { slots: schedule, overtimeHours };
-    } else {
-      // الدائم: نبحث عن مجموعة حصص كاملة (بنفس المقياس قدر الإمكان)
-      // يمكن حذفها ويبقى المجموع >= 9س
-      const total = schedule.reduce((s, r) => s + r.weekly_hours, 0);
-      if (total <= OVERTIME_THRESHOLD) return { slots: [], overtimeHours: 0 };
-
-      const needed = total - OVERTIME_THRESHOLD; // الساعات الواجب إخراجها
-
-      // تجميع الحصص حسب المقياس
-      const byModule: Record<string, any[]> = {};
-      for (const s of schedule) {
-        const key = s.module_name;
-        if (!byModule[key]) byModule[key] = [];
-        byModule[key].push(s);
-      }
-
-      // دالة مساعدة: هل مجموعة حصص تساوي بالضبط الساعات المطلوبة؟
-      const sumHours = (arr: any[]) => arr.reduce((s, r) => s + r.weekly_hours, 0);
-
-      // 1. ابحث عن مقياس واحد مجموعه = needed بالضبط
-      for (const slots of Object.values(byModule)) {
-        if (Math.abs(sumHours(slots) - needed) < 0.01) {
-          return { slots, overtimeHours: sumHours(slots) };
-        }
-      }
-
-      // 2. ابحث عن مقياس واحد مجموعه >= needed (أقل فرق)
-      let best: any[] | null = null;
-      let bestDiff = Infinity;
-      for (const slots of Object.values(byModule)) {
-        const h = sumHours(slots);
-        if (h >= needed && h - needed < bestDiff) {
-          bestDiff = h - needed;
-          best = slots;
-        }
-      }
-      if (best) return { slots: best, overtimeHours: sumHours(best) };
-
-      // 3. جمع مقياسين أو أكثر (نفس القسم أولاً) حتى نصل لـ needed
-      // ترتيب المقاييس: نفس القسم أولاً (يُحدد لاحقاً من level.department)
-      const moduleList = Object.entries(byModule).map(([name, slots]) => ({
-        name,
-        slots,
-        hours: sumHours(slots),
-        dept: (slots[0] as any)?.level_dept || '',
-      }));
-      // فرز: الأكثر ساعات أولاً
-      moduleList.sort((a, b) => b.hours - a.hours);
-
-      let accum = 0;
-      const chosen: any[] = [];
-      for (const m of moduleList) {
-        accum += m.hours;
-        chosen.push(...m.slots);
-        if (accum >= needed) break;
-      }
-      return { slots: chosen, overtimeHours: accum };
+      return slots.map(s => ({ ...s, is_overtime: s.overtime_locked ? s.is_overtime : true }));
     }
+
+    const total = slots.reduce((s, r) => s + r.weekly_hours, 0);
+
+    if (total <= OFFICIAL_MIN + 0.001) {
+      return slots.map(s => ({ ...s, is_overtime: s.overtime_locked ? s.is_overtime : false }));
+    }
+
+    const lockedOfficialHours = slots
+      .filter(s => s.overtime_locked && !s.is_overtime)
+      .reduce((sum, s) => sum + s.weekly_hours, 0);
+
+    const freeSlots = slots.filter(s => !s.overtime_locked);
+    const officialNeededFromFree = Math.max(0, OFFICIAL_MIN - lockedOfficialHours);
+
+    const bestOvertimeSet = findBestOvertimeSet(freeSlots, officialNeededFromFree);
+    const overtimeIds = new Set(bestOvertimeSet.map((s: any) => s.id));
+
+    return slots.map(s => ({
+      ...s,
+      is_overtime: s.overtime_locked ? s.is_overtime : overtimeIds.has(s.id),
+    }));
+  }
+
+  // إيجاد أفضل مجموعة حصص إضافية
+  // الهدف: تعظيم الإضافي مع الحفاظ على الرسمي >= officialNeeded
+  // وتفضيل المحاضرات في الرسمي
+  function findBestOvertimeSet(freeSlots: any[], officialNeeded: number): any[] {
+    const n = freeSlots.length;
+    if (n === 0) return [];
+
+    const totalFree = freeSlots.reduce((s, r) => s + r.weekly_hours, 0);
+    if (totalFree <= officialNeeded + 0.001) return [];
+
+    let bestOvertimeSlots: any[] = [];
+    let bestOvertimeHours = 0;
+    let bestOfficialLectures = -1;
+
+    const count = 1 << n;
+    for (let mask = 0; mask < count; mask++) {
+      const overtimeSet: any[] = [];
+      const officialSet: any[] = [];
+      for (let i = 0; i < n; i++) {
+        if (mask & (1 << i)) overtimeSet.push(freeSlots[i]);
+        else officialSet.push(freeSlots[i]);
+      }
+
+      const officialHours = officialSet.reduce((s, r) => s + r.weekly_hours, 0);
+      const overtimeHours = overtimeSet.reduce((s, r) => s + r.weekly_hours, 0);
+
+      // شرط: الرسمي >= officialNeeded (9س على الأقل)
+      if (officialHours < officialNeeded - 0.001) continue;
+
+      // شرط: الإضافي يجب أن يكون حصة كاملة واحدة على الأقل (>= 1.5س)
+      if (overtimeHours < 1.49) continue;
+
+      const lecInOfficial = officialSet.filter(s => s.teaching_type === 'محاضرة').length;
+
+      if (overtimeHours > bestOvertimeHours + 0.001) {
+        bestOvertimeHours = overtimeHours;
+        bestOvertimeSlots = overtimeSet;
+        bestOfficialLectures = lecInOfficial;
+      } else if (Math.abs(overtimeHours - bestOvertimeHours) < 0.001) {
+        // نفس الإضافي → نفضّل أكثر محاضرات في الرسمي
+        if (lecInOfficial > bestOfficialLectures) {
+          bestOvertimeSlots = overtimeSet;
+          bestOfficialLectures = lecInOfficial;
+        }
+      }
+    }
+
+    return bestOvertimeSlots;
+  }
+
+  // ============================================================
+  // Toggle يدوي لحصة واحدة + حفظ في DB
+  // ============================================================
+  async function toggleOvertime(slotId: string, currentValue: boolean) {
+    const newValue = !currentValue;
+
+    const updated = schedule.map(s =>
+      s.id === slotId ? { ...s, is_overtime: newValue, overtime_locked: true } : s
+    );
+
+    const officialHours = updated
+      .filter(s => !s.is_overtime)
+      .reduce((sum, s) => sum + s.weekly_hours, 0);
+
+    if (officialHours < OFFICIAL_MIN - 0.001) {
+      setAlertMsg(`⚠️ تحذير: الساعات الرسمية أصبحت ${officialHours.toFixed(2)}س — أقل من 9 ساعات!`);
+    } else {
+      setAlertMsg(null);
+    }
+
+    setSchedule(updated);
+
+    await supabase.from('schedules').update({
+      is_overtime: newValue,
+      overtime_updated_by: selectedProf?.username || 'admin',
+      overtime_updated_at: new Date().toISOString(),
+    }).eq('id', slotId);
   }
 
   function printSchedule() {
@@ -179,31 +225,23 @@ export default function AdminProfScheduleTab() {
     if (!w) return;
     const rows = schedule.map(s => `
       <tr>
-        <td>${s.day}</td>
-        <td>${s.start_time} — ${s.end_time}</td>
+        <td>${s.day}</td><td>${s.start_time} — ${s.end_time}</td>
         <td>${s.level_name}</td>
         <td>${s.teaching_type === 'محاضرة' ? `المجموعة ${String(s.section).padStart(2,'0')}` : `الفوج ${String(s.group).padStart(2,'0')}`}</td>
-        <td>${s.module_name}</td>
-        <td>${s.teaching_type}</td>
-        <td>${s.room}</td>
-        <td>${s.weekly_hours}س</td>
+        <td>${s.module_name}</td><td>${s.teaching_type}</td><td>${s.room}</td><td>${s.weekly_hours}س</td>
       </tr>`).join('');
     const unrows = unscheduled.map(s => `
       <tr style="color:#999">
         <td colspan="2">غير مبرمج</td>
         <td>${s.level_name}</td>
         <td>${s.teaching_type === 'محاضرة' ? `المجموعة ${String(s.section).padStart(2,'0')}` : `الفوج ${String(s.group).padStart(2,'0')}`}</td>
-        <td>${s.module_name}</td>
-        <td>${s.teaching_type}</td>
-        <td>—</td>
-        <td>${s.weekly_hours}س</td>
+        <td>${s.module_name}</td><td>${s.teaching_type}</td><td>—</td><td>${s.weekly_hours}س</td>
       </tr>`).join('');
     w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-    <style>body{font-family:Arial;padding:20px;direction:rtl}
-    h2{color:#1a3a6b}table{width:100%;border-collapse:collapse;margin:10px 0}
+    <style>body{font-family:Arial;padding:20px;direction:rtl}h2{color:#1a3a6b}
+    table{width:100%;border-collapse:collapse;margin:10px 0}
     td,th{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#1a3a6b;color:white}
-    .total{font-weight:bold;color:#1a3a6b;margin-top:10px}
-    </style></head><body>
+    .total{font-weight:bold;color:#1a3a6b;margin-top:10px}</style></head><body>
     <div style="text-align:center;margin-bottom:15px">
       <p style="font-size:11px;color:#666">الجمهورية الجزائرية الديمقراطية الشعبية</p>
       <p style="font-weight:bold">جامعة محمد البشير الإبراهيمي — برج بوعريريج</p>
@@ -211,60 +249,46 @@ export default function AdminProfScheduleTab() {
       <h2>التكليف البيداغوجي الأسبوعي — الموسم 2026/2027</h2>
       <h3>أ. ${selectedProf.last_name} ${selectedProf.first_name} — ${selectedProf.rank || 'أستاذ مؤقت'}</h3>
     </div>
-    <table>
-      <thead><tr><th>اليوم</th><th>الوقت</th><th>المستوى</th><th>المجموعة/الفوج</th><th>المقياس</th><th>النوع</th><th>القاعة</th><th>الحجم الساعي</th></tr></thead>
-      <tbody>${rows}${unrows}</tbody>
-    </table>
+    <table><thead><tr><th>اليوم</th><th>الوقت</th><th>المستوى</th><th>المجموعة/الفوج</th><th>المقياس</th><th>النوع</th><th>القاعة</th><th>الحجم الساعي</th></tr></thead>
+    <tbody>${rows}${unrows}</tbody></table>
     <p class="total">الحجم الساعي الإجمالي: ${totalHours.toFixed(2)} ساعة أسبوعياً</p>
     <div style="margin-top:40px;display:flex;justify-content:space-between">
       <div style="text-align:center"><div style="border-top:1px solid #000;width:150px;margin:0 auto;padding-top:5px;font-size:11px">توقيع الأستاذ</div></div>
       <div style="text-align:center"><div style="border-top:1px solid #000;width:150px;margin:0 auto;padding-top:5px;font-size:11px">نائب العميد المكلف بالبيداغوجيا</div></div>
-    </div>
-    </body></html>`);
-    w.document.close();
-    w.print();
+    </div></body></html>`);
+    w.document.close(); w.print();
   }
 
   function printOvertime() {
     if (!selectedProf) return;
-    const { slots, overtimeHours } = getOvertimeSlots();
-    if (slots.length === 0) {
-      alert('لا توجد ساعات إضافية لهذا الأستاذ');
-      return;
-    }
+    const overtimeSlots = schedule.filter(s => s.is_overtime);
+    if (overtimeSlots.length === 0) { alert('لا توجد ساعات إضافية لهذا الأستاذ'); return; }
     const vacataire = isVacataire(selectedProf);
+    const overtimeHours = overtimeSlots.reduce((sum, s) => sum + s.weekly_hours, 0);
     const today = new Date().toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
     const w = window.open('', '_blank');
     if (!w) return;
-
-    const rows = slots.map(s => `
+    const rows = overtimeSlots.map(s => `
       <tr>
-        <td>${s.day}</td>
-        <td>${s.start_time} — ${s.end_time}</td>
-        <td>${s.level_name}</td>
-        <td>${s.module_name}</td>
-        <td>${s.teaching_type}</td>
+        <td>${s.day}</td><td>${s.start_time} — ${s.end_time}</td><td>${s.level_name}</td>
+        <td>${s.module_name}</td><td>${s.teaching_type}</td>
         <td>${s.teaching_type === 'محاضرة' ? `م${String(s.section).padStart(2,'0')}` : `ف${String(s.group).padStart(2,'0')}`}</td>
         <td>${s.room}</td>
       </tr>`).join('');
-
     w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
     <style>
       @page{size:A4 portrait;margin:20mm 15mm}
       body{font-family:Arial;padding:10px;direction:rtl;font-size:12px}
-      h2{color:#1a3a6b;margin:4px 0}
-      h3{color:#333;margin:4px 0;font-size:13px}
+      h2{color:#1a3a6b;margin:4px 0}h3{color:#333;margin:4px 0;font-size:13px}
       table{width:100%;border-collapse:collapse;margin:14px 0}
       td,th{border:1px solid #bbb;padding:7px 9px;font-size:11px;text-align:right}
       th{background:#1a3a6b;color:white}
       .header{text-align:center;margin-bottom:16px;border-bottom:2px solid #1a3a6b;padding-bottom:12px}
       .total{font-weight:bold;color:#1a3a6b;margin:8px 0;font-size:13px}
       .sign{margin-top:50px;display:flex;justify-content:space-between;padding:0 20px}
-      .sign-box{text-align:center;font-size:11px}
-      .sign-box p{font-weight:bold;margin-bottom:35px}
+      .sign-box{text-align:center;font-size:11px}.sign-box p{font-weight:bold;margin-bottom:35px}
       .sign-line{border-top:1px solid #000;width:160px;margin:0 auto;padding-top:4px}
-    </style>
-    </head><body>
+    </style></head><body>
     <div class="header">
       <p style="font-size:11px;color:#666;margin:2px 0">الجمهورية الجزائرية الديمقراطية الشعبية</p>
       <p style="font-weight:bold;margin:2px 0">جامعة محمد البشير الإبراهيمي — برج بوعريريج</p>
@@ -272,52 +296,29 @@ export default function AdminProfScheduleTab() {
       <h2>تكليف بيداغوجي — خاص بالساعات الإضافية</h2>
       <h3>السداسي الأول — السنة الجامعية 2026/2027</h3>
     </div>
-
     <table style="width:auto;margin-bottom:10px;border:none">
       <tr><td style="border:none;font-weight:bold;padding:3px 8px">الأستاذ:</td><td style="border:none;padding:3px 8px">${selectedProf.last_name} ${selectedProf.first_name}</td></tr>
       <tr><td style="border:none;font-weight:bold;padding:3px 8px">الرتبة:</td><td style="border:none;padding:3px 8px">${vacataire ? 'أستاذ مؤقت' : (selectedProf.rank || '—')}</td></tr>
     </table>
-
-    <table>
-      <thead>
-        <tr>
-          <th>اليوم</th>
-          <th>التوقيت</th>
-          <th>السنة والتخصص</th>
-          <th>المقياس</th>
-          <th>نوع الحصة</th>
-          <th>المجموعة/الفوج</th>
-          <th>القاعة</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-
+    <table><thead><tr>
+      <th>اليوم</th><th>التوقيت</th><th>السنة والتخصص</th><th>المقياس</th><th>نوع الحصة</th><th>المجموعة/الفوج</th><th>القاعة</th>
+    </tr></thead><tbody>${rows}</tbody></table>
     <p class="total">مجموع الساعات الإضافية: ${overtimeHours.toFixed(2)} ساعة/أسبوع</p>
-
     <div class="sign">
-      <div class="sign-box">
-        <p>رئيس القسم</p>
-        <div class="sign-line">التوقيع والختم</div>
-      </div>
-      <div class="sign-box">
-        <p>برج بوعريريج في: ${today}</p>
-        <div class="sign-line">توقيع الأستاذ</div>
-      </div>
-    </div>
-    </body></html>`);
-    w.document.close();
-    w.print();
+      <div class="sign-box"><p>رئيس القسم</p><div class="sign-line">التوقيع والختم</div></div>
+      <div class="sign-box"><p>برج بوعريريج في: ${today}</p><div class="sign-line">توقيع الأستاذ</div></div>
+    </div></body></html>`);
+    w.document.close(); w.print();
   }
 
   const filteredProfs = profs.filter(p =>
     `${p.last_name} ${p.first_name}`.toLowerCase().includes(search.toLowerCase())
   );
-
   const permanent = filteredProfs.filter(p => !isVacataire(p));
-  const vacataire = filteredProfs.filter(p => isVacataire(p));
+  const vacataireList = filteredProfs.filter(p => isVacataire(p));
 
-  const { overtimeHours } = selectedProf ? getOvertimeSlots() : { overtimeHours: 0 };
+  const overtimeSlots = schedule.filter(s => s.is_overtime);
+  const overtimeHours = overtimeSlots.reduce((sum, s) => sum + s.weekly_hours, 0);
   const hasOvertime = overtimeHours > 0;
 
   return (
@@ -343,6 +344,13 @@ export default function AdminProfScheduleTab() {
         )}
       </div>
 
+      {alertMsg && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium flex items-center gap-2">
+          {alertMsg}
+          <button onClick={() => setAlertMsg(null)} className="mr-auto text-red-400 hover:text-red-600 text-xs">✕</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* قائمة الأساتذة */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -362,10 +370,10 @@ export default function AdminProfScheduleTab() {
                 <p className="text-xs text-gray-400">{p.rank}</p>
               </div>
             ))}
-            {vacataire.length > 0 && (
+            {vacataireList.length > 0 && (
               <>
                 <div className="bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 border-t border-amber-100">أساتذة مؤقتون</div>
-                {vacataire.map(p => (
+                {vacataireList.map(p => (
                   <div key={p.id} onClick={() => loadProfSchedule(p)}
                     className={`p-3 cursor-pointer hover:bg-amber-50/50 transition-colors ${selectedProf?.id === p.id ? 'bg-blue-50/50 border-r-2 border-[#1a3a6b]' : ''}`}>
                     <p className="font-medium text-amber-800 text-sm">{p.last_name} {p.first_name}</p>
@@ -384,13 +392,11 @@ export default function AdminProfScheduleTab() {
               اختر أستاذاً لعرض برنامجه
             </div>
           )}
-
           {selectedProf && loading && (
             <div className="flex justify-center py-10">
               <div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" />
             </div>
           )}
-
           {selectedProf && !loading && (
             <>
               <div className="bg-gradient-to-r from-[#1a3a6b] to-[#0d2040] text-white rounded-2xl p-4">
@@ -399,49 +405,50 @@ export default function AdminProfScheduleTab() {
                 <div className="flex items-center gap-4 mt-2">
                   <p className="text-[#c9a227] font-bold">الحجم الساعي: {totalHours.toFixed(2)} ساعة/أسبوع</p>
                   {hasOvertime && (
-                    <p className="text-amber-300 font-bold text-sm">
-                      ⚡ إضافي: {overtimeHours.toFixed(2)}س
-                    </p>
+                    <p className="text-amber-300 font-bold text-sm">⚡ إضافي: {overtimeHours.toFixed(2)}س</p>
                   )}
                 </div>
               </div>
 
               {schedule.length > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                  <div className="bg-blue-50 px-4 py-2 border-b border-blue-100">
+                  <div className="bg-blue-50 px-4 py-2 border-b border-blue-100 flex items-center justify-between">
                     <p className="text-xs font-bold text-blue-700">الحصص المبرمجة</p>
+                    <p className="text-[10px] text-gray-400">انقر على الزر لتغيير حالة الحصة يدوياً</p>
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {(() => {
-                      const vacProf = isVacataire(selectedProf);
-                      let cumul = 0;
-                      return schedule.map((s, i) => {
-                        cumul += s.weekly_hours;
-                        const isOvertime = vacProf || cumul > OVERTIME_THRESHOLD;
-                        return (
-                          <div key={i} className={`flex items-center gap-3 px-4 py-3 ${isOvertime ? 'bg-amber-50/40' : ''}`}>
-                            <div className="min-w-[90px] text-center">
-                              <p className="text-xs font-bold text-[#1a3a6b]">{s.day}</p>
-                              <p className="text-[10px] text-gray-400">{s.start_time} — {s.end_time}</p>
-                            </div>
-                            <div className="w-px h-10 bg-gray-200" />
-                            <div className="flex-1">
-                              <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
-                              <p className="text-gray-400 text-[10px] mt-0.5">
-                                {s.level_name} —
-                                {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ` ف${String(s.group).padStart(2,'0')}`} —
-                                {s.room}
-                              </p>
-                            </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
-                              {s.teaching_type}
-                            </span>
-                            {isOvertime && <span className="text-[10px] text-amber-500 font-bold">+إضافي</span>}
-                            <span className="text-[10px] text-gray-400">{s.weekly_hours}س</span>
-                          </div>
-                        );
-                      });
-                    })()}
+                    {schedule.map((s, i) => (
+                      <div key={i} className={`flex items-center gap-3 px-4 py-3 ${s.is_overtime ? 'bg-amber-50/40' : ''}`}>
+                        <div className="min-w-[90px] text-center">
+                          <p className="text-xs font-bold text-[#1a3a6b]">{s.day}</p>
+                          <p className="text-[10px] text-gray-400">{s.start_time} — {s.end_time}</p>
+                        </div>
+                        <div className="w-px h-10 bg-gray-200" />
+                        <div className="flex-1">
+                          <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
+                          <p className="text-gray-400 text-[10px] mt-0.5">
+                            {s.level_name} —
+                            {s.teaching_type === 'محاضرة' ? ` م${String(s.section).padStart(2,'0')}` : ` ف${String(s.group).padStart(2,'0')}`} —
+                            {s.room}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.teaching_type === 'محاضرة' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                          {s.teaching_type}
+                        </span>
+                        <button
+                          onClick={() => toggleOvertime(s.id, s.is_overtime)}
+                          title={s.is_overtime ? 'إضافية — انقر لجعلها رسمية' : 'رسمية — انقر لجعلها إضافية'}
+                          className={`text-[11px] px-2 py-0.5 rounded-full font-bold border transition-colors ${
+                            s.is_overtime
+                              ? 'bg-amber-100 text-amber-600 border-amber-300 hover:bg-amber-200'
+                              : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'
+                          } ${s.overtime_locked ? 'ring-1 ring-offset-1 ring-blue-300' : ''}`}
+                        >
+                          {s.is_overtime ? '⚡ إضافي' : '✓ رسمي'}
+                        </button>
+                        <span className="text-[10px] text-gray-400">{s.weekly_hours}س</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
