@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  ScrollText, Save, CheckCircle, Lock, Unlock,
-  ChevronDown, ChevronUp, User, AlertCircle, X
+  ScrollText, Search, ChevronUp, ChevronDown,
+  CheckCircle, X, Eye, Lock, Unlock, Filter
 } from 'lucide-react';
 
 const ACADEMIC_YEAR = '2026-2027';
 
-// ─── Badge الحالة ────────────────────────────────────────────────────
+// ─── Badge الحالة ─────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; border: string }> = {
     'مقترح':  { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
@@ -25,231 +25,241 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Modal تأكيد ─────────────────────────────────────────────────────
-function ConfirmModal({ message, onConfirm, onCancel }: {
-  message: string; onConfirm: () => void; onCancel: () => void;
-}) {
+// ─── Modal تفاصيل العنوان ─────────────────────────────────────────────────
+function ProposalModal({ proposal, onClose }: { proposal: any; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-        <div className="flex items-start gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <AlertCircle className="w-5 h-5 text-amber-600" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-[#1a3a6b]/10 flex items-center justify-center">
+              <ScrollText className="w-4 h-4 text-[#1a3a6b]" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-800 text-sm">تفاصيل العنوان</h3>
+              <p className="text-xs text-gray-400">{proposal.spec_name}</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-gray-800 text-sm mb-1">تأكيد العملية</h3>
-            <p className="text-gray-500 text-sm leading-relaxed">{message}</p>
-          </div>
+          <button onClick={onClose}
+            className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+            <X className="w-3.5 h-3.5 text-gray-500" />
+          </button>
         </div>
-        <div className="flex gap-3">
-          <button onClick={onConfirm}
-            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors">
-            تأكيد
-          </button>
-          <button onClick={onCancel}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium transition-colors">
-            إلغاء
-          </button>
+        <div className="space-y-3">
+          <div className="bg-gray-50 rounded-xl p-3">
+            <p className="text-[10px] text-gray-400 mb-1">العنوان بالعربية</p>
+            <p className="text-sm font-semibold text-gray-800 leading-relaxed">{proposal.title_ar || '—'}</p>
+          </div>
+          {proposal.title_fr && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[10px] text-gray-400 mb-1">العنوان بالفرنسية</p>
+              <p className="text-sm text-gray-700 leading-relaxed" dir="ltr">{proposal.title_fr}</p>
+            </div>
+          )}
+          {proposal.description && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[10px] text-gray-400 mb-1">الوصف</p>
+              <p className="text-sm text-gray-600 leading-relaxed">{proposal.description}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[10px] text-gray-400 mb-1">الأستاذ المشرف</p>
+              <p className="text-sm font-medium text-gray-800">{proposal.professor_name}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[10px] text-gray-400 mb-1">الحالة</p>
+              <div className="mt-1"><StatusBadge status={proposal.status} /></div>
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3">
+            <p className="text-[10px] text-gray-400 mb-1">تاريخ الاقتراح</p>
+            <p className="text-sm text-gray-700">
+              {proposal.created_at
+                ? new Date(proposal.created_at).toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' })
+                : '—'}
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+// ─── رأس العمود القابل للترتيب ────────────────────────────────────────────
+function SortTh({ col, label, sortCol, sortDir, onSort, className = '' }: {
+  col: string; label: string; sortCol: string; sortDir: 1 | -1;
+  onSort: (c: string) => void; className?: string;
+}) {
+  const active = sortCol === col;
+  return (
+    <th onClick={() => onSort(col)}
+      className={`px-3 py-2.5 text-right text-xs font-bold cursor-pointer select-none whitespace-nowrap ${className}`}
+      style={{ color: active ? '#c9a227' : '#1a3a6b' }}>
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {active
+          ? sortDir === 1 ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+          : <span className="text-gray-300 text-[10px]">⇅</span>}
+      </span>
+    </th>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 export default function AdminThesisPage() {
   const { user } = useAuth();
 
-  // نجلب قسم رئيس القسم من professor_roles
   const [department, setDepartment] = useState<string | null>(null);
-  const [specs, setSpecs]           = useState<any[]>([]);
-  const [proposals, setProposals]   = useState<any[]>([]);
-  const [deadline, setDeadline]     = useState<string | null>(null);
-  const [loading, setLoading]       = useState(true);
-  const [saving, setSaving]         = useState<string | null>(null);
-  const [saved, setSaved]           = useState<string | null>(null);
-  const [expandedSpec, setExpandedSpec] = useState<string | null>(null);
-  const [confirm, setConfirm]       = useState<{ message: string; onConfirm: () => void } | null>(null);
-  const [allProfessors, setAllProfessors] = useState<any[]>([]);
-  const [showNotSent, setShowNotSent] = useState(false);
-  const [showSent, setShowSent]       = useState(false);
+  const [specs,      setSpecs]      = useState<any[]>([]);
+  const [rows,       setRows]       = useState<any[]>([]);
+  const [allProfs,   setAllProfs]   = useState<any[]>([]);
+  const [deadline,   setDeadline]   = useState<string | null>(null);
+  const [loading,    setLoading]    = useState(true);
+
+  const [searchText,   setSearchText]   = useState('');
+  const [filterSpec,   setFilterSpec]   = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [sortCol,      setSortCol]      = useState('prof');
+  const [sortDir,      setSortDir]      = useState<1 | -1>(1);
+  const [selected,     setSelected]     = useState<any | null>(null);
+  const [showSent,     setShowSent]     = useState(false);
+  const [showNotSent,  setShowNotSent]  = useState(false);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
 
-    // ① الموعد النهائي
     const { data: settingsData } = await supabase
-      .from('academic_settings')
-      .select('thesis_deadline')
-      .eq('academic_year', ACADEMIC_YEAR)
-      .single();
-    setDeadline(settingsData?.thesis_deadline || null);
+      .from('academic_settings').select('thesis_deadline')
+      .eq('academic_year', ACADEMIC_YEAR).single();
+    setDeadline(settingsData?.thesis_deadline ?? null);
 
-    // ② قسم رئيس القسم — من professor_roles ثم نطابق مع levels
-    // أولاً نحاول admin.department إذا كان موجوداً
     let dept: string | null = (user as any)?.admin?.department ?? null;
-
     if (!dept) {
-      // نجلب professor_id من جدول professors بـ user_id
       const { data: profRow } = await supabase
-        .from('professors')
-        .select('id')
-        .eq('user_id', user?.id)
-        .maybeSingle();
-
+        .from('professors').select('id').eq('user_id', user?.id).maybeSingle();
       if (profRow?.id) {
         const { data: roleRow } = await supabase
-          .from('professor_roles')
-          .select('speciality')
-          .eq('professor_id', profRow.id)
-          .eq('role', 'dept_head')
-          .maybeSingle();
-
+          .from('professor_roles').select('speciality')
+          .eq('professor_id', profRow.id).eq('role', 'dept_head').maybeSingle();
         if (roleRow?.speciality) {
-          // speciality هنا قد يكون UUID لـ level أو 'عام'/'خاص'
           if (roleRow.speciality === 'عام' || roleRow.speciality === 'خاص') {
             dept = roleRow.speciality;
           } else {
-            // UUID — نجلب department من levels
             const { data: lvl } = await supabase
-              .from('levels')
-              .select('department')
-              .eq('id', roleRow.speciality)
-              .maybeSingle();
+              .from('levels').select('department').eq('id', roleRow.speciality).maybeSingle();
             dept = lvl?.department ?? null;
           }
         }
       }
     }
-
     setDepartment(dept);
 
-    // ③ تخصصات ماستر 2 للقسم
-    let query = supabase
-      .from('levels')
-      .select('id, name_ar, thesis_min, thesis_max, thesis_enabled, department')
-      .ilike('name_ar', 'ماستر 2%')
-      .order('name_ar');
+    let q = supabase.from('levels')
+      .select('id, name_ar, thesis_enabled')
+      .ilike('name_ar', 'ماستر 2%').order('name_ar');
+    if (dept) q = q.eq('department', dept);
+    const { data: levelsData } = await q;
+    const levels = levelsData ?? [];
+    setSpecs(levels);
 
-    if (dept) query = query.eq('department', dept);
+    let proposals: any[] = [];
+    if (levels.length > 0) {
+      const ids = levels.map((l: any) => String(l.id));
 
-    const { data: levelsData } = await query;
-    const filtered = levelsData || [];
-    setSpecs(filtered);
-
-    // ④ العناوين المقترحة — نحاول level_id أولاً، ثم speciality كـ fallback
-    if (filtered.length > 0) {
-      const levelIds = filtered.map((l: any) => String(l.id));
-      // نجرب level_id أولاً
-      const { data: propByLevel } = await supabase
+      const { data: byLevel } = await supabase
         .from('thesis_proposals')
         .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id')
-        .in('level_id', levelIds)
-        .eq('academic_year', ACADEMIC_YEAR)
+        .in('level_id', ids).eq('academic_year', ACADEMIC_YEAR)
         .order('proposal_order', { ascending: true });
+      proposals = byLevel ?? [];
 
-      // إذا رجع فارغاً نحاول speciality
-      let propData = propByLevel;
-      if (!propData || propData.length === 0) {
-        const { data: propBySpec } = await supabase
+      if (proposals.length === 0) {
+        const { data: bySpec } = await supabase
           .from('thesis_proposals')
-          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id, academic_year')
-          .in('speciality', levelIds)
-          .eq('academic_year', ACADEMIC_YEAR)
+          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id')
+          .in('speciality', ids).eq('academic_year', ACADEMIC_YEAR)
           .order('proposal_order', { ascending: true });
-        propData = propBySpec;
+        proposals = bySpec ?? [];
       }
-      // إذا لا يزال فارغاً — نحاول بدون فلتر academic_year (تشخيص)
-      if (!propData || propData.length === 0) {
-        const { data: propNoYear } = await supabase
+      if (proposals.length === 0) {
+        const { data: noYear } = await supabase
           .from('thesis_proposals')
-          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id, academic_year')
-          .or(`level_id.in.(${levelIds.join(',')}),speciality.in.(${levelIds.join(',')})`)
+          .select('id, title_ar, title_fr, description, status, created_at, level_id, speciality, proposal_order, professor_id')
+          .or(`level_id.in.(${ids.join(',')}),speciality.in.(${ids.join(',')})`)
           .order('proposal_order', { ascending: true });
-        propData = propNoYear;
+        proposals = noYear ?? [];
       }
 
-      // نجلب أسماء الأساتذة منفصلاً
-      const professorIds = [...new Set((propData || []).map((p: any) => p.professor_id))];
-      let profMap: Record<string, string> = {};
-      if (professorIds.length > 0) {
+      const profIds = [...new Set(proposals.map((p: any) => p.professor_id))];
+      let profMap: Record<string, any> = {};
+      if (profIds.length > 0) {
         const { data: profs } = await supabase
-          .from('professors')
-          .select('id, last_name, first_name')
-          .in('id', professorIds);
-        (profs || []).forEach((p: any) => {
-          profMap[p.id] = `${p.last_name} ${p.first_name}`;
-        });
+          .from('professors').select('id, last_name, first_name').in('id', profIds);
+        (profs ?? []).forEach((p: any) => { profMap[p.id] = p; });
       }
 
-      setProposals((propData || []).map((p: any) => ({
+      const specMap: Record<string, string> = {};
+      levels.forEach((l: any) => { specMap[String(l.id)] = l.name_ar; });
+
+      setRows(proposals.map((p: any) => ({
         ...p,
-        professor_name: profMap[p.professor_id] || '—',
+        professor_name: profMap[p.professor_id]
+          ? `${profMap[p.professor_id].last_name} ${profMap[p.professor_id].first_name}`
+          : '—',
+        prof_last: profMap[p.professor_id]?.last_name ?? '',
+        spec_name: specMap[String(p.level_id)] ?? specMap[String(p.speciality)] ?? '—',
       })));
-    } else {
-      setProposals([]);
     }
 
-    // ⑤ الأساتذة الدائمون فقط — رتبة رسمية + كود لا يبدأ بـ V
-    const PERMANENT_RANKS = [
-      'أستاذ التعليم العالي',
-      'أستاذ محاضر - أ',
-      'أستاذ محاضر - ب',
-      'أستاذ مساعد - أ',
-      'أستاذ مساعد - ب',
-    ];
-    const { data: allProfs } = await supabase
-      .from('professors')
-      .select('id, last_name, first_name, rank, username')
-      .in('rank', PERMANENT_RANKS)
-      .order('last_name');
-    // استبعاد من كودهم يبدأ بـ V (مؤقتون مدرجون بالخطأ برتبة دائمة)
-    setAllProfessors((allProfs || []).filter((p: any) =>
-      !p.username?.toUpperCase().startsWith('V')
-    ));
+    const RANKS = ['أستاذ التعليم العالي','أستاذ محاضر - أ','أستاذ محاضر - ب','أستاذ مساعد - أ','أستاذ مساعد - ب'];
+    const { data: ap } = await supabase
+      .from('professors').select('id, last_name, first_name, username')
+      .in('rank', RANKS).order('last_name');
+    setAllProfs((ap ?? []).filter((p: any) => !p.username?.toUpperCase().startsWith('V')));
 
     setLoading(false);
   }
 
-  async function saveSpec(spec: any) {
-    setSaving(spec.id);
-    await supabase.from('levels').update({
-      thesis_min:     spec.thesis_min     ?? 0,
-      thesis_max:     spec.thesis_max     ?? null,
-      thesis_enabled: spec.thesis_enabled ?? false,
-    }).eq('id', spec.id);
-    setSaving(null);
-    setSaved(spec.id);
-    setTimeout(() => setSaved(null), 2000);
+  function handleSort(col: string) {
+    if (sortCol === col) setSortDir(d => (d === 1 ? -1 : 1));
+    else { setSortCol(col); setSortDir(1); }
   }
 
-  function updateSpec(id: string, field: string, value: any) {
-    setSpecs(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
-  }
-
-  function toggleSpec(spec: any) {
-    if (deadlinePassed) return;
-    const next = !spec.thesis_enabled;
-    const msg = next
-      ? `هل تريد فتح باب اقتراح العناوين لـ "${spec.name_ar}"؟`
-      : `هل تريد إغلاق باب الاقتراح لـ "${spec.name_ar}"؟ لن يتمكن الأساتذة من إضافة عناوين جديدة.`;
-    setConfirm({
-      message: msg,
-      onConfirm: () => {
-        updateSpec(spec.id, 'thesis_enabled', next);
-        setConfirm(null);
-        // حفظ فوري للتبديل
-        supabase.from('levels').update({ thesis_enabled: next }).eq('id', spec.id);
-      },
+  const filtered = useMemo(() => {
+    let data = [...rows];
+    if (filterSpec)   data = data.filter(r => r.spec_name === filterSpec);
+    if (filterStatus) data = data.filter(r => r.status === filterStatus);
+    if (searchText) {
+      const q = searchText.toLowerCase();
+      data = data.filter(r =>
+        r.title_ar?.toLowerCase().includes(q) ||
+        r.professor_name?.toLowerCase().includes(q)
+      );
+    }
+    data.sort((a, b) => {
+      let av = '', bv = '';
+      if (sortCol === 'prof')   { av = a.prof_last;    bv = b.prof_last; }
+      if (sortCol === 'spec')   { av = a.spec_name;    bv = b.spec_name; }
+      if (sortCol === 'title')  { av = a.title_ar??''; bv = b.title_ar??''; }
+      if (sortCol === 'status') { av = a.status??'';   bv = b.status??''; }
+      return av.localeCompare(bv, 'ar') * sortDir;
     });
-  }
+    return data;
+  }, [rows, filterSpec, filterStatus, searchText, sortCol, sortDir]);
 
+  const sentProfIds  = new Set(rows.map(r => r.professor_id));
+  const sentProfs    = allProfs.filter(p => sentProfIds.has(p.id));
+  const notSentProfs = allProfs.filter(p => !sentProfIds.has(p.id));
   const deadlinePassed = deadline ? new Date(deadline) < new Date() : false;
   const deadlineLabel  = deadline
     ? new Date(deadline).toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' })
-    : 'لم يُحدَّد بعد';
+    : 'لم يُحدَّد';
+  const deptLabel = department === 'عام' ? 'القانون العام'
+    : department === 'خاص' ? 'القانون الخاص' : 'جميع الأقسام';
 
   if (loading) return (
     <div className="flex items-center justify-center h-48">
@@ -257,27 +267,19 @@ export default function AdminThesisPage() {
     </div>
   );
 
-  const deptLabel = department === 'عام' ? 'القانون العام' : department === 'خاص' ? 'القانون الخاص' : 'غير محدد';
-
   return (
-    <div className="space-y-5 animate-fade-in" dir="rtl">
-      {confirm && (
-        <ConfirmModal
-          message={confirm.message}
-          onConfirm={confirm.onConfirm}
-          onCancel={() => setConfirm(null)}
-        />
-      )}
+    <div className="space-y-4 animate-fade-in" dir="rtl">
+      {selected && <ProposalModal proposal={selected} onClose={() => setSelected(null)} />}
 
       {/* ── رأس الصفحة ── */}
       <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white">
-        <div className="flex items-start justify-between flex-wrap gap-3">
+        <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ScrollText className="w-4 h-4 text-amber-400" />
-              <span className="text-amber-400 text-xs font-semibold">إدارة مذكرات التخرج</span>
+              <span className="text-amber-400 text-xs font-semibold">مذكرات التخرج</span>
             </div>
-            <h2 className="font-bold text-base">{deptLabel} — الموسم {ACADEMIC_YEAR}</h2>
+            <h2 className="font-bold text-base">{deptLabel} — {ACADEMIC_YEAR}</h2>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium border ${
             deadlinePassed
@@ -287,263 +289,172 @@ export default function AdminThesisPage() {
                 : 'bg-white/10 text-gray-300 border-white/20'
           }`}>
             {deadlinePassed ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-            <span>الموعد النهائي:</span>
-            <span className="font-bold">{deadlineLabel}</span>
+            <span>الموعد النهائي: <strong>{deadlineLabel}</strong></span>
           </div>
         </div>
 
-        {/* إحصائيات سريعة */}
-        {(() => {
-          const sentIds = new Set(proposals.map((p: any) => p.professor_id));
-          const notSentCount = allProfessors.filter((p: any) => !sentIds.has(p.id)).length;
-          return (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { label: 'تخصصات مفتوحة', value: specs.filter(s => s.thesis_enabled).length, kind: 'plain' },
-                { label: 'عناوين مقترحة', value: proposals.filter(p => p.status === 'مقترح' || p.status === 'مُرسَل').length, kind: 'plain' },
-                { label: 'أساتذة أرسلوا', value: new Set(proposals.map(p => p.professor_id)).size, kind: 'sent' },
-                { label: 'لم يرسلوا بعد', value: notSentCount, kind: 'notsent' },
-              ].map(stat => {
-                if (stat.kind === 'sent') {
-                  return (
-                    <button key={stat.label}
-                      onClick={() => { setShowSent(v => !v); setShowNotSent(false); }}
-                      className={`rounded-xl p-3 text-center transition-all ${
-                        showSent ? 'bg-green-400/30 ring-2 ring-green-400/50' : 'bg-white/10 hover:bg-white/20'
-                      }`}>
-                      <p className="text-xl font-bold text-green-300">{stat.value}</p>
-                      <p className="text-[10px] text-green-200 mt-0.5 flex items-center justify-center gap-1">
-                        {stat.label}
-                        {showSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </p>
-                    </button>
-                  );
-                }
-                if (stat.kind === 'notsent') {
-                  return (
-                    <button key={stat.label}
-                      onClick={() => { setShowNotSent(v => !v); setShowSent(false); }}
-                      className={`rounded-xl p-3 text-center transition-all ${
-                        showNotSent ? 'bg-amber-400/30 ring-2 ring-amber-400/50' : 'bg-white/10 hover:bg-white/20'
-                      }`}>
-                      <p className="text-xl font-bold text-amber-300">{stat.value}</p>
-                      <p className="text-[10px] text-amber-200 mt-0.5 flex items-center justify-center gap-1">
-                        {stat.label}
-                        {showNotSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </p>
-                    </button>
-                  );
-                }
-                return (
-                  <div key={stat.label} className="bg-white/10 rounded-xl p-3 text-center">
-                    <p className="text-xl font-bold text-white">{stat.value}</p>
-                    <p className="text-[10px] text-gray-300 mt-0.5">{stat.label}</p>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-
-        {/* قائمة من أرسلوا — منبثقة داخل الهيدر */}
-        {showSent && (() => {
-          const sentIds = new Set(proposals.map((p: any) => p.professor_id));
-          const sent = allProfessors.filter((p: any) => sentIds.has(p.id));
-          return sent.length > 0 ? (
-            <div className="mt-3 bg-white/10 rounded-xl overflow-hidden">
-              <div className="max-h-64 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-[#0f2347]">
-                    <tr>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-green-300 w-8">#</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-green-300">اللقب</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-green-300">الاسم</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {sent.map((p: any, i: number) => (
-                      <tr key={p.id} className="hover:bg-white/5">
-                        <td className="px-3 py-2.5 text-xs text-gray-400 text-center">{i + 1}</td>
-                        <td className="px-3 py-2.5 text-sm text-white font-medium">{p.last_name}</td>
-                        <td className="px-3 py-2.5 text-sm text-gray-300">{p.first_name}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 bg-white/10 rounded-xl px-4 py-3 text-gray-300 text-xs">
-              لم يرسل أي أستاذ بعد
-            </div>
-          );
-        })()}
-
-        {/* قائمة من لم يرسلوا — منبثقة داخل الهيدر */}
-        {showNotSent && (() => {
-          const sentIds = new Set(proposals.map((p: any) => p.professor_id));
-          const notSent = allProfessors.filter((p: any) => !sentIds.has(p.id));
-          return notSent.length > 0 ? (
-            <div className="mt-3 bg-white/10 rounded-xl overflow-hidden">
-              <div className="max-h-64 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-[#0f2347]">
-                    <tr>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-amber-300 w-8">#</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-amber-300">اللقب</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-amber-300">الاسم</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {notSent.map((p: any, i: number) => (
-                      <tr key={p.id} className="hover:bg-white/5">
-                        <td className="px-3 py-2.5 text-xs text-gray-400 text-center">{i + 1}</td>
-                        <td className="px-3 py-2.5 text-sm text-white font-medium">{p.last_name}</td>
-                        <td className="px-3 py-2.5 text-sm text-gray-300">{p.first_name}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 bg-green-500/20 rounded-xl px-4 py-3 text-green-200 text-xs flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" /> جميع الأساتذة الدائمون أرسلوا مقترحاتهم
-            </div>
-          );
-        })()}
-      </div>
-
-      {deadlinePassed && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm flex items-center gap-2">
-          <Lock className="w-4 h-4 flex-shrink-0" />
-          انتهى الموعد النهائي المحدد من نائب العميد — لا يمكن فتح باب الاقتراحات حتى يُجدَّد التاريخ.
-        </div>
-      )}
-
-      {/* ── إعدادات التخصصات ── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="font-bold text-gray-800 text-sm">إعدادات الاقتراحات حسب التخصص</h3>
-          <p className="text-xs text-gray-400 mt-0.5">فتح/إغلاق باب الاقتراح وتحديد الحدود الدنيا والقصوى لكل تخصص</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="bg-white/10 rounded-xl p-3 text-center">
+            <p className="text-xl font-bold">{specs.filter(s => s.thesis_enabled).length}</p>
+            <p className="text-[10px] text-gray-300 mt-0.5">تخصصات مفتوحة</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3 text-center">
+            <p className="text-xl font-bold">{rows.length}</p>
+            <p className="text-[10px] text-gray-300 mt-0.5">إجمالي العناوين</p>
+          </div>
+          <button onClick={() => { setShowSent(v => !v); setShowNotSent(false); }}
+            className={`rounded-xl p-3 text-center transition-all ${showSent ? 'bg-green-400/30 ring-2 ring-green-400/50' : 'bg-white/10 hover:bg-white/20'}`}>
+            <p className="text-xl font-bold text-green-300">{sentProfs.length}</p>
+            <p className="text-[10px] text-green-200 mt-0.5 flex items-center justify-center gap-1">
+              أرسلوا {showSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </p>
+          </button>
+          <button onClick={() => { setShowNotSent(v => !v); setShowSent(false); }}
+            className={`rounded-xl p-3 text-center transition-all ${showNotSent ? 'bg-amber-400/30 ring-2 ring-amber-400/50' : 'bg-white/10 hover:bg-white/20'}`}>
+            <p className="text-xl font-bold text-amber-300">{notSentProfs.length}</p>
+            <p className="text-[10px] text-amber-200 mt-0.5 flex items-center justify-center gap-1">
+              لم يرسلوا {showNotSent ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </p>
+          </button>
         </div>
 
-        {specs.length === 0 && (
-          <p className="text-center text-gray-400 text-sm py-10">لا توجد تخصصات ماستر 2 مرتبطة بقسمك</p>
+        {showSent && (
+          <div className="mt-3 bg-white/10 rounded-xl overflow-hidden">
+            {sentProfs.length === 0
+              ? <p className="px-4 py-3 text-xs text-gray-300">لم يرسل أي أستاذ بعد</p>
+              : <div className="max-h-52 overflow-y-auto">
+                  <table className="w-full">
+                    <thead className="sticky top-0 bg-[#0f2347]">
+                      <tr>
+                        <th className="px-3 py-2 text-right text-xs font-bold text-green-300 w-8">#</th>
+                        <th className="px-3 py-2 text-right text-xs font-bold text-green-300">اللقب والاسم</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {sentProfs.map((p, i) => (
+                        <tr key={p.id} className="hover:bg-white/5">
+                          <td className="px-3 py-2 text-xs text-gray-400 text-center">{i + 1}</td>
+                          <td className="px-3 py-2 text-sm text-white">{p.last_name} {p.first_name}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+            }
+          </div>
         )}
 
-        <div className="divide-y divide-gray-50">
-          {specs.map(spec => {
-            const specProposals = proposals.filter(p =>
-              String(p.level_id) === String(spec.id) ||
-              String(p.speciality) === String(spec.id)
-            );
-            const count = specProposals.length;
-
-            return (
-              <div key={spec.id} className="p-4">
-                {/* صف الإعدادات */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  {/* زر فتح/إغلاق */}
-                  <button
-                    disabled={deadlinePassed}
-                    onClick={() => toggleSpec(spec)}
-                    title={deadlinePassed ? 'انتهى الموعد النهائي' : ''}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      spec.thesis_enabled
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    } ${deadlinePassed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                    {spec.thesis_enabled
-                      ? <><Unlock className="w-3 h-3" />مفتوح</>
-                      : <><Lock className="w-3 h-3" />مغلق</>}
-                  </button>
-
-                  {/* اسم التخصص */}
-                  <span className="flex-1 text-sm font-semibold text-gray-800 min-w-0 truncate">
-                    {spec.name_ar}
-                  </span>
-
-                  {/* عداد العناوين */}
-                  <span className="text-xs text-gray-400 flex-shrink-0">
-                    {count} عنوان مقترح
-                  </span>
+        {showNotSent && (
+          <div className="mt-3 bg-white/10 rounded-xl overflow-hidden">
+            {notSentProfs.length === 0
+              ? <div className="px-4 py-3 text-xs text-green-200 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" /> جميع الأساتذة أرسلوا مقترحاتهم
                 </div>
-
-                {/* حقول الحدود + حفظ */}
-                <div className="mt-3 flex items-center gap-3 flex-wrap">
-                  <label className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>الحد الأدنى</span>
-                    <input
-                      type="number" min={0} max={99}
-                      value={spec.thesis_min ?? 0}
-                      onChange={e => updateSpec(spec.id, 'thesis_min', Number(e.target.value))}
-                      className="w-14 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-amber-400 font-bold"
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>الحد الأقصى</span>
-                    <input
-                      type="number" min={0} max={99}
-                      placeholder="∞"
-                      value={spec.thesis_max ?? ''}
-                      onChange={e => updateSpec(spec.id, 'thesis_max', e.target.value === '' ? null : Number(e.target.value))}
-                      className="w-14 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-amber-400 font-bold"
-                    />
-                  </label>
-                  <button
-                    onClick={() => saveSpec(spec)}
-                    disabled={saving === spec.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
-                    style={{
-                      background: saved === spec.id ? '#dcfce7' : '#fef3c7',
-                      color: saved === spec.id ? '#15803d' : '#92400e',
-                    }}>
-                    {saved === spec.id
-                      ? <><CheckCircle className="w-3 h-3" />حُفظ</>
-                      : <><Save className="w-3 h-3" />حفظ الإعدادات</>}
-                  </button>
-                </div>
-
-                {/* جدول العناوين المقترحة */}
-                {count > 0 && (
-                  <div className="mt-4 overflow-x-auto rounded-xl border border-gray-100">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-[#1a3a6b]/5 border-b border-gray-100">
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b] w-8">#</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b]">الأستاذ</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b]">العنوان بالعربية</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b] w-20">الحالة</th>
+              : <div className="max-h-52 overflow-y-auto">
+                  <table className="w-full">
+                    <thead className="sticky top-0 bg-[#0f2347]">
+                      <tr>
+                        <th className="px-3 py-2 text-right text-xs font-bold text-amber-300 w-8">#</th>
+                        <th className="px-3 py-2 text-right text-xs font-bold text-amber-300">اللقب والاسم</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {notSentProfs.map((p, i) => (
+                        <tr key={p.id} className="hover:bg-white/5">
+                          <td className="px-3 py-2 text-xs text-gray-400 text-center">{i + 1}</td>
+                          <td className="px-3 py-2 text-sm text-white">{p.last_name} {p.first_name}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {specProposals.map((p, i) => (
-                          <tr key={p.id} className="hover:bg-gray-50/60 transition-colors">
-                            <td className="px-3 py-3 text-xs font-bold text-gray-400 text-center">{i + 1}</td>
-                            <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{p.professor_name}</td>
-                            <td className="px-3 py-3 text-sm font-medium text-gray-800 leading-relaxed">{p.title_ar}</td>
-                            <td className="px-3 py-3"><StatusBadge status={p.status} /></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {count === 0 && (
-                  <p className="mt-2 text-xs text-gray-300 flex items-center gap-1">
-                    <X className="w-3 h-3" />
-                    لا توجد اقتراحات بعد
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+            }
+          </div>
+        )}
       </div>
 
+      {/* ── شريط الفلاتر ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input value={searchText} onChange={e => setSearchText(e.target.value)}
+            placeholder="بحث بالعنوان أو الأستاذ..."
+            className="w-full border border-gray-200 rounded-xl pr-9 pl-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400" />
+          {searchText && (
+            <button onClick={() => setSearchText('')}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="w-3.5 h-3.5 text-gray-400" />
+          <select value={filterSpec} onChange={e => setFilterSpec(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white min-w-[150px]">
+            <option value="">كل التخصصات</option>
+            {specs.map(s => <option key={s.id} value={s.name_ar}>{s.name_ar}</option>)}
+          </select>
+        </div>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+          className="border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white">
+          <option value="">كل الحالات</option>
+          {['مقترح','مُرسَل','مقبول','مرفوض'].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <span className="text-xs text-gray-400 mr-auto">{filtered.length} عنوان</span>
+      </div>
 
+      {/* ── الجدول ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-300">
+            <ScrollText className="w-10 h-10 mb-3" />
+            <p className="text-sm">لا توجد نتائج</p>
+            {(searchText || filterSpec || filterStatus) && (
+              <button onClick={() => { setSearchText(''); setFilterSpec(''); setFilterStatus(''); }}
+                className="mt-3 text-xs text-amber-500 hover:underline">
+                إزالة الفلاتر
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-[#1a3a6b]/5 border-b border-gray-100">
+                  <th className="px-3 py-2.5 text-right text-xs font-bold text-[#1a3a6b] w-8">#</th>
+                  <SortTh col="prof"   label="الأستاذ"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh col="spec"   label="التخصص"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh col="title"  label="العنوان"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="min-w-[200px]" />
+                  <SortTh col="status" label="الحالة"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-20" />
+                  <th className="px-3 py-2.5 w-16" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((r, i) => (
+                  <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-3 py-3 text-xs text-gray-400 text-center font-bold">{i + 1}</td>
+                    <td className="px-3 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap">{r.professor_name}</td>
+                    <td className="px-3 py-3">
+                      <span className="inline-block bg-[#1a3a6b]/5 text-[#1a3a6b] text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap">
+                        {r.spec_name}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-sm text-gray-800 leading-relaxed">{r.title_ar}</td>
+                    <td className="px-3 py-3"><StatusBadge status={r.status} /></td>
+                    <td className="px-3 py-3 text-center">
+                      <button onClick={() => setSelected(r)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1a3a6b]/5 hover:bg-[#1a3a6b]/10 text-[#1a3a6b] text-[11px] font-medium transition-colors">
+                        <Eye className="w-3 h-3" />
+                        عرض
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
