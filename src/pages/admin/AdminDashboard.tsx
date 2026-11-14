@@ -40,7 +40,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<AdminTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    main: true, components: true, pedagogy: true, students: true, system: false,
+    main: true, components: false, pedagogy: false, students: false, system: false,
   });
 
   function toggleGroup(key: string) {
