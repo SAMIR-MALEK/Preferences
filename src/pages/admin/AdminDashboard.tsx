@@ -108,14 +108,29 @@ export default function AdminDashboard() {
       key: 'components',
       label: 'المكونات',
       items: [
-        { id: 'professors',  label: 'الأساتذة',          icon: Users         },
-        { id: 'vacataire',   label: 'الأساتذة المؤقتون', icon: Users         },
-        { id: 'students',    label: 'الطلبة',             icon: GraduationCap },
-        { id: 'sections',    label: 'المجموعات',          icon: Layers        },
-        { id: 'modules',     label: 'المقاييس',           icon: BookOpen      },
-        { id: 'specialties', label: 'التخصصات',           icon: GraduationCap },
-        { id: 'rooms',       label: 'القاعات',             icon: MapPin        },
-        { id: 'import',      label: 'استيراد Excel',      icon: Upload        },
+        { id: 'specialties', label: 'التخصصات',    icon: GraduationCap },
+        { id: 'sections',    label: 'المجموعات',   icon: Layers        },
+        { id: 'modules',     label: 'المقاييس',    icon: BookOpen      },
+        { id: 'rooms',       label: 'القاعات',      icon: MapPin        },
+        { id: 'import',      label: 'استيراد Excel', icon: Upload       },
+      ],
+    },
+    {
+      key: 'professors',
+      label: 'الأساتذة',
+      items: [
+        { id: 'professors',   label: 'الأساتذة',          icon: Users        },
+        { id: 'vacataire',    label: 'الأساتذة المؤقتون', icon: Users        },
+        { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays },
+        { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays },
+      ],
+    },
+    {
+      key: 'students',
+      label: 'الطلبة',
+      items: [
+        { id: 'students',      label: 'الطلبة',         icon: GraduationCap                              },
+        { id: 'grouprequests', label: 'تغيير الأفواج',  icon: ClipboardList, badge: stats.groupRequests },
       ],
     },
     {
@@ -128,15 +143,8 @@ export default function AdminDashboard() {
         { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays  },
         { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays  },
         { id: 'makeup',       label: 'الحصص التعويضية',  icon: Clock         },
-        { id: 'grouprequests',label: 'طلبات الأفواج',     icon: ClipboardList, badge: stats.groupRequests },
-      ],
-    },
-    {
-      key: 'students',
-      label: 'الطلبة والمذكرات',
-      items: [
-        { id: 'thesis',       label: 'مذكرات التخرج',    icon: ScrollText },
-        { id: 'disciplinary', label: 'المجلس التأديبي',  icon: Shield     },
+        { id: 'thesis',       label: 'مذكرات التخرج',    icon: ScrollText    },
+        { id: 'disciplinary', label: 'المجلس التأديبي',  icon: Shield        },
       ],
     },
     {
@@ -236,25 +244,28 @@ export default function AdminDashboard() {
               {/* Group header */}
               <button
                 onClick={() => toggleGroup(group.key)}
-                className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider rounded-lg transition-colors"
-                style={{ color: 'rgba(255,255,255,0.35)' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all mt-1"
+                style={{
+                  color: openGroups[group.key] ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)',
+                  background: openGroups[group.key] ? 'rgba(255,255,255,0.06)' : 'transparent',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.9)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = openGroups[group.key] ? 'rgba(255,255,255,0.06)' : 'transparent'; e.currentTarget.style.color = openGroups[group.key] ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)'; }}
               >
-                <span>{group.label}</span>
+                <span className="text-xs font-bold tracking-wide">{group.label}</span>
                 <ChevronDown
-                  className="w-3 h-3 transition-transform"
+                  className="w-3.5 h-3.5 transition-transform opacity-70"
                   style={{ transform: openGroups[group.key] ? 'rotate(0deg)' : 'rotate(-90deg)' }}
                 />
               </button>
               {/* Group items */}
               {openGroups[group.key] && (
-                <div className="space-y-0.5 mt-0.5">
+                <div className="space-y-0.5 mt-0.5 pr-2">
                   {group.items.map(item => {
                     const Icon = item.icon;
                     return (
                       <button key={item.id} onClick={() => selectTab(item.id)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-right"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-medium transition-all text-right"
                         style={{
                           background: tab === item.id ? '#c9a227' : 'transparent',
                           color: tab === item.id ? 'white' : 'rgba(255,255,255,.5)',
