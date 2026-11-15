@@ -315,6 +315,33 @@ export default function AdminStudentsTab() {
   sectionStudents.forEach(s => { if (s.groupe) groupeCounts.set(s.groupe, (groupeCounts.get(s.groupe) || 0) + 1); });
   const groupeOptions = [...groupeCounts.keys()].sort((a, b) => a - b);
 
+  // أول مجموعة في تخصص، وأول فوج في مجموعة (للتحديد التلقائي)
+  function firstSectionOf(spec: string): string {
+    const nums = students.filter(s => s.specialite === spec && s.section).map(s => s.section as number);
+    return nums.length ? String(Math.min(...nums)) : '';
+  }
+  function firstGroupeOf(spec: string, section: string): string {
+    if (!section || section === 'none') return '';
+    const nums = students
+      .filter(s => s.specialite === spec && String(s.section) === section && s.groupe)
+      .map(s => s.groupe as number);
+    return nums.length ? String(Math.min(...nums)) : '';
+  }
+  // اختيار التخصص ← تتحدد مباشرة المجموعة الأولى والفوج الأول
+  function onSpecChange(spec: string) {
+    const sec = spec ? firstSectionOf(spec) : '';
+    setFilterSpec(spec);
+    setFilterSection(sec);
+    setFilterGroupe(spec ? firstGroupeOf(spec, sec) : '');
+    setPage(0);
+  }
+  // اختيار المجموعة ← يتحدد مباشرة فوجها الأول
+  function onSectionChange(section: string) {
+    setFilterSection(section);
+    setFilterGroupe(firstGroupeOf(filterSpec, section));
+    setPage(0);
+  }
+
   const hasFilters = !!(search || filterSpec || filterSection || filterGroupe);
   function clearFilters() {
     setSearch(''); setFilterSpec(''); setFilterSection(''); setFilterGroupe(''); setPage(0);
@@ -382,7 +409,7 @@ export default function AdminStudentsTab() {
             className="w-full border border-gray-200 rounded-xl pr-9 pl-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" />
         </div>
         <select value={filterSpec}
-          onChange={e => { setFilterSpec(e.target.value); setFilterSection(''); setFilterGroupe(''); setPage(0); }}
+          onChange={e => onSpecChange(e.target.value)}
           className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white">
           <option value="">كل التخصصات ({students.length})</option>
           {SPECIALITES.map(s => <option key={s} value={s}>{s} ({specCounts[s] || 0})</option>)}
@@ -390,7 +417,7 @@ export default function AdminStudentsTab() {
 
         {/* المجموعة — تُفعَّل بعد اختيار التخصص */}
         <select value={filterSection} disabled={!filterSpec}
-          onChange={e => { setFilterSection(e.target.value); setFilterGroupe(''); setPage(0); }}
+          onChange={e => onSectionChange(e.target.value)}
           title={!filterSpec ? 'اختر التخصص أولاً' : ''}
           className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed">
           <option value="">{filterSpec ? `كل المجموعات (${specStudents.length})` : 'المجموعة'}</option>
