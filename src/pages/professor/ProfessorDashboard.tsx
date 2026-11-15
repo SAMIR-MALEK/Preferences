@@ -149,7 +149,8 @@ function ProfNavbar({
               )}
             </div>
 
-            {/* مذكرات التخرج */}
+            {/* مذكرات التخرج — للأساتذة الدائمين فقط */}
+            {!isVacataire && (
             <div className="relative">
               <button
                 onClick={() => toggleMenu('thesis')}
@@ -200,6 +201,7 @@ function ProfNavbar({
                 </div>
               )}
             </div>
+            )}
 
             {/* معلوماتي */}
             <div className="relative">
@@ -325,7 +327,7 @@ export default function ProfessorDashboard() {
   const s2Unlocked = true;
 
   // رسالتا الإشعار: اقتراحات المذكرات + الترشح للمجلس التأديبي (للأساتذة الدائمين فقط)
-  const proposalsOpen = settings?.proposals_open === true;
+  const proposalsOpen = settings?.proposals_open === true && !isVacataire;
   const disciplinaryOpen = settings?.disciplinary_open === true && !isVacataire;
   const disciplinaryExpired = settings?.disciplinary_deadline
     ? new Date() > new Date(settings.disciplinary_deadline)
@@ -411,7 +413,7 @@ export default function ProfessorDashboard() {
         {tab === 'card' && <WishCard prof={profData} />}
         {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
         {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
-        {tab === 'thesis' && profData && <ThesisProposalsTab prof={profData} />}
+        {tab === 'thesis' && profData && !isVacataire && <ThesisProposalsTab prof={profData} />}
         {tab === 'disciplinary' && profData && disciplinaryOpen && <DisciplinaryNomination />}
         {tab === 'makeup' && profData && <MakeupRequest />}
       </div>
