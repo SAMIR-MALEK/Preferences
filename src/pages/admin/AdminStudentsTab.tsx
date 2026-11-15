@@ -33,6 +33,8 @@ export default function AdminStudentsTab() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterSpec, setFilterSpec] = useState('');
+  const [filterSection, setFilterSection] = useState('');   // '' = الكل | 'none' = غير موزّعين | رقم المجموعة
+  const [filterGroupe, setFilterGroupe] = useState('');     // '' = الكل | رقم الفوج
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
   const [editStudent, setEditStudent] = useState<Student | null>(null);
@@ -169,7 +171,12 @@ export default function AdminStudentsTab() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Étudiants');
-    XLSX.writeFile(wb, `طلبة_${filterSpec || 'كل'}_${new Date().toLocaleDateString('fr')}.xlsx`);
+    const scope = [
+      filterSpec || 'كل',
+      filterSection ? (filterSection === 'none' ? 'غير_موزعين' : `م${filterSection}`) : '',
+      filterGroupe ? `ف${filterGroupe}` : '',
+    ].filter(Boolean).join('_');
+    XLSX.writeFile(wb, `طلبة_${scope}_${new Date().toLocaleDateString('fr')}.xlsx`);
   }
 
   async function importGroups(file: File) {
@@ -179,7 +186,7 @@ export default function AdminStudentsTab() {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      // البحث عن سطر الرؤوس — قد يكون في أي صف (ملف Progres يبدأ من السطر 7)
+      // البحث عن سطر الرؤوس — قد يكون في أي صف (الملف الرسمي يبدأ من السطر 7)
       const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
       // إيجاد السطر الذي يحتوي على "Matricule" أو "Section"
@@ -275,7 +282,10 @@ export default function AdminStudentsTab() {
     .filter(s => {
       const matchSearch = !search || `${s.last_name} ${s.first_name} ${s.username} ${s.mat_etudiant} ${s.mat_bac}`.toLowerCase().includes(search.toLowerCase());
       const matchSpec = !filterSpec || s.specialite === filterSpec;
-      return matchSearch && matchSpec;
+      const matchSection = !filterSection
+        || (filterSection === 'none' ? !s.section : String(s.section) === filterSection);
+      const matchGroupe = !filterGroupe || String(s.groupe) === filterGroupe;
+      return matchSearch && matchSpec && matchSection && matchGroupe;
     })
     .sort((a, b) => {
       const av = a[sortCol] ?? '';
@@ -291,6 +301,25 @@ export default function AdminStudentsTab() {
 
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  // ── فلتر المجموعة ثم الفوج (متسلسل: التخصص ← المجموعة ← الفوج) ──
+  const specStudents = filterSpec ? students.filter(s => s.specialite === filterSpec) : [];
+  const sectionCounts = new Map<number, number>();
+  specStudents.forEach(s => { if (s.section) sectionCounts.set(s.section, (sectionCounts.get(s.section) || 0) + 1); });
+  const sectionOptions = [...sectionCounts.keys()].sort((a, b) => a - b);
+  const unassignedCount = specStudents.filter(s => !s.section).length;
+
+  const sectionStudents = filterSection && filterSection !== 'none'
+    ? specStudents.filter(s => String(s.section) === filterSection) : [];
+  const groupeCounts = new Map<number, number>();
+  sectionStudents.forEach(s => { if (s.groupe) groupeCounts.set(s.groupe, (groupeCounts.get(s.groupe) || 0) + 1); });
+  const groupeOptions = [...groupeCounts.keys()].sort((a, b) => a - b);
+
+  const hasFilters = !!(search || filterSpec || filterSection || filterGroupe);
+  function clearFilters() {
+    setSearch(''); setFilterSpec(''); setFilterSection(''); setFilterGroupe(''); setPage(0);
+  }
+
   const specCounts = SPECIALITES.reduce((acc, s) => { acc[s] = students.filter(st => st.specialite === s).length; return acc; }, {} as Record<string, number>);
 
   return (
@@ -352,12 +381,54 @@ export default function AdminStudentsTab() {
             placeholder="بحث بالاسم أو رقم التسجيل..."
             className="w-full border border-gray-200 rounded-xl pr-9 pl-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" />
         </div>
-        <select value={filterSpec} onChange={e => { setFilterSpec(e.target.value); setPage(0); }}
+        <select value={filterSpec}
+          onChange={e => { setFilterSpec(e.target.value); setFilterSection(''); setFilterGroupe(''); setPage(0); }}
           className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white">
           <option value="">كل التخصصات ({students.length})</option>
           {SPECIALITES.map(s => <option key={s} value={s}>{s} ({specCounts[s] || 0})</option>)}
         </select>
+
+        {/* المجموعة — تُفعَّل بعد اختيار التخصص */}
+        <select value={filterSection} disabled={!filterSpec}
+          onChange={e => { setFilterSection(e.target.value); setFilterGroupe(''); setPage(0); }}
+          title={!filterSpec ? 'اختر التخصص أولاً' : ''}
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed">
+          <option value="">{filterSpec ? `كل المجموعات (${specStudents.length})` : 'المجموعة'}</option>
+          {sectionOptions.map(n => <option key={n} value={String(n)}>المجموعة {n} ({sectionCounts.get(n)})</option>)}
+          {filterSpec && unassignedCount > 0 && <option value="none">غير موزّعين ({unassignedCount})</option>}
+        </select>
+
+        {/* الفوج — يُفعَّل بعد اختيار المجموعة */}
+        <select value={filterGroupe} disabled={!filterSection || filterSection === 'none'}
+          onChange={e => { setFilterGroupe(e.target.value); setPage(0); }}
+          title={!filterSection || filterSection === 'none' ? 'اختر المجموعة أولاً' : ''}
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30 bg-white disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed">
+          <option value="">{filterSection && filterSection !== 'none' ? `كل الأفواج (${sectionStudents.length})` : 'الفوج'}</option>
+          {groupeOptions.map(n => <option key={n} value={String(n)}>الفوج {n} ({groupeCounts.get(n)})</option>)}
+        </select>
+
+        {hasFilters && (
+          <button onClick={clearFilters}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">
+            <X className="w-3.5 h-3.5" /> مسح الفلاتر
+          </button>
+        )}
       </div>
+
+      {/* شارات الفلاتر النشطة */}
+      {(filterSpec || filterSection || filterGroupe) && (
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <span className="text-gray-400">العرض الحالي:</span>
+          {filterSpec && <span className="bg-[#1a3a6b]/10 text-[#1a3a6b] font-medium px-2.5 py-1 rounded-full">{filterSpec}</span>}
+          {filterSection && (
+            <span className="bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-full">
+              {filterSection === 'none' ? 'غير موزّعين' : `المجموعة ${filterSection}`}
+            </span>
+          )}
+          {filterGroupe && <span className="bg-amber-50 text-amber-700 font-medium px-2.5 py-1 rounded-full">الفوج {filterGroupe}</span>}
+          <span className="text-gray-500 font-bold">{filtered.length} طالب</span>
+        </div>
+      )}
 
       <p className="text-xs text-gray-400">{filtered.length} نتيجة — صفحة {page+1}/{Math.max(1,totalPages)}</p>
 
