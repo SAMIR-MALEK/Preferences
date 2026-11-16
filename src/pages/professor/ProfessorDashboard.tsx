@@ -874,25 +874,54 @@ function AssignmentCard({ prof }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// تاريخ YYYY-MM-DD ← DD/MM/YYYY (بدون تحويل مناطق زمنية)
+function fmtInsertDate(d?: string | null): string {
+  if (!d) return '';
+  const [y, m, day] = String(d).slice(0, 10).split('-');
+  return y && m && day ? `${day}/${m}/${y}` : String(d);
+}
+
 function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment: any }) {
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<any[] | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const levelName: string = assignment.level_name || '';
+
+  // طلبة الفوج (نفس منطق المطابقة السابق) + تاريخ الإدراج إن وُجد
+  async function fetchStudents(): Promise<any[]> {
+    const { data: specRows } = await supabase
+      .from('students').select('specialite').eq('groupe', assignment.group_number);
+    const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))];
+    const normalize = (s: string) => s.replace(/\s+/g, ' ').replace(/ال/g, '').trim();
+    const matchedSpec = uniqueSpecs.find(sp => normalize(sp) === normalize(levelName)) || uniqueSpecs[0] || null;
+
+    const run = async (cols: string) => {
+      let q: any = supabase.from('students')
+        .select(cols)
+        .eq('groupe', assignment.group_number)
+        .order('last_name', { ascending: true });
+      if (matchedSpec) q = q.eq('specialite', matchedSpec);
+      return await q;
+    };
+    let res: any = await run('last_name, first_name, mat_etudiant, groupe_since');
+    // إن لم يكن عمود تاريخ الإدراج موجوداً بعد في قاعدة البيانات نعود للأعمدة القديمة
+    if (res.error) res = await run('last_name, first_name, mat_etudiant');
+    return res.data || [];
+  }
+
+  async function openList() {
+    setOpen(true);
+    setListLoading(true);
+    try { setList(await fetchStudents()); }
+    catch { setList([]); }
+    setListLoading(false);
+  }
 
   async function download() {
     setLoading(true);
     try {
-      const { data: specRows } = await supabase
-        .from('students').select('specialite').eq('groupe', assignment.group_number);
-      const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))];
-      const levelName: string = assignment.level_name || '';
-      const normalize = (s: string) => s.replace(/\s+/g, ' ').replace(/ال/g, '').trim();
-      const matchedSpec = uniqueSpecs.find(sp => normalize(sp) === normalize(levelName)) || uniqueSpecs[0] || null;
-
-      let studQuery = supabase.from('students')
-        .select('last_name, first_name, mat_etudiant')
-        .eq('groupe', assignment.group_number)
-        .order('last_name', { ascending: true });
-      if (matchedSpec) studQuery = studQuery.eq('specialite', matchedSpec);
-      const { data: students } = await studQuery;
+      const students: any[] = list ?? await fetchStudents();
 
       const groupStr = String(assignment.group_number).padStart(2, '0');
       const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
@@ -970,7 +999,8 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
       (students || []).forEach((s: any, i: number) => {
         const r = 7 + i;
-        const fullName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
+        const baseName = `${s.last_name || ''} ${s.first_name || ''}`.trim();
+        const fullName = s.groupe_since ? `${baseName} (إدراج ${fmtInsertDate(s.groupe_since)})` : baseName;
         cell(r, 0, i + 1,    false, 'center', fullBorder);
         cell(r, 1, fullName, false, 'right',  fullBorder);
         for (let c = 2; c < totalCols; c++) {
@@ -980,7 +1010,8 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
       const totalRows = 7 + (students || []).length;
       ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRows - 1, c: totalCols - 1 } });
-      ws['!cols'] = [{ wch: 5 }, { wch: 24 }, ...Array(sessions).fill({ wch: 3 })];
+      const hasInserted = (students || []).some((s: any) => s.groupe_since);
+      ws['!cols'] = [{ wch: 5 }, { wch: hasInserted ? 38 : 24 }, ...Array(sessions).fill({ wch: 3 })];
       ws['!rows'] = [
         { hpt: 22 }, { hpt: 22 }, { hpt: 8 }, { hpt: 20 }, { hpt: 20 }, { hpt: 8 }, { hpt: 20 },
         ...Array((students || []).length).fill({ hpt: 18 }),
@@ -1020,17 +1051,100 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
     }
   }
 
+  const inserted = (list || []).filter((s: any) => s.groupe_since);
+  const groupLabel = String(assignment.group_number ?? '').padStart(2, '0');
+
   return (
     <div>
       <button
-        onClick={download}
-        disabled={loading}
+        onClick={openList}
         className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
-        style={{ background: loading ? 'rgba(148,163,184,0.2)' : 'rgba(201,162,39,0.12)', color: loading ? '#94a3b8' : '#92400e', border: `1px solid ${loading ? 'rgba(148,163,184,0.3)' : 'rgba(201,162,39,0.3)'}` }}
+        style={{ background: 'rgba(201,162,39,0.12)', color: '#92400e', border: '1px solid rgba(201,162,39,0.3)' }}
       >
-        <Download className="w-3 h-3" />
-        {loading ? 'جارٍ...' : 'تحميل القائمة'}
+        <Users className="w-3 h-3" />
+        قائمة الطلبة
       </button>
+
+      {open && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3" dir="rtl" onClick={() => setOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col" style={{ maxHeight: '88vh' }} onClick={e => e.stopPropagation()}>
+            {/* رأس النافذة */}
+            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-800 text-sm">{assignment.module_name}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {levelName} — الفوج {groupLabel}
+                  {list && !listLoading ? ` — ${list.length} طالب` : ''}
+                </p>
+              </div>
+              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* القائمة */}
+            <div className="overflow-y-auto flex-1 px-5 py-3">
+              {listLoading ? (
+                <p className="text-center text-gray-400 text-sm py-10">جارٍ التحميل...</p>
+              ) : !list || list.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-10">لا يوجد طلبة مسجّلون في هذا الفوج</p>
+              ) : (
+                <>
+                  {inserted.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3 text-xs text-amber-800 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>
+                        {inserted.length === 1 ? 'طالب واحد مُدرج' : `${inserted.length} طلبة مُدرجون`} في هذا الفوج بتاريخ محدد — لا تُحتسب عليهم الغيابات قبل تاريخ الإدراج.
+                      </span>
+                    </div>
+                  )}
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-xs text-gray-500">
+                        <th className="py-2 text-right w-8 font-bold">#</th>
+                        <th className="py-2 text-right font-bold">اللقب والاسم</th>
+                        <th className="py-2 text-right font-bold">رقم التسجيل</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map((s: any, i: number) => (
+                        <tr key={i} className={`border-b border-gray-50 ${s.groupe_since ? 'bg-amber-50/60' : ''}`}>
+                          <td className="py-2 text-xs text-gray-400">{i + 1}</td>
+                          <td className="py-2">
+                            <span className="font-medium text-gray-800 text-xs">{s.last_name} {s.first_name}</span>
+                            {s.groupe_since && (
+                              <span className="block text-[10px] text-amber-700 font-medium mt-0.5">
+                                أُدرج ابتداءً من {fmtInsertDate(s.groupe_since)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 text-xs text-gray-500" dir="ltr" style={{ textAlign: 'right' }}>{s.mat_etudiant}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+
+            {/* أسفل النافذة */}
+            <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
+              <button
+                onClick={download}
+                disabled={loading || listLoading || !list || list.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white py-2.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-40"
+              >
+                <Download className="w-4 h-4" />
+                {loading ? 'جارٍ التحميل...' : 'تحميل ورقة الحضور'}
+              </button>
+              <button onClick={() => setOpen(false)}
+                className="px-5 py-2.5 rounded-xl text-xs border border-gray-200 text-gray-600 hover:bg-gray-50">
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
