@@ -3,7 +3,7 @@ import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum, toArabicFixed } from '../../lib/utils';
-import { Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import WishesFormPage from './WishesFormPage';
 import ProfessorProfilePage from './ProfessorProfilePage';
 import DisciplinaryNomination from './DisciplinaryNomination';
@@ -886,6 +886,8 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<any[] | null>(null);
   const [listLoading, setListLoading] = useState(false);
+  const [query, setQuery] = useState('');
+  const [onlyInserted, setOnlyInserted] = useState(false);
   const levelName: string = assignment.level_name || '';
 
   // طلبة الفوج (نفس منطق المطابقة السابق) + تاريخ الإدراج إن وُجد
@@ -1053,6 +1055,67 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
   const inserted = (list || []).filter((s: any) => s.groupe_since);
   const groupLabel = String(assignment.group_number ?? '').padStart(2, '0');
+  const sectionLabel = assignment.section ? String(assignment.section).padStart(2, '0') : '';
+  const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
+  const timeLabel = assignment.day
+    ? `${assignment.day}${assignment.start_time ? ` ${assignment.start_time}` : ''}${assignment.end_time ? ` — ${assignment.end_time}` : ''}`
+    : '';
+
+  const q = query.trim();
+  const shown = (list || [])
+    .map((s: any, i: number) => ({ ...s, _n: i + 1 }))
+    .filter((s: any) => !onlyInserted || s.groupe_since)
+    .filter((s: any) => !q || `${s.last_name || ''} ${s.first_name || ''} ${s.mat_etudiant || ''}`.includes(q));
+
+  function closeList() { setOpen(false); setQuery(''); setOnlyInserted(false); }
+
+  function printList() {
+    if (!list || list.length === 0) return;
+    const esc = (v: any) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const w = window.open('', '_blank');
+    if (!w) { alert('المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع'); return; }
+    const rows = list.map((s: any, i: number) => `
+      <tr>
+        <td class="c">${i + 1}</td>
+        <td>${esc(s.last_name)}</td>
+        <td>${esc(s.first_name)}</td>
+        <td class="c" dir="ltr">${esc(s.mat_etudiant)}</td>
+        <td class="c">${s.groupe_since ? esc(fmtInsertDate(s.groupe_since)) : ''}</td>
+      </tr>`).join('');
+    w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>قائمة طلبة الفوج ${esc(groupLabel)}</title>
+    <style>
+      @page{size:A4 portrait;margin:14mm 12mm}
+      body{font-family:Arial,sans-serif;direction:rtl;color:#000;font-size:12px}
+      .header{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px;line-height:1.6;font-weight:bold;font-size:14px}
+      h1{text-align:center;font-size:17px;margin:0 0 10px}
+      .info{display:flex;flex-wrap:wrap;gap:6px 22px;margin-bottom:12px;font-size:12px}
+      .info b{font-weight:bold}
+      table{width:100%;border-collapse:collapse}
+      th,td{border:1px solid #000;padding:5px 7px;text-align:right}
+      th{background:#e5e5e5}
+      .c{text-align:center}
+    </style></head><body>
+      <div class="header">
+        <div>جامعة محمد البشير الإبراهيمي — برج بوعريريج</div>
+        <div>كلية الحقوق والعلوم السياسية</div>
+      </div>
+      <h1>قائمة طلبة الفوج ${esc(groupLabel)}</h1>
+      <div class="info">
+        <span><b>المقياس:</b> ${esc(assignment.module_name || '')}</span>
+        <span><b>المستوى:</b> ${esc(levelName)}</span>
+        ${sectionLabel ? `<span><b>المجموعة:</b> ${esc(sectionLabel)}</span>` : ''}
+        <span><b>الأستاذ:</b> ${esc(profName)}</span>
+        ${timeLabel ? `<span><b>التوقيت:</b> ${esc(timeLabel)}</span>` : ''}
+        <span><b>عدد الطلبة:</b> ${list.length}</span>
+      </div>
+      <table>
+        <thead><tr><th class="c" style="width:34px">الرقم</th><th>اللقب</th><th>الاسم</th><th class="c">رقم التسجيل</th><th class="c" style="width:95px">تاريخ الإدراج</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <script>window.onload=function(){window.print();}<\/script>
+    </body></html>`);
+    w.document.close();
+  }
 
   return (
     <div>
@@ -1066,81 +1129,115 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       </button>
 
       {open && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3" dir="rtl" onClick={() => setOpen(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col" style={{ maxHeight: '88vh' }} onClick={e => e.stopPropagation()}>
-            {/* رأس النافذة */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="font-bold text-gray-800 text-sm">{assignment.module_name}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {levelName} — الفوج {groupLabel}
-                  {list && !listLoading ? ` — ${list.length} طالب` : ''}
-                </p>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4" dir="rtl" onClick={closeList}>
+          <div className="bg-[#f1f4f9] rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden" style={{ height: '94vh' }} onClick={e => e.stopPropagation()}>
+
+            {/* ── الرأس ── */}
+            <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] text-white px-5 py-4 flex-shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[#c9a227] text-xs font-semibold mb-1">قائمة طلبة الفوج</p>
+                  <h3 className="font-bold text-lg leading-snug">{assignment.module_name}</h3>
+                </div>
+                <button onClick={closeList}
+                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center flex-shrink-0 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
-                <X className="w-5 h-5" />
-              </button>
+
+              <div className="flex flex-wrap gap-2 mt-3 text-xs">
+                <span className="bg-white/10 rounded-lg px-3 py-1.5">{levelName}</span>
+                {sectionLabel && <span className="bg-white/10 rounded-lg px-3 py-1.5">المجموعة {sectionLabel}</span>}
+                <span className="bg-[#c9a227] rounded-lg px-3 py-1.5 font-bold">الفوج {groupLabel}</span>
+                {timeLabel && <span className="bg-white/10 rounded-lg px-3 py-1.5">{timeLabel}</span>}
+                {assignment.room && assignment.room !== '—' && <span className="bg-white/10 rounded-lg px-3 py-1.5">القاعة: {assignment.room}</span>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-4 max-w-md">
+                <div className="bg-white/10 rounded-xl px-4 py-3 text-center">
+                  <p className="text-2xl font-bold">{listLoading || !list ? '…' : list.length}</p>
+                  <p className="text-[11px] text-gray-300 mt-0.5">عدد الطلبة</p>
+                </div>
+                <div className="bg-white/10 rounded-xl px-4 py-3 text-center">
+                  <p className="text-2xl font-bold text-amber-300">{listLoading || !list ? '…' : inserted.length}</p>
+                  <p className="text-[11px] text-amber-200 mt-0.5">مُدرجون بتاريخ</p>
+                </div>
+              </div>
             </div>
 
-            {/* القائمة */}
-            <div className="overflow-y-auto flex-1 px-5 py-3">
-              {listLoading ? (
-                <p className="text-center text-gray-400 text-sm py-10">جارٍ التحميل...</p>
-              ) : !list || list.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-10">لا يوجد طلبة مسجّلون في هذا الفوج</p>
-              ) : (
-                <>
-                  {inserted.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3 text-xs text-amber-800 flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>
-                        {inserted.length === 1 ? 'طالب واحد مُدرج' : `${inserted.length} طلبة مُدرجون`} في هذا الفوج بتاريخ محدد — لا تُحتسب عليهم الغيابات قبل تاريخ الإدراج.
-                      </span>
-                    </div>
-                  )}
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100 text-xs text-gray-500">
-                        <th className="py-2 text-right w-8 font-bold">#</th>
-                        <th className="py-2 text-right font-bold">اللقب والاسم</th>
-                        <th className="py-2 text-right font-bold">رقم التسجيل</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {list.map((s: any, i: number) => (
-                        <tr key={i} className={`border-b border-gray-50 ${s.groupe_since ? 'bg-amber-50/60' : ''}`}>
-                          <td className="py-2 text-xs text-gray-400">{i + 1}</td>
-                          <td className="py-2">
-                            <span className="font-medium text-gray-800 text-xs">{s.last_name} {s.first_name}</span>
-                            {s.groupe_since && (
-                              <span className="block text-[10px] text-amber-700 font-medium mt-0.5">
-                                أُدرج ابتداءً من {fmtInsertDate(s.groupe_since)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2 text-xs text-gray-500" dir="ltr" style={{ textAlign: 'right' }}>{s.mat_etudiant}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
+            {/* ── شريط الأدوات ── */}
+            <div className="bg-white border-b border-gray-200 px-5 py-3 flex flex-wrap items-center gap-2 flex-shrink-0">
+              <div className="relative flex-1 min-w-[170px]">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input value={query} onChange={e => setQuery(e.target.value)}
+                  placeholder="بحث بالاسم أو رقم التسجيل..."
+                  className="w-full border border-gray-200 rounded-xl pr-9 pl-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" />
+              </div>
+              {inserted.length > 0 && (
+                <button onClick={() => setOnlyInserted(v => !v)}
+                  className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                    onlyInserted ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
+                  }`}>
+                  المُدرجون فقط
+                </button>
               )}
+              <button onClick={download}
+                disabled={loading || listLoading || !list || list.length === 0}
+                className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
+                <Download className="w-4 h-4" />
+                {loading ? 'جارٍ التحميل...' : 'ورقة الحضور'}
+              </button>
+              <button onClick={printList}
+                disabled={listLoading || !list || list.length === 0}
+                className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
+                <Printer className="w-4 h-4" />
+                طباعة القائمة
+              </button>
             </div>
 
-            {/* أسفل النافذة */}
-            <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
-              <button
-                onClick={download}
-                disabled={loading || listLoading || !list || list.length === 0}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white py-2.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-40"
-              >
-                <Download className="w-4 h-4" />
-                {loading ? 'جارٍ التحميل...' : 'تحميل ورقة الحضور'}
-              </button>
-              <button onClick={() => setOpen(false)}
-                className="px-5 py-2.5 rounded-xl text-xs border border-gray-200 text-gray-600 hover:bg-gray-50">
-                إغلاق
-              </button>
+            {/* ── القائمة ── */}
+            <div className="overflow-y-auto flex-1 px-3 sm:px-5 py-4">
+              {listLoading ? (
+                <p className="text-center text-gray-400 text-sm py-16">جارٍ تحميل القائمة...</p>
+              ) : !list || list.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-16">لا يوجد طلبة مسجّلون في هذا الفوج</p>
+              ) : shown.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-16">لا توجد نتائج مطابقة</p>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-[#1a3a6b] text-white text-xs">
+                          <th className="px-3 py-3 text-center font-bold w-12">الرقم</th>
+                          <th className="px-3 py-3 text-right font-bold">اللقب</th>
+                          <th className="px-3 py-3 text-right font-bold">الاسم</th>
+                          <th className="px-3 py-3 text-center font-bold hidden sm:table-cell">رقم التسجيل</th>
+                          <th className="px-3 py-3 text-center font-bold whitespace-nowrap">تاريخ الإدراج</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shown.map((s: any) => (
+                          <tr key={s._n} className={`border-b border-gray-100 last:border-b-0 ${s.groupe_since ? 'bg-amber-50' : s._n % 2 === 0 ? 'bg-gray-50/60' : 'bg-white'}`}>
+                            <td className="px-3 py-3 text-center text-gray-400 font-bold">{s._n}</td>
+                            <td className="px-3 py-3 font-bold text-gray-800">
+                              {s.last_name}
+                              <span className="block sm:hidden text-[10px] font-normal text-gray-400 font-mono mt-0.5" dir="ltr" style={{ textAlign: 'right' }}>{s.mat_etudiant}</span>
+                            </td>
+                            <td className="px-3 py-3 text-gray-700">{s.first_name}</td>
+                            <td className="px-3 py-3 text-center text-gray-500 font-mono text-xs hidden sm:table-cell" dir="ltr">{s.mat_etudiant}</td>
+                            <td className="px-3 py-3 text-center whitespace-nowrap">
+                              {s.groupe_since
+                                ? <span className="inline-block bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">{fmtInsertDate(s.groupe_since)}</span>
+                                : <span className="text-gray-300">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
