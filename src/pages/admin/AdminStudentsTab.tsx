@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check } from 'lucide-react';
+import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, UserCheck, Printer } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 import * as XLSX from 'xlsx';
 
 const SPECIALITES = [
@@ -25,10 +26,23 @@ interface Student {
   email: string;
   section: number | null;
   groupe: number | null;
+  groupe_since?: string | null;   // تاريخ الإدراج في الفوج (YYYY-MM-DD)
   created_at: string;
 }
 
+// تاريخ YYYY-MM-DD ← DD/MM/YYYY (بدون تحويل مناطق زمنية)
+function fmtDate(d?: string | null): string {
+  if (!d) return '';
+  const [y, m, day] = String(d).slice(0, 10).split('-');
+  return y && m && day ? `${day}/${m}/${y}` : String(d);
+}
+function todayISO(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
 export default function AdminStudentsTab() {
+  const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -46,6 +60,14 @@ export default function AdminStudentsTab() {
   const [importingGroups, setImportingGroups] = useState(false);
   const [sortCol, setSortCol] = useState<keyof Student>('last_name');
   const [sortAsc, setSortAsc] = useState(true);
+  // ── الإدراج في فوج ──
+  const [insStudent, setInsStudent] = useState<Student | null>(null);
+  const [insGroupe, setInsGroupe] = useState('');
+  const [insDate, setInsDate] = useState('');
+  const [insNote, setInsNote] = useState('');
+  const [insSaving, setInsSaving] = useState(false);
+  const [insError, setInsError] = useState('');
+  const [insDone, setInsDone] = useState<Student | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const groupsFileRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 50;
@@ -278,6 +300,124 @@ export default function AdminStudentsTab() {
     setSaving(false);
   }
 
+  // ══ الإدراج في فوج ══════════════════════════════════════════════════
+  // أفواج تخصص الطالب، مع مجموعة كل فوج وعدد طلبته
+  function groupsOfSpec(spec: string) {
+    const m = new Map<number, { count: number; sections: Map<number, number> }>();
+    for (const st of students) {
+      if (st.specialite !== spec || !st.groupe) continue;
+      if (!m.has(st.groupe)) m.set(st.groupe, { count: 0, sections: new Map() });
+      const g = m.get(st.groupe)!;
+      g.count++;
+      if (st.section) g.sections.set(st.section, (g.sections.get(st.section) || 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([groupe, g]) => {
+      let section: number | null = null, best = 0;
+      g.sections.forEach((n, sec) => { if (n > best) { best = n; section = sec; } });
+      return { groupe, section: section as number | null, count: g.count };
+    });
+  }
+
+  function openInsertion(st: Student) {
+    setInsStudent(st);
+    setInsGroupe(st.groupe ? String(st.groupe) : '');
+    setInsDate(st.groupe_since ? String(st.groupe_since).slice(0, 10) : todayISO());
+    setInsNote('');
+    setInsError('');
+    setInsDone(null);
+  }
+
+  function closeInsertion() {
+    if (insSaving) return;
+    setInsStudent(null);
+    setInsDone(null);
+    setInsError('');
+  }
+
+  async function saveInsertion() {
+    if (!insStudent) return;
+    const newGroupe = Number(insGroupe);
+    if (!newGroupe || newGroupe < 1) { setInsError('اختر الفوج'); return; }
+    if (!insDate) { setInsError('حدد تاريخ الإدراج'); return; }
+    setInsSaving(true);
+    setInsError('');
+
+    const target = groupsOfSpec(insStudent.specialite).find(g => g.groupe === newGroupe);
+    const newSection = target?.section ?? insStudent.section;
+
+    const { error } = await supabase.from('students')
+      .update({ section: newSection, groupe: newGroupe, groupe_since: insDate })
+      .eq('id', insStudent.id);
+    if (error) {
+      setInsError('تعذّر الحفظ: ' + error.message);
+      setInsSaving(false);
+      return;
+    }
+
+    // سجل دائم للإدراجات
+    const { error: logErr } = await supabase.from('group_insertions').insert({
+      student_id: insStudent.id,
+      from_section: insStudent.section,
+      from_groupe: insStudent.groupe,
+      to_section: newSection,
+      to_groupe: newGroupe,
+      effective_date: insDate,
+      note: insNote.trim() || null,
+      created_by: (user as any)?.admin?.full_name || (user as any)?.admin?.username || null,
+    });
+
+    const updated: Student = { ...insStudent, section: newSection, groupe: newGroupe, groupe_since: insDate };
+    setStudents(prev => prev.map(st => st.id === updated.id ? updated : st));
+    setInsDone(updated);
+    if (logErr) setInsError('تم الإدراج، لكن تعذّر تسجيله في السجل: ' + logErr.message);
+    setInsSaving(false);
+  }
+
+  function printInsertion(st: Student) {
+    const esc = (v: any) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const dept = (user as any)?.admin?.department;
+    const deptLine = dept === 'عام' ? 'قسم القانون العام' : dept === 'خاص' ? 'قسم القانون الخاص' : '';
+    const today = fmtDate(todayISO());
+    const w = window.open('', '_blank');
+    if (!w) { alert('المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع'); return; }
+    w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>إدراج طالب</title>
+    <style>
+      @page{size:A4 portrait;margin:20mm 18mm}
+      body{font-family:Arial,sans-serif;direction:rtl;color:#000;font-size:15px}
+      .header{text-align:center;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:34px;line-height:1.7}
+      .header .u{font-weight:bold;font-size:16px}
+      h1{text-align:center;font-size:24px;margin:0 0 36px;letter-spacing:1px}
+      .intro{font-size:17px;font-weight:bold;margin-bottom:18px}
+      table{width:100%;border-collapse:collapse}
+      td{padding:11px 8px;font-size:16px;border-bottom:1px dotted #777;vertical-align:top}
+      td.l{width:34%;font-weight:bold}
+      .sign{margin-top:70px;display:flex;justify-content:space-between;font-size:15px}
+      .sign .box{text-align:center;min-width:220px}
+      .sign .box p{margin:0 0 60px;font-weight:bold}
+    </style></head><body>
+      <div class="header">
+        <div class="u">جامعة محمد البشير الإبراهيمي — برج بوعريريج</div>
+        <div class="u">كلية الحقوق والعلوم السياسية</div>
+        ${deptLine ? `<div>${deptLine}</div>` : ''}
+      </div>
+      <h1>إدراج طالب</h1>
+      <div class="intro">يُدرج الطالب:</div>
+      <table>
+        <tr><td class="l">اللقب والاسم</td><td>${esc(st.last_name)} ${esc(st.first_name)}</td></tr>
+        <tr><td class="l">رقم التسجيل</td><td dir="ltr" style="text-align:right">${esc(st.mat_etudiant)}</td></tr>
+        <tr><td class="l">المستوى والتخصص</td><td>${esc(st.specialite)}</td></tr>
+        <tr><td class="l">في الفوج</td><td>${esc(String(st.groupe ?? '').padStart(2, '0'))}</td></tr>
+        <tr><td class="l">ابتداءً من تاريخ</td><td>${esc(fmtDate(st.groupe_since))}</td></tr>
+      </table>
+      <div class="sign">
+        <div>حُرّر بتاريخ: ${today}</div>
+        <div class="box"><p>رئيس القسم</p></div>
+      </div>
+      <script>window.onload=function(){window.print();}<\/script>
+    </body></html>`);
+    w.document.close();
+  }
+
   const filtered = students
     .filter(s => {
       const matchSearch = !search || `${s.last_name} ${s.first_name} ${s.username} ${s.mat_etudiant} ${s.mat_bac}`.toLowerCase().includes(search.toLowerCase());
@@ -501,13 +641,26 @@ export default function AdminStudentsTab() {
                   </td>
                   <td className="px-4 py-3 text-xs text-center">
                     {s.section ? <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">م{s.section}/ف{s.groupe}</span> : <span className="text-gray-300">—</span>}
+                    {s.groupe_since && (
+                      <p className="text-[10px] text-amber-600 mt-1 whitespace-nowrap">إدراج {fmtDate(s.groupe_since)}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{s.phone || '—'}</td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => { setEditStudent(s); setNewPassword(''); }}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <button onClick={() => { setEditStudent(s); setNewPassword(''); }} title="تعديل البيانات"
                       className="text-gray-400 hover:text-[#1a3a6b] transition-colors p-1">
                       <Edit2 className="w-4 h-4" />
                     </button>
+                    <button onClick={() => openInsertion(s)} title="إدراج في فوج"
+                      className="text-gray-400 hover:text-amber-600 transition-colors p-1">
+                      <UserCheck className="w-4 h-4" />
+                    </button>
+                    {s.groupe_since && s.groupe && (
+                      <button onClick={() => printInsertion(s)} title="طباعة الإدراج"
+                        className="text-gray-400 hover:text-[#1a3a6b] transition-colors p-1">
+                        <Printer className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -549,6 +702,100 @@ export default function AdminStudentsTab() {
           </div>
         </div>
       )}
+
+      {insStudent && (() => {
+        const opts = groupsOfSpec(insStudent.specialite);
+        const chosen = opts.find(g => String(g.groupe) === insGroupe);
+        const sameGroup = !!insStudent.groupe && Number(insGroupe) === insStudent.groupe;
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeInsertion}>
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" dir="rtl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-amber-600" /> إدراج طالب في فوج
+                </h3>
+                <button onClick={closeInsertion} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                <p className="font-bold text-gray-800 text-sm">{insStudent.last_name} {insStudent.first_name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{insStudent.mat_etudiant} — {insStudent.specialite}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  الفوج الحالي: <span className="font-bold text-[#1a3a6b]">{insStudent.groupe ? `ف${insStudent.groupe}` : 'غير موزّع'}</span>
+                  {insStudent.groupe_since && <span className="text-amber-600"> — إدراج سابق {fmtDate(insStudent.groupe_since)}</span>}
+                </p>
+              </div>
+
+              {insDone ? (
+                <div className="space-y-3">
+                  <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm">
+                    ✓ أُدرج الطالب في الفوج <span className="font-bold">{insDone.groupe}</span> ابتداءً من <span className="font-bold">{fmtDate(insDone.groupe_since)}</span>
+                  </div>
+                  {insError && <div className="bg-amber-50 border border-amber-200 text-amber-700 rounded-xl px-4 py-2 text-xs">{insError}</div>}
+                  <div className="flex gap-2">
+                    <button onClick={() => printInsertion(insDone)}
+                      className="flex-1 flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white py-2.5 rounded-xl text-sm font-bold transition-colors">
+                      <Printer className="w-4 h-4" /> طباعة الإدراج
+                    </button>
+                    <button onClick={closeInsertion}
+                      className="flex-1 py-2.5 rounded-xl text-sm border border-gray-200 text-gray-600 hover:bg-gray-50">
+                      إغلاق
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">في الفوج</label>
+                    {opts.length > 0 ? (
+                      <select value={insGroupe} onChange={e => setInsGroupe(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none bg-white focus:ring-2 focus:ring-[#1a3a6b]/30">
+                        <option value="">— اختر الفوج —</option>
+                        {opts.map(g => (
+                          <option key={g.groupe} value={String(g.groupe)}>
+                            الفوج {g.groupe}{g.section ? ` (المجموعة ${g.section})` : ''} — {g.count} طالب{g.groupe === insStudent.groupe ? ' — الحالي' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input type="number" min={1} value={insGroupe} onChange={e => setInsGroupe(e.target.value)}
+                        placeholder="رقم الفوج"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
+                    )}
+                    {sameGroup && (
+                      <p className="text-[11px] text-gray-400 mt-1">نفس الفوج الحالي — سيُحدَّث تاريخ الإدراج فقط.</p>
+                    )}
+                    {!sameGroup && chosen && chosen.section && insStudent.section && chosen.section !== insStudent.section && (
+                      <p className="text-[11px] text-amber-600 mt-1">هذا الفوج تابع للمجموعة {chosen.section} — ستتغير مجموعة الطالب معه.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">ابتداءً من تاريخ</label>
+                    <input type="date" value={insDate} onChange={e => setInsDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">ملاحظة (اختياري — تُحفظ في السجل فقط)</label>
+                    <input value={insNote} onChange={e => setInsNote(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" />
+                  </div>
+                  {insError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-xs">{insError}</div>}
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={saveInsertion} disabled={insSaving}
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                      {insSaving ? 'جارٍ الحفظ...' : 'تأكيد الإدراج'}
+                    </button>
+                    <button onClick={closeInsertion} disabled={insSaving}
+                      className="flex-1 py-2.5 rounded-xl text-sm border border-gray-200 text-gray-600 hover:bg-gray-50">
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {editStudent && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEditStudent(null)}>
