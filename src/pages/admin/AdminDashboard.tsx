@@ -104,6 +104,7 @@ export default function AdminDashboard() {
       label: 'الرئيسية',
       items: [
         { id: 'dashboard', label: 'لوحة الإدارة', icon: BarChart2 },
+        { id: 'structure', label: 'الهيكل الإداري والبيداغوجي', icon: Network },
       ],
     },
     {
@@ -125,7 +126,6 @@ export default function AdminDashboard() {
         { id: 'vacataire',    label: 'الأساتذة المؤقتون', icon: Users        },
         { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays },
         { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays },
-        { id: 'structure',    label: 'الهيكل الإداري',    icon: Network      },
       ],
     },
     {
