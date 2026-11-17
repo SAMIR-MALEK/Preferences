@@ -5,27 +5,13 @@ import { toArabicNum } from '../../lib/utils';
 import type { Professor, ProfessorRank } from '../../types';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
 import * as XLSX from 'xlsx';
+import { ROLE_DEFS, DEPARTMENTS, roleDef, roleTitle } from '../../lib/roles';
 import {
   UserPlus, Search, Lock, Unlock, Pencil,
   CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2, FileText, Shield
 } from 'lucide-react';
 
-// ── أدوار الأساتذة ──
-const DEPARTMENTS = ['قانون عام', 'قانون خاص'];
-
-const LINKED_ROLES = [
-  { key: 'spec_head',   label: 'مسؤول تخصص', needsSpec: true  },
-  { key: 'branch_head', label: 'مسؤول شعبة',  needsSpec: false },
-  { key: 'field_head',  label: 'مسؤول ميدان', needsSpec: false },
-];
-
-type LinkedRoleRow = { id?: string; role: string; speciality: string | null };
-
-// القواعد:
-// dean / vice_dean: متنافيان + لا يجمعان مع dept_head
-// sci_head / sci_member: متنافيان
-// dept_head: يحتاج تحديد القسم
-
+// ── منصب الأستاذ (منصب واحد على الأكثر، وكل منصب فريد في نطاقه) ──
 interface RolesModalProps {
   prof: Professor;
   specialities: string[];
@@ -34,113 +20,118 @@ interface RolesModalProps {
 }
 
 function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
-  // المنصب الإداري العلوي: 'dean' | 'vice_dean' | null
-  const [topRole, setTopRole]       = useState<string | null>(null);
-  // رئيس القسم + القسم
-  const [isDeptHead, setIsDeptHead] = useState(false);
-  const [deptName, setDeptName]     = useState('');
-  // اللجنة العلمية: 'sci_head' | 'sci_member' | null
-  const [sciRole, setSciRole]       = useState<string | null>(null);
-  // الأدوار البيداغوجية
-  const [linkedRows, setLinkedRows] = useState<LinkedRoleRow[]>([]);
+  const [role, setRole]             = useState('');
+  const [scope, setScope]           = useState('');
+  const [initial, setInitial]       = useState<{ role: string; scope: string }>({ role: '', scope: '' });
+  const [holder, setHolder]         = useState<{ id: string; name: string } | null>(null);
+  const [checkingHolder, setCheckingHolder] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
   const [saving, setSaving]         = useState(false);
   const [saveError, setSaveError]   = useState('');
   const [loadingRoles, setLoadingRoles] = useState(true);
 
+  const def = roleDef(role);
+  const needsScope = !!def && def.scope !== 'none';
+
   useEffect(() => {
     async function load() {
       setLoadingRoles(true);
-      const { data: pData } = await supabase
-        .from('professors').select('roles').eq('id', prof.id).single();
-      const roles: string[] = (pData?.roles as string[]) || [];
-
-      setTopRole(roles.includes('dean') ? 'dean' : roles.includes('vice_dean') ? 'vice_dean' : null);
-      setSciRole(roles.includes('sci_head') ? 'sci_head' : roles.includes('sci_member') ? 'sci_member' : null);
-
-      // رئيس القسم مخزون في professor_roles برول dept_head والـ speciality = اسم القسم
-      const { data: rData } = await supabase
+      const { data, error } = await supabase
         .from('professor_roles').select('id, role, speciality').eq('professor_id', prof.id);
-      const rows: LinkedRoleRow[] = (rData as LinkedRoleRow[]) || [];
-      const deptRow = rows.find(r => r.role === 'dept_head');
-      if (deptRow) { setIsDeptHead(true); setDeptName(deptRow.speciality || ''); }
-      setLinkedRows(rows.filter(r => r.role !== 'dept_head'));
+      if (error) setSaveError('تعذّر قراءة المنصب الحالي: ' + error.message);
+      const row = (data || [])[0];
+      const cur = { role: row?.role || '', scope: row?.speciality || '' };
+      setInitial(cur);
+      setRole(cur.role);
+      setScope(cur.scope);
       setLoadingRoles(false);
     }
     load();
   }, [prof.id]);
 
-  // عند اختيار عميد/نائب → إلغاء رئيس القسم
-  function selectTopRole(val: string | null) {
-    setTopRole(val);
-    if (val) { setIsDeptHead(false); setDeptName(''); }
-  }
+  // من يشغل المنصب المختار حالياً؟
+  useEffect(() => {
+    setHolder(null);
+    setConfirmReplace(false);
+    if (!def || def.multi) return;
+    if (needsScope && !scope) return;
+    let cancelled = false;
+    (async () => {
+      setCheckingHolder(true);
+      let q = supabase.from('professor_roles')
+        .select('id, professor_id, professors(last_name, first_name)')
+        .eq('role', role)
+        .neq('professor_id', prof.id);
+      q = needsScope ? q.eq('speciality', scope) : q.is('speciality', null);
+      const { data } = await q;
+      if (cancelled) return;
+      const h: any = (data || [])[0];
+      if (h) {
+        const pr = Array.isArray(h.professors) ? h.professors[0] : h.professors;
+        setHolder({ id: h.id, name: pr ? `${pr.last_name} ${pr.first_name}` : 'أستاذ آخر' });
+      }
+      setCheckingHolder(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line
+  }, [role, scope]);
 
-  function addLinkedRow() {
-    setLinkedRows(prev => [...prev, { role: 'spec_head', speciality: null }]);
-  }
-  function removeLinkedRow(idx: number) {
-    setLinkedRows(prev => prev.filter((_, i) => i !== idx));
-  }
-  function updateLinkedRow(idx: number, field: keyof LinkedRoleRow, value: string | null) {
-    setLinkedRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  function pick(key: string) {
+    setSaveError('');
+    if (key !== role) { setRole(key); setScope(''); }
   }
 
   async function handleSave() {
-    setSaving(true);
     setSaveError('');
-    // الحفظ لا يُعتبر ناجحاً إلا إذا قبلته قاعدة البيانات فعلاً
-    const fail = (step: string, e: any) => {
-      setSaveError(`تعذّر حفظ ${step}: ${e?.message || e}`);
-      setSaving(false);
-    };
+    if (role && needsScope && !scope) {
+      setSaveError(def?.scope === 'department' ? 'اختر القسم' : 'اختر التخصص');
+      return;
+    }
+    if (holder && !confirmReplace) {
+      setConfirmReplace(true);
+      return;
+    }
+    setSaving(true);
+    const fail = (e: any) => { setSaveError('تعذّر الحفظ: ' + (e?.message || e)); setSaving(false); };
     try {
-      // بناء مصفوفة الأدوار العامة
-      const roles: string[] = [];
-      if (topRole) roles.push(topRole);
-      if (sciRole) roles.push(sciRole);
-
-      const { error: e1 } = await supabase.from('professors').update({ roles }).eq('id', prof.id);
-      if (e1) return fail('المنصب الإداري', e1);
-
-      // أدوار professor_roles: رئيس القسم + البيداغوجية
-      const { error: e2 } = await supabase.from('professor_roles').delete().eq('professor_id', prof.id);
-      if (e2) return fail('المسؤوليات', e2);
-      const toInsert: { professor_id: string; role: string; speciality: string | null }[] = [];
-
-      if (isDeptHead && deptName) {
-        toInsert.push({ professor_id: prof.id, role: 'dept_head', speciality: deptName });
+      if (holder) {
+        const { error } = await supabase.from('professor_roles').delete().eq('id', holder.id);
+        if (error) return fail(error);
       }
-      linkedRows.filter(r => r.role).forEach(r => {
-        toInsert.push({ professor_id: prof.id, role: r.role, speciality: r.speciality || null });
-      });
-
-      if (toInsert.length > 0) {
-        const { data: ins, error: e3 } = await supabase.from('professor_roles').insert(toInsert).select('id');
-        if (e3) return fail('المسؤوليات', e3);
-        if (!ins || ins.length < toInsert.length) return fail('المسؤوليات', 'قاعدة البيانات لم تحفظ كل الأسطر');
+      const { error: delErr } = await supabase.from('professor_roles').delete().eq('professor_id', prof.id);
+      if (delErr) return fail(delErr);
+      if (role) {
+        const { data, error } = await supabase.from('professor_roles')
+          .insert({ professor_id: prof.id, role, speciality: needsScope ? scope : null })
+          .select('id');
+        if (error) {
+          if (/duplicate|unique/i.test(error.message)) return fail('هذا المنصب مشغول — أعد فتح النافذة ثم حاول مجدداً');
+          return fail(error);
+        }
+        if (!data || data.length === 0) return fail('قاعدة البيانات لم تحفظ المنصب');
       }
-
       onSaved();
       onClose();
     } catch (e: any) {
-      return fail('الأدوار', e);
+      return fail(e);
     }
     setSaving(false);
   }
 
-  const inputCls = "w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white";
+  const changed = role !== initial.role || (role && scope !== initial.scope);
+  const groups = [...new Set(ROLE_DEFS.map(r => r.group))];
+  const inputCls = "w-full border border-gray-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white";
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
-        {/* رأس المودال */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-[#1a3a6b]/10 flex items-center justify-center">
               <Shield className="w-4 h-4 text-[#1a3a6b]" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">أدوار الأستاذ</h3>
+              <h3 className="font-bold text-gray-900 text-sm">منصب الأستاذ</h3>
               <p className="text-xs text-gray-400">{prof.last_name} {prof.first_name}</p>
             </div>
           </div>
@@ -151,126 +142,71 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
 
         {loadingRoles ? (
           <div className="flex justify-center py-8">
-            <svg className="animate-spin h-5 w-5 text-[#1a3a6b]" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
+            <div className="animate-spin h-5 w-5 border-2 border-[#1a3a6b] border-t-transparent rounded-full" />
           </div>
         ) : (
           <>
-            {/* ① الإدارة العليا */}
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">الإدارة العليا</p>
-              <div className="flex gap-2 flex-wrap">
-                {[
-                  { key: 'dean',      label: 'العميد' },
-                  { key: 'vice_dean', label: 'نائب العميد' },
-                ].map(r => (
-                  <button key={r.key} type="button"
-                    onClick={() => selectTopRole(topRole === r.key ? null : r.key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                      topRole === r.key
-                        ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-[#1a3a6b]'
-                    }`}>
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {initial.role && (
+              <p className="text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">
+                المنصب الحالي: <span className="font-bold text-[#1a3a6b]">{roleTitle(initial.role, initial.scope)}</span>
+              </p>
+            )}
+            <p className="text-[11px] text-gray-400 mb-3">لكل أستاذ منصب واحد فقط.</p>
 
-            {/* ② رئيس القسم */}
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">رئيس القسم</p>
-              <div className="flex items-center gap-3">
-                <label className={`flex items-center gap-2 cursor-pointer ${topRole ? 'opacity-40 pointer-events-none' : ''}`}>
-                  <input type="checkbox" checked={isDeptHead}
-                    onChange={e => { setIsDeptHead(e.target.checked); if (!e.target.checked) setDeptName(''); }}
-                    className="w-4 h-4 accent-[#1a3a6b]" />
-                  <span className="text-sm text-gray-700">رئيس قسم</span>
-                </label>
-                {isDeptHead && (
-                  <select value={deptName} onChange={e => setDeptName(e.target.value)}
-                    className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a3a6b]/30 bg-white">
-                    <option value="">— اختر القسم —</option>
-                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                )}
-              </div>
-              {topRole && <p className="text-xs text-amber-600 mt-1">لا يمكن الجمع مع {topRole === 'dean' ? 'العميد' : 'نائب العميد'}</p>}
-            </div>
-
-            {/* ③ اللجنة العلمية */}
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">اللجنة العلمية</p>
-              <div className="flex gap-2 flex-wrap">
-                {[
-                  { key: 'sci_head',   label: 'رئيس اللجنة' },
-                  { key: 'sci_member', label: 'عضو اللجنة' },
-                ].map(r => (
-                  <button key={r.key} type="button"
-                    onClick={() => setSciRole(sciRole === r.key ? null : r.key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                      sciRole === r.key
-                        ? 'bg-purple-600 text-white border-purple-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-purple-400'
-                    }`}>
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ④ المسؤوليات البيداغوجية */}
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">المسؤوليات البيداغوجية</p>
-                <button onClick={addLinkedRow}
-                  className="text-xs text-[#1a3a6b] hover:text-[#0d2040] font-medium">+ إضافة</button>
-              </div>
-              {linkedRows.length === 0 && (
-                <p className="text-xs text-gray-400 text-center py-2">لا توجد مسؤوليات — اضغط «إضافة»</p>
-              )}
-              <div className="space-y-2">
-                {linkedRows.map((row, idx) => {
-                  const roleDef = LINKED_ROLES.find(r => r.key === row.role);
-                  return (
-                    <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-2">
-                      <select value={row.role}
-                        onChange={e => updateLinkedRow(idx, 'role', e.target.value)}
-                        className={inputCls + " flex-1"}>
-                        {LINKED_ROLES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
-                      </select>
-                      {roleDef?.needsSpec ? (
-                        <select value={row.speciality || ''}
-                          onChange={e => updateLinkedRow(idx, 'speciality', e.target.value || null)}
-                          className={inputCls + " flex-1"}>
-                          <option value="">— التخصص —</option>
-                          {specialities.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      ) : (
-                        <span className="flex-1 text-xs text-gray-400 px-2">كل التخصصات</span>
-                      )}
-                      <button onClick={() => removeLinkedRow(idx)}
-                        className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-                        <X className="w-3.5 h-3.5" />
+            <div className="space-y-3 mb-4">
+              <button type="button" onClick={() => pick('')}
+                className={`w-full text-right px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                  role === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+                بدون منصب
+              </button>
+              {groups.map(g => (
+                <div key={g}>
+                  <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{g}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ROLE_DEFS.filter(r => r.group === g).map(r => (
+                      <button key={r.key} type="button" onClick={() => pick(r.key)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          role === r.key ? 'bg-[#1a3a6b] text-white border-[#1a3a6b]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#1a3a6b]'}`}>
+                        {r.label}
                       </button>
-                    </div>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {saveError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-xs">{saveError}</div>
+            {needsScope && (
+              <div className="mb-4">
+                <label className="text-xs text-gray-500 mb-1 block">{def?.scope === 'department' ? 'القسم' : 'التخصص'}</label>
+                <select value={scope} onChange={e => setScope(e.target.value)} className={inputCls}>
+                  <option value="">{def?.scope === 'department' ? '— اختر القسم —' : '— اختر التخصص —'}</option>
+                  {def?.scope === 'department'
+                    ? DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)
+                    : specialities.map(sp => <option key={sp} value={sp}>{sp}</option>)}
+                </select>
+              </div>
             )}
 
-            {/* أزرار الحفظ */}
+            {checkingHolder && <p className="text-[11px] text-gray-400 mb-3">جارٍ التحقق من شاغل المنصب...</p>}
+            {holder && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2.5 text-xs leading-relaxed">
+                هذا المنصب يشغله حالياً <span className="font-bold">{holder.name}</span>.
+                {confirmReplace
+                  ? <span className="block mt-1 font-bold">اضغط «تأكيد الاستبدال» لنقل المنصب إلى {prof.last_name} {prof.first_name} وإعفاء {holder.name} منه.</span>
+                  : <span className="block mt-1">عند الحفظ سيُطلب منك تأكيد الاستبدال.</span>}
+              </div>
+            )}
+
+            {saveError && (
+              <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-xs">{saveError}</div>
+            )}
+
             <div className="flex gap-3 pt-1">
-              <button onClick={handleSave} disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#1a3a6b] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#0d2040] transition-colors disabled:opacity-50">
+              <button onClick={handleSave} disabled={saving || checkingHolder || !changed}
+                className={`flex-1 flex items-center justify-center gap-2 text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 ${
+                  confirmReplace ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#1a3a6b] hover:bg-[#0d2040]'}`}>
                 <Save className="w-4 h-4" />
-                {saving ? 'جارٍ الحفظ...' : 'حفظ الأدوار'}
+                {saving ? 'جارٍ الحفظ...' : confirmReplace ? 'تأكيد الاستبدال' : 'حفظ'}
               </button>
               <button onClick={onClose}
                 className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
@@ -337,22 +273,26 @@ export default function AdminProfessorsPage() {
   const [rolesProf, setRolesProf] = useState<Professor | null>(null);
   const [specialities, setSpecialities] = useState<string[]>([]);
 
-  useEffect(() => { loadProfessors(); loadSpecialities(); }, []);
+  useEffect(() => { loadProfessors(); loadSpecialities(); loadRoles(); }, []);
 
+  // التخصصات من المستويات (ماستر 1 وماستر 2 للتخصص نفسه = تخصص واحد)
   async function loadSpecialities() {
-    const { data } = await supabase
-      .from('professor_roles')
-      .select('speciality')
-      .not('speciality', 'is', null);
-    // جلب أيضاً من levels
     const { data: lvl } = await supabase
       .from('levels')
       .select('speciality')
       .not('speciality', 'is', null);
     const set = new Set<string>();
-    (data || []).forEach((r: any) => r.speciality && set.add(r.speciality));
-    (lvl  || []).forEach((r: any) => r.speciality && set.add(r.speciality));
-    setSpecialities(Array.from(set).sort());
+    (lvl || []).forEach((r: any) => r.speciality && set.add(String(r.speciality).trim()));
+    setSpecialities(Array.from(set).sort((a, b) => a.localeCompare(b, 'ar')));
+  }
+
+  // منصب كل أستاذ (لعرض الشارة في القائمة)
+  const [roleMap, setRoleMap] = useState<Record<string, { role: string; speciality: string | null }>>({});
+  async function loadRoles() {
+    const { data } = await supabase.from('professor_roles').select('professor_id, role, speciality');
+    const m: Record<string, { role: string; speciality: string | null }> = {};
+    (data || []).forEach((r: any) => { m[r.professor_id] = { role: r.role, speciality: r.speciality }; });
+    setRoleMap(m);
   }
 
   async function loadProfessors() {
@@ -890,6 +830,11 @@ export default function AdminProfessorsPage() {
                     <td className="px-4 py-3">
                       <p className="font-semibold text-gray-800">{prof.last_name} {prof.first_name}</p>
                       <p className="text-gray-400 text-xs">{prof.degree_speciality || '—'}</p>
+                      {roleMap[prof.id] && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+                          <Shield className="w-3 h-3" /> {roleTitle(roleMap[prof.id].role, roleMap[prof.id].speciality)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">{prof.rank}</span>
@@ -964,7 +909,7 @@ export default function AdminProfessorsPage() {
           prof={rolesProf}
           specialities={specialities}
           onClose={() => setRolesProf(null)}
-          onSaved={() => { loadProfessors(); }}
+          onSaved={() => { loadProfessors(); loadRoles(); }}
         />
       )}
 

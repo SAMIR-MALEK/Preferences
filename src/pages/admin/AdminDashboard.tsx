@@ -7,7 +7,7 @@ import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
   Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText,
-  ChevronDown, UserX
+  ChevronDown, UserX, Network
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -31,10 +31,11 @@ import AdminThesisPage        from './AdminThesisPage';
 import AdminDisciplinaryPage  from './AdminDisciplinaryPage';
 import AdminMakeupPage        from './AdminMakeupPage';
 import AdminAttendancePage    from './AdminAttendancePage';
+import AdminStructurePage     from './AdminStructurePage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -124,6 +125,7 @@ export default function AdminDashboard() {
         { id: 'vacataire',    label: 'الأساتذة المؤقتون', icon: Users        },
         { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays },
         { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays },
+        { id: 'structure',    label: 'الهيكل الإداري',    icon: Network      },
       ],
     },
     {
@@ -325,6 +327,7 @@ export default function AdminDashboard() {
         {tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {tab === 'makeup'                    && <AdminMakeupPage />}
         {tab === 'attendance'                && <AdminAttendancePage />}
+        {tab === 'structure'                 && <AdminStructurePage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
