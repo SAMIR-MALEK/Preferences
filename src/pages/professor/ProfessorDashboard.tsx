@@ -3,7 +3,7 @@ import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum, toArabicFixed } from '../../lib/utils';
-import { Search, Home, User, Clock, FileText, Award, Download, Printer, Lock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Home, User, Clock, FileText, Award, Download, Printer, Lock, Unlock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import WishesFormPage from './WishesFormPage';
 import ProfessorProfilePage from './ProfessorProfilePage';
 import DisciplinaryNomination from './DisciplinaryNomination';
@@ -283,7 +283,19 @@ export default function ProfessorDashboard() {
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [pendingThesisCount, setPendingThesisCount] = useState(0);
+  const [thesisUnlocked, setThesisUnlocked] = useState(false);
   useEffect(() => { setProfData(prof); }, [prof]);
+
+  // سماح بتعديل مقترحات المذكرات من رئيس القسم أو نائب العميد → يظهر تنبيه الاقتراح
+  useEffect(() => {
+    if (!prof?.id) return;
+    supabase.from('thesis_edit_unlocks')
+      .select('id', { count: 'exact', head: true })
+      .eq('professor_id', prof.id)
+      .eq('academic_year', '2026-2027')
+      .is('closed_at', null)
+      .then(({ count, error }) => { if (!error) setThesisUnlocked((count || 0) > 0); });
+  }, [prof?.id]);
 
   const profileComplete = isProfileComplete(profData);
   const [tab, setTab] = useState<ProfTab>(profileComplete ? 'schedule' : 'profile');
@@ -328,7 +340,7 @@ export default function ProfessorDashboard() {
   const s2Unlocked = true;
 
   // رسالتا الإشعار: اقتراحات المذكرات + الترشح للمجلس التأديبي (للأساتذة الدائمين فقط)
-  const proposalsOpen = settings?.proposals_open === true && !isVacataire;
+  const proposalsOpen = (settings?.proposals_open === true || thesisUnlocked) && !isVacataire;
   const disciplinaryOpen = settings?.disciplinary_open === true && !isVacataire;
   const disciplinaryExpired = settings?.disciplinary_deadline
     ? new Date() > new Date(settings.disciplinary_deadline)
@@ -1286,6 +1298,8 @@ function ThesisProposalsTab({ prof }: any) {
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ title_ar: '', title_fr: '', description: '' });
   const [error, setError] = useState('');
+  // تخصصات فتح فيها رئيس القسم أو نائب العميد التعديل لهذا الأستاذ
+  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
 
   const ACADEMIC_YEAR = '2026-2027';
 
@@ -1300,6 +1314,19 @@ function ThesisProposalsTab({ prof }: any) {
     const deadline = settingsRow?.thesis_deadline;
     const deadlinePassed = deadline ? new Date(deadline) < new Date() : false;
 
+    // السماحات بالتعديل النشطة لهذا الأستاذ (إن لم يكن الجدول موجوداً: لا شيء)
+    let unlocked = new Set<string>();
+    if (prof?.id) {
+      const { data: ul, error: ulErr } = await supabase
+        .from('thesis_edit_unlocks')
+        .select('level_id')
+        .eq('professor_id', prof.id)
+        .eq('academic_year', ACADEMIC_YEAR)
+        .is('closed_at', null);
+      if (!ulErr) unlocked = new Set((ul || []).map((u: any) => String(u.level_id)));
+    }
+    setUnlockedIds(unlocked);
+
     // جلب كل ماستر 2 المفعّل — الأستاذ يرى كل التخصصات المفتوحة
     const { data: levelsData } = await supabase
       .from('levels')
@@ -1311,7 +1338,8 @@ function ThesisProposalsTab({ prof }: any) {
       .filter((l: any) => {
         const name = (l.name_ar || '').trim();
         const isMaster2 = name.includes('ماستر 2') || name.includes('Master 2') || name.includes('master 2');
-        return isMaster2 && l.thesis_enabled === true && !deadlinePassed;
+        // مفتوح للجميع، أو مفتوح لهذا الأستاذ بالذات بسماح من الإدارة (ولو بعد الموعد)
+        return isMaster2 && ((l.thesis_enabled === true && !deadlinePassed) || unlocked.has(String(l.id)));
       })
       .map((l: any) => ({
         id: l.id,
@@ -1442,19 +1470,28 @@ function ThesisProposalsTab({ prof }: any) {
   const allMinMet = specialities.length > 0 && specialities.every(spec => bySpec(spec.id).length >= spec.min);
   // العداد: كل العناوين (مقترح + مُرسَل)
   const totalProposals = proposals.length;
-  // هل أُرسلت بالفعل (كلها مُرسَل)
-  const alreadySubmitted = proposals.length > 0 && proposals.every(p => p.status === 'مُرسَل');
+  // هل أُرسلت بالفعل: لا يبقى أي عنوان «مقترح» (المقبول والمرفوض مُرسَل أصلاً)
+  const alreadySubmitted = proposals.length > 0 && !proposals.some(p => p.status === 'مقترح');
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
   async function submitAll() {
     if (!allMinMet) return;
     setSubmitting(true);
-    // كل العناوين بأي حالة تصبح مُرسَل
+    // العناوين «المقترحة» فقط تصبح مُرسَلة — المقبول والمرفوض يبقى على حاله
     await supabase.from('thesis_proposals')
       .update({ status: 'مُرسَل' })
       .eq('professor_id', prof?.id)
-      .eq('academic_year', ACADEMIC_YEAR);
+      .eq('academic_year', ACADEMIC_YEAR)
+      .eq('status', 'مقترح');
+    // إعادة الإرسال تُغلق أي سماح بالتعديل كان مفتوحاً
+    if (unlockedIds.size > 0) {
+      await supabase.from('thesis_edit_unlocks')
+        .update({ closed_at: new Date().toISOString(), closed_reason: 'أعاد الأستاذ الإرسال' })
+        .eq('professor_id', prof?.id)
+        .eq('academic_year', ACADEMIC_YEAR)
+        .is('closed_at', null);
+    }
     setSubmitting(false);
     setShowSubmitConfirm(false);
     load();
@@ -1509,12 +1546,20 @@ function ThesisProposalsTab({ prof }: any) {
           const count = list.length;
           const metMin = count >= spec.min;
           const atMax = spec.max !== null && count >= spec.max;
-          // canAdd: لا يمكن الإضافة إذا أُرسلت العناوين أو اكتمل العدد الأقصى
-          const specSubmitted = list.length > 0 && list.every(p => p.status === 'مُرسَل');
-          const canAdd = !specSubmitted && !atMax;
+          // canAdd: لا يمكن الإضافة إذا أُرسلت العناوين أو اكتمل العدد الأقصى — إلا بسماح من الإدارة
+          const specUnlocked = unlockedIds.has(String(spec.id));
+          const specSubmitted = list.length > 0 && !list.some(p => p.status === 'مقترح');
+          const canAdd = (!specSubmitted || specUnlocked) && !atMax;
 
           return (
             <div key={spec.id} className="rounded-2xl overflow-hidden border border-[#1a3a6b]/20 shadow-sm">
+
+              {specUnlocked && (
+                <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm flex items-start gap-2">
+                  <Unlock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>سُمح لك بتعديل مقترحاتك في هذا التخصص. بعد الانتهاء، أعد الإرسال من الأسفل.</span>
+                </div>
+              )}
 
               {/* ═══ رأس التخصص ═══ */}
               <div className="px-6 py-5 bg-[#1a3a6b]/5 border-b border-[#1a3a6b]/15">
@@ -1574,7 +1619,7 @@ function ThesisProposalsTab({ prof }: any) {
                       <Plus className="w-4 h-4" />
                       <span>إضافة عنوان</span>
                     </button>
-                  ) : specSubmitted ? (
+                  ) : specSubmitted && !specUnlocked ? (
                     <span className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium bg-green-50 text-green-700 border border-green-200">
                       <Lock className="w-3.5 h-3.5" /> تم الإرسال
                     </span>
