@@ -136,7 +136,6 @@ export default function AdminThesisPage() {
   const [busy,         setBusy]         = useState<string | null>(null);
   const [profSearch,   setProfSearch]   = useState('');
   const [profFilter,   setProfFilter]   = useState<'all' | 'sent' | 'notsent' | 'open'>('all');
-  const [unlockSpec,   setUnlockSpec]   = useState<Record<string, string>>({});
   const [confirmKey,   setConfirmKey]   = useState<string | null>(null);
   const [specEdits,    setSpecEdits]    = useState<Record<string, any>>({});
   const [savingSpec,   setSavingSpec]   = useState<string | null>(null);
@@ -304,33 +303,37 @@ export default function AdminThesisPage() {
   const activeUnlockFor = (profId: string, levelId: string) =>
     activeUnlocks.find(u => u.professor_id === profId && String(u.level_id) === String(levelId));
 
-  async function grantUnlock(prof: any, levelId: string) {
-    if (!levelId) { setMsg({ type: 'err', text: 'اختر التخصص أولاً' }); return; }
-    if (activeUnlockFor(prof.id, levelId)) { setMsg({ type: 'err', text: 'التعديل مفتوح لهذا الأستاذ في هذا التخصص من قبل' }); return; }
-    const key = `${prof.id}|${levelId}`;
-    setBusy(key);
+  // التخصصات التي يُفتح فيها التعديل: تخصصات الأستاذ التي له فيها عناوين (ضمن صلاحيتك)،
+  // وإن لم يقترح شيئاً بعد: كل تخصصات صلاحيتك
+  function targetSpecsFor(profId: string): string[] {
+    const withTitles = [...new Set(rows.filter(r => r.professor_id === profId && r.spec_id).map(r => r.spec_id))];
+    return withTitles.length > 0 ? withTitles : specs.map(sp => String(sp.id));
+  }
+
+  async function grantUnlock(prof: any) {
+    const targets = targetSpecsFor(prof.id).filter(id => !activeUnlockFor(prof.id, id));
+    if (targets.length === 0) { setMsg({ type: 'err', text: 'التعديل مفتوح لهذا الأستاذ من قبل' }); return; }
+    setBusy(prof.id);
     setMsg(null);
-    const { error: insErr } = await supabase.from('thesis_edit_unlocks').insert({
-      professor_id: prof.id,
-      level_id: levelId,
-      academic_year: ACADEMIC_YEAR,
-      granted_by: adminName,
-    });
+    const { error: insErr } = await supabase.from('thesis_edit_unlocks').insert(
+      targets.map(levelId => ({ professor_id: prof.id, level_id: levelId, academic_year: ACADEMIC_YEAR, granted_by: adminName })),
+    );
     if (insErr) {
       setMsg({ type: 'err', text: 'تعذّر فتح التعديل: ' + insErr.message });
       setBusy(null);
       return;
     }
-    // العناوين المُرسَلة في هذا التخصص تعود «مقترح» — المقبولة والمرفوضة لا تُمسّ
-    const expected = rows.filter(r => r.professor_id === prof.id && r.spec_id === String(levelId) && r.status === 'مُرسَل').length;
+    // العناوين المُرسَلة في هذه التخصصات تعود «مقترح» — المقبولة والمرفوضة لا تُمسّ
+    const expected = rows.filter(r => r.professor_id === prof.id && targets.includes(r.spec_id) && r.status === 'مُرسَل').length;
     let reopened = 0;
     if (expected > 0) {
+      const list = targets.join(',');
       const { data: upd, error: updErr } = await supabase.from('thesis_proposals')
         .update({ status: 'مقترح' })
         .eq('professor_id', prof.id)
         .eq('academic_year', ACADEMIC_YEAR)
         .eq('status', 'مُرسَل')
-        .or(`level_id.eq.${levelId},speciality.eq.${levelId}`)
+        .or(`level_id.in.(${list}),speciality.in.(${list})`)
         .select('id');
       reopened = upd?.length ?? 0;
       if (updErr || reopened < expected) {
@@ -345,27 +348,29 @@ export default function AdminThesisPage() {
     }
     setMsg({
       type: 'ok',
-      text: `سُمح للأستاذ ${prof.last_name} ${prof.first_name} بتعديل مقترحاته في «${specName(levelId)}»` +
+      text: `سُمح للأستاذ ${prof.last_name} ${prof.first_name} بتعديل مقترحاته (${targets.map(specName).join('، ')})` +
         (reopened > 0 ? ` — أُعيد فتح ${reopened} عنوان.` : '.'),
     });
     await load();
     setBusy(null);
   }
 
-  // إلغاء السماح: تُثبَّت العناوين الحالية كمُرسَلة ويُغلق التعديل
-  async function revokeUnlock(prof: any, u: any) {
-    const key = `${prof.id}|${u.level_id}`;
-    setBusy(key);
+  // إغلاق التعديل: تُثبَّت عناوينه الحالية كمُرسَلة في كل التخصصات المفتوحة له
+  async function revokeUnlock(prof: any) {
+    const opens = activeUnlocks.filter(u => u.professor_id === prof.id);
+    if (opens.length === 0) return;
+    setBusy(prof.id);
     setMsg(null);
+    const list = opens.map(u => String(u.level_id)).join(',');
     const { error: e1 } = await supabase.from('thesis_proposals')
       .update({ status: 'مُرسَل' })
       .eq('professor_id', prof.id)
       .eq('academic_year', ACADEMIC_YEAR)
       .eq('status', 'مقترح')
-      .or(`level_id.eq.${u.level_id},speciality.eq.${u.level_id}`);
+      .or(`level_id.in.(${list}),speciality.in.(${list})`);
     const { error: e2 } = await supabase.from('thesis_edit_unlocks')
       .update({ closed_at: new Date().toISOString(), closed_reason: `أغلقه ${adminName}` })
-      .eq('id', u.id);
+      .in('id', opens.map(u => u.id));
     if (e1 || e2) setMsg({ type: 'err', text: 'تعذّر إغلاق التعديل: ' + (e1?.message || e2?.message) });
     else setMsg({ type: 'ok', text: `أُغلق التعديل للأستاذ ${prof.last_name} ${prof.first_name} وثُبّتت عناوينه الحالية كمُرسَلة.` });
     setConfirmKey(null);
@@ -663,7 +668,7 @@ export default function AdminThesisPage() {
               ))}
             </div>
             <p className="text-xs text-gray-500 px-1 leading-relaxed">
-              «السماح بالتعديل» يعيد فتح العناوين المُرسَلة للأستاذ في التخصص المختار، ويفتح له التخصص حتى بعد الموعد النهائي أو إغلاق التخصص.
+              «السماح بالتعديل» يعيد فتح العناوين المُرسَلة للأستاذ في كل تخصصاته{isDeptHead ? ' (ضمن قسمك)' : ''}، ويفتحها له حتى بعد الموعد النهائي أو إغلاق التخصص. الأستاذ الذي لم يقترح بعد تُفتح له كل التخصصات.
               العناوين المقبولة والمرفوضة لا تُمسّ. يُغلق السماح تلقائياً حين يعيد الأستاذ الإرسال.
             </p>
 
@@ -673,7 +678,6 @@ export default function AdminThesisPage() {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {list.map(({ p, bySpecMap, opens }) => {
-                    const sel = unlockSpec[p.id] ?? ([...bySpecMap.keys()][0] || '');
                     return (
                       <div key={p.id} className="px-4 py-3.5 flex flex-wrap items-start gap-x-4 gap-y-2">
                         <div className="flex-1 min-w-[200px]">
@@ -693,37 +697,33 @@ export default function AdminThesisPage() {
                               );
                             })}
                           </div>
-                          {opens.map(u => {
-                            const key = `${p.id}|${u.level_id}`;
-                            return (
-                              <div key={u.id} className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
-                                  <Unlock className="w-3 h-3" /> التعديل مفتوح: {specName(u.level_id)}
-                                </span>
-                                <span className="text-gray-400">منذ {new Date(u.granted_at).toLocaleDateString('ar-DZ')} — {u.granted_by || '—'}</span>
-                                {confirmKey !== key ? (
-                                  <button onClick={() => setConfirmKey(key)} className="text-red-600 font-bold hover:underline">إغلاق التعديل</button>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1">
-                                    <button onClick={() => revokeUnlock(p, u)} disabled={busy === key}
-                                      className="bg-red-600 text-white px-2 py-0.5 rounded-lg font-bold disabled:opacity-50">تأكيد (تُثبَّت عناوينه الحالية كمُرسَلة)</button>
-                                    <button onClick={() => setConfirmKey(null)} className="border border-gray-200 px-2 py-0.5 rounded-lg text-gray-600">تراجع</button>
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })}
+                          {opens.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
+                                <Unlock className="w-3 h-3" /> التعديل مفتوح: {opens.map(u => specName(u.level_id)).join('، ')}
+                              </span>
+                              <span className="text-gray-400">منذ {new Date(opens[0].granted_at).toLocaleDateString('ar-DZ')} — {opens[0].granted_by || '—'}</span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <select value={sel} onChange={e => setUnlockSpec(prev => ({ ...prev, [p.id]: e.target.value }))}
-                            className="border border-gray-200 rounded-xl px-2.5 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 max-w-[210px]">
-                            <option value="">— التخصص —</option>
-                            {specs.map(sp => <option key={sp.id} value={String(sp.id)}>{sp.name_ar}</option>)}
-                          </select>
-                          <button onClick={() => grantUnlock(p, sel)} disabled={!!unlocksError || busy === `${p.id}|${sel}` || !sel || !!activeUnlockFor(p.id, sel)}
-                            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-40">
-                            <RotateCcw className="w-3.5 h-3.5" /> السماح بالتعديل
-                          </button>
+                          {opens.length === 0 ? (
+                            <button onClick={() => grantUnlock(p)} disabled={!!unlocksError || busy === p.id || specs.length === 0}
+                              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-40">
+                              <RotateCcw className="w-3.5 h-3.5" /> السماح بالتعديل
+                            </button>
+                          ) : confirmKey !== p.id ? (
+                            <button onClick={() => setConfirmKey(p.id)}
+                              className="flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold">
+                              <Lock className="w-3.5 h-3.5" /> إغلاق التعديل
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px]">
+                              <button onClick={() => revokeUnlock(p)} disabled={busy === p.id}
+                                className="bg-red-600 text-white px-3 py-2 rounded-xl font-bold disabled:opacity-50">تأكيد (تُثبَّت عناوينه الحالية كمُرسَلة)</button>
+                              <button onClick={() => setConfirmKey(null)} className="border border-gray-200 px-3 py-2 rounded-xl text-gray-600">تراجع</button>
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
