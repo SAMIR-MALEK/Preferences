@@ -39,7 +39,7 @@ export default function AdminStructurePage() {
   }
 
   const totalSingle = ROLE_DEFS.filter(r => r.scope === 'none').length
-    + DEPARTMENTS.length
+    + DEPARTMENTS.length * ROLE_DEFS.filter(r => r.scope === 'department' && !r.multi).length
     + specialities.length * ROLE_DEFS.filter(r => r.scope === 'specialty' && !r.multi).length;
   const filledSingle = rows.filter(r => !roleDef(r.role)?.multi).length;
 
@@ -110,69 +110,49 @@ export default function AdminStructurePage() {
             {ROLE_DEFS.filter(r => r.group === 'إدارة الكلية').map(r => <Seat key={r.key} role={r.key} scope={null} label={r.label} />)}
           </div>
         </div>
-
-        <div className="space-y-4">
-          <div className={card}>
-            <div className={head}>الأقسام</div>
-            <div className="divide-y divide-gray-100">
-              {DEPARTMENTS.map(d => <Seat key={d.value} role="dept_head" scope={d.value} label={`رئيس ${d.label}`} />)}
-            </div>
-          </div>
-          <div className={card}>
-            <div className={head}>الميدان والشعبة</div>
-            <div className="divide-y divide-gray-100">
-              <Seat role="field_head" scope={null} label="مسؤول الميدان" />
-              <Seat role="branch_head" scope={null} label="مسؤول شعبة الحقوق" />
-            </div>
+        <div className={card}>
+          <div className={head}>الميدان والشعبة</div>
+          <div className="divide-y divide-gray-100">
+            <Seat role="field_head" scope={null} label="مسؤول الميدان" />
+            <Seat role="branch_head" scope={null} label="مسؤول شعبة الحقوق" />
           </div>
         </div>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        {DEPARTMENTS.map(d => {
+          const members = holders('sci_member', d.value);
+          return (
+            <div key={d.value} className={card}>
+              <div className="px-4 py-3 border-b border-gray-100 bg-[#1a3a6b] text-white font-bold text-sm">{d.label}</div>
+              <div className="divide-y divide-gray-100">
+                <Seat role="dept_head" scope={d.value} label="رئيس القسم" />
+                <Seat role="sci_head" scope={d.value} label="رئيس اللجنة العلمية" />
+                <div className="px-4 py-3">
+                  <p className="text-sm text-gray-600 mb-2">أعضاء اللجنة العلمية <span className="text-xs text-gray-400">({members.length})</span></p>
+                  {members.length === 0
+                    ? <span className="text-xs text-gray-300">لا يوجد أعضاء بعد</span>
+                    : <span className="flex flex-wrap gap-1.5">
+                        {members.map(m => (
+                          <span key={m.id} className="inline-flex items-center gap-1 text-[11px] bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                            <Users className="w-3 h-3" /> {m.name}
+                          </span>
+                        ))}
+                      </span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       <div className={card}>
-        <div className={head}>التخصصات</div>
+        <div className={head}>مسؤولو التخصصات</div>
         {specialities.length === 0 ? (
           <p className="text-center text-gray-400 text-sm py-10">لا توجد تخصصات</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[#1a3a6b]/5 border-b border-gray-100 text-xs text-[#1a3a6b]">
-                  <th className="px-4 py-2.5 text-right font-bold">التخصص</th>
-                  <th className="px-4 py-2.5 text-right font-bold">مسؤول التخصص</th>
-                  <th className="px-4 py-2.5 text-right font-bold">رئيس اللجنة العلمية</th>
-                  <th className="px-4 py-2.5 text-right font-bold">أعضاء اللجنة العلمية</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {specialities.map(sp => {
-                  const cell = (role: string) => {
-                    const h = holders(role, sp)[0];
-                    return h
-                      ? <span className="font-bold text-[#1a3a6b] text-xs">{h.name}</span>
-                      : <span className="text-xs font-bold text-amber-700">شاغر</span>;
-                  };
-                  const members = holders('sci_member', sp);
-                  return (
-                    <tr key={sp} className="hover:bg-gray-50/60 align-top">
-                      <td className="px-4 py-3 font-semibold text-gray-800 text-xs whitespace-nowrap">{sp}</td>
-                      <td className="px-4 py-3">{cell('spec_head')}</td>
-                      <td className="px-4 py-3">{cell('sci_head')}</td>
-                      <td className="px-4 py-3">
-                        {members.length === 0
-                          ? <span className="text-xs text-gray-300">—</span>
-                          : <span className="flex flex-wrap gap-1">
-                              {members.map(m => (
-                                <span key={m.id} className="inline-flex items-center gap-1 text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
-                                  <Users className="w-3 h-3" /> {m.name}
-                                </span>
-                              ))}
-                            </span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="divide-y divide-gray-100">
+            {specialities.map(sp => <Seat key={sp} role="spec_head" scope={sp} label={sp} />)}
           </div>
         )}
       </div>
