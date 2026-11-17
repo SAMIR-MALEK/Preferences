@@ -44,6 +44,7 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
   // الأدوار البيداغوجية
   const [linkedRows, setLinkedRows] = useState<LinkedRoleRow[]>([]);
   const [saving, setSaving]         = useState(false);
+  const [saveError, setSaveError]   = useState('');
   const [loadingRoles, setLoadingRoles] = useState(true);
 
   useEffect(() => {
@@ -86,16 +87,24 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
 
   async function handleSave() {
     setSaving(true);
+    setSaveError('');
+    // الحفظ لا يُعتبر ناجحاً إلا إذا قبلته قاعدة البيانات فعلاً
+    const fail = (step: string, e: any) => {
+      setSaveError(`تعذّر حفظ ${step}: ${e?.message || e}`);
+      setSaving(false);
+    };
     try {
       // بناء مصفوفة الأدوار العامة
       const roles: string[] = [];
       if (topRole) roles.push(topRole);
       if (sciRole) roles.push(sciRole);
 
-      await supabase.from('professors').update({ roles }).eq('id', prof.id);
+      const { error: e1 } = await supabase.from('professors').update({ roles }).eq('id', prof.id);
+      if (e1) return fail('المنصب الإداري', e1);
 
       // أدوار professor_roles: رئيس القسم + البيداغوجية
-      await supabase.from('professor_roles').delete().eq('professor_id', prof.id);
+      const { error: e2 } = await supabase.from('professor_roles').delete().eq('professor_id', prof.id);
+      if (e2) return fail('المسؤوليات', e2);
       const toInsert: { professor_id: string; role: string; speciality: string | null }[] = [];
 
       if (isDeptHead && deptName) {
@@ -106,12 +115,16 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
       });
 
       if (toInsert.length > 0) {
-        await supabase.from('professor_roles').insert(toInsert);
+        const { data: ins, error: e3 } = await supabase.from('professor_roles').insert(toInsert).select('id');
+        if (e3) return fail('المسؤوليات', e3);
+        if (!ins || ins.length < toInsert.length) return fail('المسؤوليات', 'قاعدة البيانات لم تحفظ كل الأسطر');
       }
 
       onSaved();
       onClose();
-    } catch { /* silent */ }
+    } catch (e: any) {
+      return fail('الأدوار', e);
+    }
     setSaving(false);
   }
 
@@ -247,6 +260,10 @@ function RolesModal({ prof, specialities, onClose, onSaved }: RolesModalProps) {
                 })}
               </div>
             </div>
+
+            {saveError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-xs">{saveError}</div>
+            )}
 
             {/* أزرار الحفظ */}
             <div className="flex gap-3 pt-1">
