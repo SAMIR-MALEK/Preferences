@@ -9,6 +9,7 @@ import ProfessorProfilePage from './ProfessorProfilePage';
 import DisciplinaryNomination from './DisciplinaryNomination';
 import ProfessorNotices from './ProfessorNotices';
 import MakeupRequest from './MakeupRequest';
+import AttendancePanel from './AttendancePanel';
 import type { Wish } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
@@ -888,6 +889,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
   const [listLoading, setListLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [onlyInserted, setOnlyInserted] = useState(false);
+  const [view, setView] = useState<'list' | 'attendance'>('list');
   const levelName: string = assignment.level_name || '';
 
   // طلبة الفوج (نفس منطق المطابقة السابق) + تاريخ الإدراج إن وُجد
@@ -906,9 +908,9 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
       if (matchedSpec) q = q.eq('specialite', matchedSpec);
       return await q;
     };
-    let res: any = await run('last_name, first_name, mat_etudiant, groupe_since');
+    let res: any = await run('id, last_name, first_name, mat_etudiant, groupe_since');
     // إن لم يكن عمود تاريخ الإدراج موجوداً بعد في قاعدة البيانات نعود للأعمدة القديمة
-    if (res.error) res = await run('last_name, first_name, mat_etudiant');
+    if (res.error) res = await run('id, last_name, first_name, mat_etudiant');
     return res.data || [];
   }
 
@@ -1067,7 +1069,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
     .filter((s: any) => !onlyInserted || s.groupe_since)
     .filter((s: any) => !q || `${s.last_name || ''} ${s.first_name || ''} ${s.mat_etudiant || ''}`.includes(q));
 
-  function closeList() { setOpen(false); setQuery(''); setOnlyInserted(false); }
+  function closeList() { setOpen(false); setQuery(''); setOnlyInserted(false); setView('list'); }
 
   function printList() {
     if (!list || list.length === 0) return;
@@ -1153,7 +1155,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
                 {assignment.room && assignment.room !== '—' && <span className="bg-white/10 rounded-lg px-3 py-1.5">القاعة: {assignment.room}</span>}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mt-4 max-w-md">
+              <div className={`${view === 'attendance' ? 'hidden sm:grid' : 'grid'} grid-cols-2 gap-3 mt-4 max-w-md`}>
                 <div className="bg-white/10 rounded-xl px-4 py-3 text-center">
                   <p className="text-2xl font-bold">{listLoading || !list ? '…' : list.length}</p>
                   <p className="text-[11px] text-gray-300 mt-0.5">عدد الطلبة</p>
@@ -1165,7 +1167,28 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
               </div>
             </div>
 
+            {/* ── التبويبان ── */}
+            <div className="bg-white border-b border-gray-200 px-5 flex gap-1 flex-shrink-0">
+              {([['list', 'قائمة الطلبة'], ['attendance', 'الغيابات']] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setView(key)}
+                  className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${
+                    view === key ? 'border-[#c9a227] text-[#1a3a6b]' : 'border-transparent text-gray-400 hover:text-gray-600'
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {view === 'attendance' && (
+              <div className="overflow-y-auto flex-1 px-3 sm:px-5 py-4">
+                {listLoading || !list
+                  ? <p className="text-center text-gray-400 text-sm py-16">جارٍ تحميل القائمة...</p>
+                  : <AttendancePanel prof={prof} assignment={assignment} students={list} />}
+              </div>
+            )}
+
             {/* ── شريط الأدوات ── */}
+            {view === 'list' && (
             <div className="bg-white border-b border-gray-200 px-5 py-3 flex flex-wrap items-center gap-2 flex-shrink-0">
               <div className="relative flex-1 min-w-[170px]">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1194,8 +1217,10 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
                 طباعة القائمة
               </button>
             </div>
+            )}
 
             {/* ── القائمة ── */}
+            {view === 'list' && (
             <div className="overflow-y-auto flex-1 px-3 sm:px-5 py-4">
               {listLoading ? (
                 <p className="text-center text-gray-400 text-sm py-16">جارٍ تحميل القائمة...</p>
@@ -1239,6 +1264,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       )}
@@ -1906,6 +1932,7 @@ function ProfScheduleTab({ prof }: any) {
           section: a?.section_number,
           group: a?.group_number,
           group_number: a?.group_number,
+          module_id: a?.module_id,
           level_id: a?.level_id,
           weekly_hours: a?.teaching_type === 'محاضرة' ? 2.25 : 1.5,
           room: rMap.get(s.room_id) || '—',
