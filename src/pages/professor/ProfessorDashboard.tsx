@@ -3,13 +3,14 @@ import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { toArabicNum, toArabicFixed } from '../../lib/utils';
-import { Search, Home, User, Clock, FileText, Award, Download, Printer, Lock, Unlock, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Home, User, Clock, FileText, Award, Download, Printer, Lock, Unlock, Shield, GraduationCap, CheckCircle, BookOpen, Users, LogOut, Bell, ChevronRight, ScrollText, Plus, Trash2, Edit2, Send, X, AlertCircle, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import WishesFormPage from './WishesFormPage';
 import ProfessorProfilePage from './ProfessorProfilePage';
 import DisciplinaryNomination from './DisciplinaryNomination';
 import ProfessorNotices from './ProfessorNotices';
 import MakeupRequest from './MakeupRequest';
 import AttendancePanel from './AttendancePanel';
+import { roleTitle } from '../../lib/roles';
 import type { Wish } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
 import html2canvas from 'html2canvas';
@@ -284,7 +285,18 @@ export default function ProfessorDashboard() {
   const [settings, setSettings] = useState<any>(null);
   const [pendingThesisCount, setPendingThesisCount] = useState(0);
   const [thesisUnlocked, setThesisUnlocked] = useState(false);
+  const [myRole, setMyRole] = useState<{ role: string; speciality: string | null } | null>(null);
   useEffect(() => { setProfData(prof); }, [prof]);
+
+  // منصب الأستاذ (عميد، رئيس قسم، مسؤول تخصص...) — يظهر له أعلى حسابه
+  useEffect(() => {
+    if (!prof?.id) return;
+    supabase.from('professor_roles')
+      .select('role, speciality')
+      .eq('professor_id', prof.id)
+      .limit(1)
+      .then(({ data, error }) => { if (!error && data && data[0]) setMyRole(data[0] as any); });
+  }, [prof?.id]);
 
   // سماح بتعديل مقترحات المذكرات من رئيس القسم أو نائب العميد → يظهر تنبيه الاقتراح
   useEffect(() => {
@@ -362,6 +374,13 @@ export default function ProfessorDashboard() {
 
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-5">
+        {myRole && roleTitle(myRole.role, myRole.speciality) && (
+          <div className="mb-4 flex items-center gap-2 bg-[#1a3a6b] text-white rounded-xl px-4 py-2.5 text-sm">
+            <Shield className="w-4 h-4 text-[#c9a227] flex-shrink-0" />
+            <span className="text-gray-300 text-xs">منصبك:</span>
+            <span className="font-bold">{roleTitle(myRole.role, myRole.speciality)}</span>
+          </div>
+        )}
         {!resultsPublished && profileComplete && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
             <span className="text-2xl flex-shrink-0">⏳</span>
