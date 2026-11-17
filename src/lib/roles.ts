@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // المناصب البيداغوجية والإدارية — مرجع واحد لكل المنصة
 // كل أستاذ يشغل منصباً واحداً على الأكثر، وكل منصب فريد في نطاقه
-// (إلا عضوية اللجنة العلمية: عدة أعضاء في كل تخصص)
+// (إلا عضوية اللجنة العلمية: عدة أعضاء في لجنة كل قسم)
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type RoleScope = 'none' | 'department' | 'specialty';
@@ -19,11 +19,11 @@ export const ROLE_DEFS: RoleDef[] = [
   { key: 'vice_dean',          label: 'نائب العميد المكلف بالبيداغوجيا',  scope: 'none',       group: 'إدارة الكلية' },
   { key: 'vice_dean_research', label: 'نائب العميد المكلف بالبحث العلمي', scope: 'none',       group: 'إدارة الكلية' },
   { key: 'dept_head',          label: 'رئيس القسم',                       scope: 'department', group: 'الأقسام' },
-  { key: 'field_head',         label: 'مسؤول الميدان',                    scope: 'none',       group: 'الميدان والشعبة' },
-  { key: 'branch_head',        label: 'مسؤول شعبة الحقوق',               scope: 'none',       group: 'الميدان والشعبة' },
-  { key: 'spec_head',          label: 'مسؤول التخصص',                     scope: 'specialty',  group: 'التخصصات' },
-  { key: 'sci_head',           label: 'رئيس اللجنة العلمية',              scope: 'specialty',  group: 'التخصصات' },
-  { key: 'sci_member',         label: 'عضو اللجنة العلمية',               scope: 'specialty',  group: 'التخصصات', multi: true },
+  { key: 'sci_head',           label: 'رئيس اللجنة العلمية',              scope: 'department', group: 'اللجان العلمية للأقسام' },
+  { key: 'sci_member',         label: 'عضو اللجنة العلمية',               scope: 'department', group: 'اللجان العلمية للأقسام', multi: true },
+  { key: 'field_head',         label: 'مسؤول الميدان',                    scope: 'none',       group: 'الميدان والشعبة والتخصصات' },
+  { key: 'branch_head',        label: 'مسؤول شعبة الحقوق',               scope: 'none',       group: 'الميدان والشعبة والتخصصات' },
+  { key: 'spec_head',          label: 'مسؤول التخصص',                     scope: 'specialty',  group: 'الميدان والشعبة والتخصصات' },
 ];
 
 // الأقسام: القيم نفسها المستعملة في levels.department و admins.department
@@ -49,9 +49,10 @@ export function roleTitle(role?: string | null, scope?: string | null): string {
   if (!d) return '';
   if (d.scope === 'department') {
     const dep = DEPARTMENTS.find(x => x.value === scope);
-    return dep ? `رئيس ${dep.label}` : d.label;
+    if (!dep) return d.label;
+    if (d.key === 'dept_head') return `رئيس ${dep.label}`;
+    return `${d.label} ل${dep.label}`;          // رئيس/عضو اللجنة العلمية لقسم القانون الخاص
   }
   if (d.key === 'spec_head') return scope ? `مسؤول تخصص ${scope}` : d.label;
-  if (d.scope === 'specialty') return scope ? `${d.label} — تخصص ${scope}` : d.label;
   return d.label;
 }
