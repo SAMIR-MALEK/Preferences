@@ -32,6 +32,16 @@ export const DEPARTMENTS: { value: string; label: string }[] = [
   { value: 'خاص', label: 'قسم القانون الخاص' },
 ];
 
+// أسماء مختلفة للتخصص نفسه في جدول المستويات → الاسم المعتمد
+const SPECIALITY_ALIASES: Record<string, string> = {
+  'قانون التهيئة والتعمير': 'قانون عقاري',
+  'قانون الأعمال': 'قانون أعمال',
+};
+export function normalizeSpeciality(sp?: string | null): string {
+  const s = String(sp || '').trim();
+  return SPECIALITY_ALIASES[s] || s;
+}
+
 export function roleDef(key?: string | null): RoleDef | undefined {
   return ROLE_DEFS.find(r => r.key === key);
 }
