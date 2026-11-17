@@ -7,7 +7,7 @@ import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
   BarChart2, BookOpen, Bell, Award, CheckCircle, Clock,
   Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText,
-  ChevronDown
+  ChevronDown, UserX
 } from 'lucide-react';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
@@ -30,10 +30,11 @@ import AdminAssignmentBoardPage from './AdminAssignmentBoardPage';
 import AdminThesisPage        from './AdminThesisPage';
 import AdminDisciplinaryPage  from './AdminDisciplinaryPage';
 import AdminMakeupPage        from './AdminMakeupPage';
+import AdminAttendancePage    from './AdminAttendancePage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -131,6 +132,7 @@ export default function AdminDashboard() {
       items: [
         { id: 'students',      label: 'الطلبة',         icon: GraduationCap                              },
         { id: 'grouprequests', label: 'تغيير الأفواج',  icon: ClipboardList, badge: stats.groupRequests },
+        { id: 'attendance',    label: 'الغيابات',       icon: UserX                                      },
       ],
     },
     {
@@ -143,6 +145,7 @@ export default function AdminDashboard() {
         { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays  },
         { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays  },
         { id: 'makeup',       label: 'الحصص التعويضية',  icon: Clock         },
+        { id: 'attendance',   label: 'الغيابات',          icon: UserX         },
         { id: 'thesis',       label: 'مذكرات التخرج',    icon: ScrollText    },
         { id: 'disciplinary', label: 'المجلس التأديبي',  icon: Shield        },
       ],
@@ -321,6 +324,7 @@ export default function AdminDashboard() {
         {tab === 'thesis'                        && <AdminThesisPage />}
         {tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {tab === 'makeup'                    && <AdminMakeupPage />}
+        {tab === 'attendance'                && <AdminAttendancePage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
