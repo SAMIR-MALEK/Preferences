@@ -1303,6 +1303,258 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
   );
 }
 
+// ═══ قائمة طلبة المحاضرة: كل طلبة المجموعة مرتبين أبجدياً مع رقم الفوج ═══
+function LectureListButton({ prof, assignment }: { prof: any; assignment: any }) {
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<any[] | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState(false);
+  const levelName: string = assignment.level_name || '';
+  const section = assignment.section;
+  const sectionLabel = section != null ? String(section).padStart(2, '0') : '';
+  const profName = `${prof?.last_name || ''} ${prof?.first_name || ''}`.trim();
+  const g2 = (g: any) => (g == null || g === '' ? '—' : String(g).padStart(2, '0'));
+
+  async function fetchStudents(): Promise<any[]> {
+    if (section == null) return [];
+    const { data: specRows } = await supabase
+      .from('students').select('specialite').eq('section', section);
+    const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))] as string[];
+    const normalize = (x: string) => x.replace(/\s+/g, ' ').replace(/ال/g, '').trim();
+    const matchedSpec = uniqueSpecs.find(sp => normalize(sp) === normalize(levelName)) || uniqueSpecs[0] || null;
+    let q: any = supabase.from('students')
+      .select('id, last_name, first_name, mat_etudiant, groupe')
+      .eq('section', section);
+    if (matchedSpec) q = q.eq('specialite', matchedSpec);
+    const { data } = await q;
+    return (data || []).sort((a: any, b: any) =>
+      `${a.last_name || ''} ${a.first_name || ''}`.localeCompare(`${b.last_name || ''} ${b.first_name || ''}`, 'ar'));
+  }
+
+  async function openList() {
+    setOpen(true);
+    setListLoading(true);
+    try { setList(await fetchStudents()); } catch { setList([]); }
+    setListLoading(false);
+  }
+  function closeList() { setOpen(false); setQuery(''); }
+
+  const q = query.trim();
+  const shown = (list || [])
+    .map((s: any, i: number) => ({ ...s, _n: i + 1 }))
+    .filter((s: any) => !q || `${s.last_name || ''} ${s.first_name || ''} ${s.mat_etudiant || ''}`.includes(q));
+
+  function printList() {
+    if (!list || list.length === 0) return;
+    const esc = (v: any) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const w = window.open('', '_blank');
+    if (!w) { alert('المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع'); return; }
+    const rows = list.map((s: any, i: number) => `
+      <tr>
+        <td class="c">${i + 1}</td>
+        <td>${esc(s.last_name)}</td>
+        <td>${esc(s.first_name)}</td>
+        <td class="c" dir="ltr">${esc(s.mat_etudiant)}</td>
+        <td class="c">${esc(g2(s.groupe))}</td>
+      </tr>`).join('');
+    w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>قائمة طلبة المجموعة ${esc(sectionLabel)}</title>
+    <style>
+      @page{size:A4 portrait;margin:14mm 12mm}
+      body{font-family:Arial,sans-serif;direction:rtl;color:#000;font-size:12px}
+      .header{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px;line-height:1.6;font-weight:bold;font-size:14px}
+      h1{text-align:center;font-size:17px;margin:0 0 10px}
+      .info{display:flex;flex-wrap:wrap;gap:6px 22px;margin-bottom:12px;font-size:12px}
+      table{width:100%;border-collapse:collapse}
+      thead{display:table-header-group}
+      tr{page-break-inside:avoid}
+      th,td{border:1px solid #000;padding:4px 7px;text-align:right}
+      th{background:#e5e5e5}
+      .c{text-align:center}
+    </style></head><body>
+      <div class="header">
+        <div>جامعة محمد البشير الإبراهيمي — برج بوعريريج</div>
+        <div>كلية الحقوق والعلوم السياسية</div>
+      </div>
+      <h1>قائمة طلبة المجموعة ${esc(sectionLabel)}</h1>
+      <div class="info">
+        <span><b>المقياس:</b> ${esc(assignment.module_name || '')}</span>
+        <span><b>المستوى:</b> ${esc(levelName)}</span>
+        <span><b>الأستاذ:</b> ${esc(profName)}</span>
+        <span><b>عدد الطلبة:</b> ${list.length}</span>
+      </div>
+      <table>
+        <thead><tr><th class="c" style="width:38px">الرقم</th><th>اللقب</th><th>الاسم</th><th class="c">رقم التسجيل</th><th class="c" style="width:50px">الفوج</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <script>window.onload=function(){window.print();}<\/script>
+    </body></html>`);
+    w.document.close();
+  }
+
+  function downloadExcel() {
+    if (!list || list.length === 0) return;
+    setBusy(true);
+    try {
+      const border = { style: 'thin', color: { rgb: '000000' } };
+      const full = { top: border, bottom: border, left: border, right: border };
+      const ws: any = {};
+      const put = (r: number, c: number, v: any, o: { bold?: boolean; h?: string; b?: any; fill?: boolean } = {}) => {
+        ws[XLSX.utils.encode_cell({ r, c })] = {
+          v, t: typeof v === 'number' ? 'n' : 's',
+          s: {
+            font: { name: 'Calibri', sz: 12, bold: !!o.bold },
+            alignment: { horizontal: o.h || 'right', vertical: 'center', readingOrder: 2 },
+            border: o.b || {},
+            ...(o.fill ? { fill: { fgColor: { rgb: 'D9D9D9' } } } : {}),
+          },
+        };
+      };
+      const COLS = 5;
+      const line = (r: number, text: string, bold = false, h = 'center') => {
+        put(r, 0, text, { bold, h });
+        for (let c = 1; c < COLS; c++) put(r, c, '');
+        ws['!merges'].push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+      };
+      ws['!merges'] = [];
+      line(0, 'جامعة محمد البشير الإبراهيمي — برج بوعريريج', true);
+      line(1, 'كلية الحقوق والعلوم السياسية', true);
+      line(2, `قائمة طلبة المجموعة ${sectionLabel} — ${levelName}`, true);
+      line(3, `المقياس: ${assignment.module_name || ''} — الأستاذ: ${profName} — عدد الطلبة: ${list.length}`, false);
+      ['الرقم', 'اللقب', 'الاسم', 'رقم التسجيل', 'الفوج'].forEach((h, c) => put(5, c, h, { bold: true, h: 'center', b: full, fill: true }));
+      list.forEach((s: any, i: number) => {
+        const r = 6 + i;
+        put(r, 0, i + 1, { h: 'center', b: full });
+        put(r, 1, s.last_name || '', { b: full });
+        put(r, 2, s.first_name || '', { b: full });
+        put(r, 3, String(s.mat_etudiant || ''), { h: 'center', b: full });
+        put(r, 4, g2(s.groupe), { h: 'center', b: full });
+      });
+      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 5 + list.length, c: COLS - 1 } });
+      ws['!cols'] = [{ wch: 7 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 8 }];
+      ws['!pageSetup'] = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `م${sectionLabel}`);
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      const unzipped = unzipSync(new Uint8Array(wbout));
+      const key = 'xl/worksheets/sheet1.xml';
+      if (unzipped[key]) {
+        let xml = new TextDecoder().decode(unzipped[key]);
+        xml = xml.replace(/<sheetView /g, '<sheetView rightToLeft="1" ');
+        if (!xml.includes('<sheetViews>')) {
+          xml = xml.replace('<sheetData>', '<sheetViews><sheetView rightToLeft="1" tabSelected="1" workbookViewId="0"/></sheetViews><sheetData>');
+        }
+        unzipped[key] = strToU8(xml);
+      }
+      const blob = new Blob([zipSync(unzipped)], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `قائمة_م${sectionLabel}_${levelName.replace(/\s+/g, '_')}_${(assignment.module_name || '').replace(/\s+/g, '_')}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('خطأ: ' + String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <button onClick={openList}
+        className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
+        style={{ background: 'rgba(37,99,235,0.08)', color: '#1e40af', border: '1px solid rgba(37,99,235,0.25)' }}>
+        <Users className="w-3 h-3" />
+        قائمة الطلبة
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4" dir="rtl" onClick={closeList}>
+          <div className="bg-[#f1f4f9] rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden" style={{ height: '94vh' }} onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] text-white px-5 py-4 flex-shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[#c9a227] text-xs font-semibold mb-1">قائمة طلبة المحاضرة</p>
+                  <h3 className="font-bold text-lg leading-snug">{assignment.module_name}</h3>
+                </div>
+                <button onClick={closeList}
+                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center flex-shrink-0 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                <span className="bg-white/10 rounded-lg px-3 py-1.5">{levelName}</span>
+                {sectionLabel && <span className="bg-[#c9a227] rounded-lg px-3 py-1.5 font-bold">المجموعة {sectionLabel}</span>}
+                <span className="bg-white/10 rounded-lg px-3 py-1.5">عدد الطلبة: <b>{listLoading || !list ? '…' : list.length}</b></span>
+              </div>
+            </div>
+
+            <div className="bg-white border-b border-gray-200 px-5 py-3 flex flex-wrap items-center gap-2 flex-shrink-0">
+              <div className="relative flex-1 min-w-[170px]">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input value={query} onChange={e => setQuery(e.target.value)}
+                  placeholder="بحث بالاسم أو رقم التسجيل..."
+                  className="w-full border border-gray-200 rounded-xl pr-9 pl-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" />
+              </div>
+              <button onClick={downloadExcel} disabled={busy || listLoading || !list || list.length === 0}
+                className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
+                <Download className="w-4 h-4" />
+                {busy ? 'جارٍ التحميل...' : 'Excel'}
+              </button>
+              <button onClick={printList} disabled={listLoading || !list || list.length === 0}
+                className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40">
+                <Printer className="w-4 h-4" />
+                طباعة
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-3 sm:px-5 py-4">
+              {listLoading ? (
+                <p className="text-center text-gray-400 text-sm py-16">جارٍ تحميل القائمة...</p>
+              ) : !list || list.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-16">لا يوجد طلبة مسجّلون في هذه المجموعة</p>
+              ) : shown.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-16">لا توجد نتائج مطابقة</p>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-[#1a3a6b] text-white text-xs">
+                          <th className="px-3 py-3 text-center font-bold w-12">الرقم</th>
+                          <th className="px-3 py-3 text-right font-bold">اللقب</th>
+                          <th className="px-3 py-3 text-right font-bold">الاسم</th>
+                          <th className="px-3 py-3 text-center font-bold hidden sm:table-cell">رقم التسجيل</th>
+                          <th className="px-3 py-3 text-center font-bold w-16">الفوج</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shown.map((s: any) => (
+                          <tr key={s.id} className={`border-b border-gray-100 last:border-b-0 ${s._n % 2 === 0 ? 'bg-gray-50/60' : 'bg-white'}`}>
+                            <td className="px-3 py-2.5 text-center text-gray-400 font-bold">{s._n}</td>
+                            <td className="px-3 py-2.5 font-bold text-gray-800">
+                              {s.last_name}
+                              <span className="block sm:hidden text-[10px] font-normal text-gray-400 font-mono mt-0.5" dir="ltr" style={{ textAlign: 'right' }}>{s.mat_etudiant}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-gray-700">{s.first_name}</td>
+                            <td className="px-3 py-2.5 text-center text-gray-500 font-mono text-xs hidden sm:table-cell" dir="ltr">{s.mat_etudiant}</td>
+                            <td className="px-3 py-2.5 text-center font-bold text-[#1a3a6b]">{g2(s.groupe)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ألوان افتراضية للتخصصات (تُطبَّق بالترتيب)
 const SPEC_COLORS = ['#1a3a6b', '#7c3aed', '#0891b2', '#16a34a', '#ea580c', '#db2777', '#d97706'];
 
@@ -2086,9 +2338,9 @@ function ProfScheduleTab({ prof }: any) {
                         {s.teaching_type}
                       </span>
                       <span className="text-[10px] text-gray-400">{s.weekly_hours?.toFixed(2)}س</span>
-                      {s.teaching_type !== 'محاضرة' && (
-                        <AttendanceDownloadButton prof={prof} assignment={s} />
-                      )}
+                      {s.teaching_type === 'محاضرة'
+                        ? <LectureListButton prof={prof} assignment={s} />
+                        : <AttendanceDownloadButton prof={prof} assignment={s} />}
                     </div>
                   </div>
                 ))}
