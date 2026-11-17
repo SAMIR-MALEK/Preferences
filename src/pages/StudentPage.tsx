@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import StudentAbsences from './StudentAbsences';
 import {
   BookOpen, Clock, MapPin, User, LogOut, AlertCircle,
   CheckCircle, XCircle, Upload, Send, ChevronDown, ChevronUp,
-  Calendar, Users, FileText, Bell
+  Calendar, Users, FileText, Bell, UserX
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -445,7 +446,7 @@ export default function StudentPage() {
   });
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
-  const [activeTab, setActiveTab] = useState<'schedule' | 'info' | 'requests'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'info' | 'requests' | 'absences'>('schedule');
 
   function handleLogin(s: Student) {
     try { sessionStorage.setItem('student_session', JSON.stringify(s)); } catch {}
@@ -554,6 +555,7 @@ export default function StudentPage() {
     { key: 'schedule', label: 'التوقيت', icon: Clock },
     { key: 'info', label: 'معلوماتي', icon: User },
     { key: 'requests', label: 'طلباتي', icon: FileText },
+    { key: 'absences', label: 'غياباتي', icon: UserX },
   ] as const;
 
   return (
@@ -623,7 +625,7 @@ export default function StudentPage() {
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 text-sm font-medium transition-colors border-b-2 ${
+                className={`flex-1 flex items-center justify-center gap-1 sm:gap-1.5 py-3.5 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
                   activeTab === key
                     ? 'border-[#1a3a6b] text-[#1a3a6b]'
                     : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -709,6 +711,10 @@ export default function StudentPage() {
 
             {activeTab === 'requests' && (
               <GroupChangePanel student={student} onSuccess={loadSchedule} />
+            )}
+
+            {activeTab === 'absences' && (
+              <StudentAbsences student={student} />
             )}
           </div>
         </div>
