@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { ROLE_DEFS, DEPARTMENTS, roleDef } from '../../lib/roles';
+import { ROLE_DEFS, DEPARTMENTS, roleDef, normalizeSpeciality } from '../../lib/roles';
 import { Shield, RefreshCw, UserX, Users } from 'lucide-react';
 
 interface Holder { id: string; name: string; rank?: string }
@@ -23,7 +23,7 @@ export default function AdminStructurePage() {
     setRows(data || []);
     const { data: lvl } = await supabase.from('levels').select('speciality').not('speciality', 'is', null);
     const set = new Set<string>();
-    (lvl || []).forEach((r: any) => r.speciality && set.add(String(r.speciality).trim()));
+    (lvl || []).forEach((r: any) => r.speciality && set.add(normalizeSpeciality(r.speciality)));
     setSpecialities([...set].sort((a, b) => a.localeCompare(b, 'ar')));
     setLoading(false);
   }

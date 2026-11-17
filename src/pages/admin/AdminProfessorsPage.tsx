@@ -5,7 +5,7 @@ import { toArabicNum } from '../../lib/utils';
 import type { Professor, ProfessorRank } from '../../types';
 import { PROFESSOR_RANKS, HIGHEST_DEGREES } from '../../types';
 import * as XLSX from 'xlsx';
-import { ROLE_DEFS, DEPARTMENTS, roleDef, roleTitle } from '../../lib/roles';
+import { ROLE_DEFS, DEPARTMENTS, roleDef, roleTitle, normalizeSpeciality } from '../../lib/roles';
 import {
   UserPlus, Search, Lock, Unlock, Pencil,
   CheckCircle, AlertCircle, X, Save, RefreshCw, Download, Trash2, FileText, Shield
@@ -282,7 +282,7 @@ export default function AdminProfessorsPage() {
       .select('speciality')
       .not('speciality', 'is', null);
     const set = new Set<string>();
-    (lvl || []).forEach((r: any) => r.speciality && set.add(String(r.speciality).trim()));
+    (lvl || []).forEach((r: any) => r.speciality && set.add(normalizeSpeciality(r.speciality)));
     setSpecialities(Array.from(set).sort((a, b) => a.localeCompare(b, 'ar')));
   }
 
