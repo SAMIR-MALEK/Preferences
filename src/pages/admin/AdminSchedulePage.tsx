@@ -33,6 +33,7 @@ interface ScheduleEntry {
   custom_module?: string;
   custom_professor?: string;
   created_by_name?: string;
+  joint_id?: string | null;   // حصة مشتركة: الحصص التي لها المعرّف نفسه تُدرَّس معاً (وقت وقاعة واحدان)
 }
 interface ModalState { day: string; slotId: string; slotLabel: string; }
 
@@ -58,6 +59,9 @@ export default function AdminSchedulePage() {
   const printRef = useRef<HTMLDivElement>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [viewCell, setViewCell] = useState<{day:string;slotId:string;slotLabel:string} | null>(null);
+  const [modalPartners, setModalPartners] = useState<string[]>([]);       // إسنادات تُدمج مع الحصة الجديدة
+  const [delAsk, setDelAsk] = useState<ScheduleEntry | null>(null);        // حذف حصة مشتركة: هذه فقط أم الكل؟
+  const [roomEditId, setRoomEditId] = useState<string | null>(null);       // الحصة التي نغيّر قاعتها
   const [modalTab, setModalTab] = useState<'assigned' | 'custom'>('assigned');
   const [modalTypeFilter, setModalTypeFilter] = useState<'all' | 'lec' | 'td'>('all');
   const [modalAssignment, setModalAssignment] = useState('');
@@ -155,7 +159,7 @@ export default function AdminSchedulePage() {
         .select('id, section_number, group_number, teaching_type, weekly_hours, level_id, professor:professors(id, last_name, first_name), module:modules(name_ar, weekly_sessions), level:levels(id, name_ar)')
         .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).in('status', ['نهائي', 'مؤقت']),
       supabase.from('schedules')
-        .select('id, assignment_id, room_id, time_slot_id, status, custom_module, custom_professor')
+        .select('id, assignment_id, room_id, time_slot_id, status, custom_module, custom_professor, joint_id')
         .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1),
     ]);
 
@@ -179,6 +183,7 @@ export default function AdminSchedulePage() {
       id: s.id, assignment_id: s.assignment_id, room_id: s.room_id,
       time_slot_id: s.time_slot_id, status: s.status,
       custom_module: s.custom_module, custom_professor: s.custom_professor,
+      joint_id: s.joint_id || null,
     })));
     setLoading(false);
   }
@@ -246,31 +251,46 @@ export default function AdminSchedulePage() {
     return scheduledCount(a.id) >= required;
   }
 
-  // هل الإسناد متاح في slot معين (بدون تعارض)
-  function isAvailableInSlot(a: Assignment, slotId: string): boolean {
-    if (isFullyScheduled(a)) return false;
-    const { profIds, groups } = getScheduledInSlot(slotId);
-
-    // تعارض الأستاذ (تجاهل null)
-    if (a.professor_id && a.professor_id !== '' && profIds.has(a.professor_id)) return false;
-
-    // تعارض المجموعة/الفوج
+  // تعارض المجموعة/الفوج فقط (دون الأستاذ): هل المجموعة أو الفوج حرّ في هذا الوقت؟
+  function groupsFree(a: Assignment, slotId: string): boolean {
+    const { groups } = getScheduledInSlot(slotId);
     if (a.teaching_type === 'محاضرة') {
-      // محاضرة: هل المجموعة عندها حصة في نفس الوقت؟
       if (groups.has(`${a.level_id}_${a.section_number}_lec`)) return false;
       if (groups.has(`${a.level_id}_${a.section_number}_td_all`)) return false;
-      // هل أي فوج من المجموعة عنده حصة؟
       for (const g of groups) {
         if (g.startsWith(`${a.level_id}_${a.section_number}_`) && !g.endsWith('_lec') && !g.endsWith('_td_all')) return false;
       }
     } else {
-      // TD: هل هذا الفوج عنده حصة؟
       if (groups.has(`${a.level_id}_${a.section_number}_${a.group_number}`)) return false;
-      // هل المجموعة عندها محاضرة في نفس الوقت؟
       if (groups.has(`${a.level_id}_${a.section_number}_lec`)) return false;
       if (groups.has(`${a.level_id}_${a.section_number}_td_all`)) return false;
     }
     return true;
+  }
+
+  // هل الإسناد متاح في slot معين (بدون تعارض)
+  function isAvailableInSlot(a: Assignment, slotId: string): boolean {
+    if (isFullyScheduled(a)) return false;
+    const { profIds } = getScheduledInSlot(slotId);
+    // تعارض الأستاذ (تجاهل null)
+    if (a.professor_id && a.professor_id !== '' && profIds.has(a.professor_id)) return false;
+    return groupsFree(a, slotId);
+  }
+
+  // إسنادات يمكن دمجها مع الإسناد المختار في حصة مشتركة:
+  // الأستاذ نفسه والمقياس نفسه والنوع نفسه في مستوى/تخصص/فوج آخر، ومجموعته حرّة في هذا الوقت
+  function getPartnerCandidates(slotId: string): Assignment[] {
+    const sel = assignments.find(x => x.id === modalAssignment);
+    if (!sel || !sel.professor_id) return [];
+    const norm = (x: string) => x.replace(/\s+/g, ' ').trim();
+    return assignments.filter(a =>
+      a.id !== sel.id
+      && a.professor_id === sel.professor_id
+      && a.teaching_type === sel.teaching_type
+      && norm(a.module_name) === norm(sel.module_name)
+      && !isFullyScheduled(a)
+      && groupsFree(a, slotId)
+    );
   }
 
   function getAvailableAssignments(slotId: string): Assignment[] {
@@ -410,8 +430,47 @@ export default function AdminSchedulePage() {
   }
 
   async function removeEntry(id: string) {
+    const entry = schedule.find(s => s.id === id);
+    // حصة مشتركة: نسأل هل نحذف هذه فقط أم الحصص المشتركة كلها
+    if (entry?.joint_id && schedule.some(s => s.joint_id === entry.joint_id && s.id !== id)) {
+      setDelAsk(entry);
+      return;
+    }
     await supabase.from('schedules').delete().eq('id', id);
     setSchedule(prev => prev.filter(s => s.id !== id));
+  }
+
+  async function removeJoint(entry: ScheduleEntry, all: boolean) {
+    setDelAsk(null);
+    const jid = entry.joint_id;
+    const ids = all && jid ? schedule.filter(s => s.joint_id === jid).map(s => s.id) : [entry.id];
+    const { error } = await supabase.from('schedules').delete().in('id', ids);
+    if (error) { setMessage({ type: 'error', text: error.message }); return; }
+    // إن بقيت حصة واحدة فقط من المجموعة المشتركة فلم تعد مشتركة
+    if (!all && jid) {
+      const left = schedule.filter(s => s.joint_id === jid && s.id !== entry.id);
+      if (left.length === 1) await supabase.from('schedules').update({ joint_id: null }).eq('id', left[0].id);
+    }
+    await loadData();
+  }
+
+  // تغيير قاعة حصة (وكل الحصص المشتركة معها)
+  async function changeRoom(entry: ScheduleEntry, roomId: string) {
+    const ids = entry.joint_id ? schedule.filter(s => s.joint_id === entry.joint_id).map(s => s.id) : [entry.id];
+    const { error } = await supabase.from('schedules').update({ room_id: roomId }).in('id', ids);
+    if (error) { setMessage({ type: 'error', text: 'تعذّر تغيير القاعة: ' + error.message }); return; }
+    setSchedule(prev => prev.map(s => ids.includes(s.id) ? { ...s, room_id: roomId } : s));
+    setRoomEditId(null);
+    setMessage({ type: 'success', text: 'تم تغيير القاعة' });
+  }
+
+  function partnerLabels(entry: ScheduleEntry): string[] {
+    if (!entry.joint_id) return [];
+    return schedule.filter(s => s.joint_id === entry.joint_id && s.id !== entry.id).map(s => {
+      const a = assignments.find(x => x.id === s.assignment_id);
+      if (!a) return '';
+      return `${a.level_name} ${a.teaching_type === 'محاضرة' ? 'م' + a.section_number : 'ف' + a.group_number}`;
+    }).filter(Boolean);
   }
 
   async function addEntry() {
@@ -452,11 +511,22 @@ export default function AdminSchedulePage() {
       }
     }
 
-    const { data, error } = await supabase.from('schedules').insert(insertData).select().single();
+    // حصة مشتركة: نفس الوقت والقاعة لعدة إسنادات (تُنشأ يدوياً فقط)
+    const partners = modalTab === 'assigned'
+      ? modalPartners.filter(id => getPartnerCandidates(modal.slotId).some(c => c.id === id))
+      : [];
+    let error: any = null;
+    if (partners.length > 0) {
+      const jid = (crypto as any).randomUUID();
+      const rows = [modalAssignment, ...partners].map(aid => ({ ...insertData, assignment_id: aid, joint_id: jid }));
+      ({ error } = await supabase.from('schedules').insert(rows));
+    } else {
+      ({ error } = await supabase.from('schedules').insert(insertData).select().single());
+    }
     if (error) { setMessage({ type: 'error', text: error.message }); }
     else {
-      setMessage({ type: 'success', text: 'تمت إضافة الحصة' });
-      setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId(''); setSelectedEmptySlot(null);
+      setMessage({ type: 'success', text: partners.length > 0 ? 'تمت إضافة الحصة المشتركة' : 'تمت إضافة الحصة' });
+      setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId(''); setSelectedEmptySlot(null); setModalPartners([]);
       await loadData();
     }
     setSaving(false);
@@ -622,6 +692,7 @@ export default function AdminSchedulePage() {
                                     {!isCustom && <span className="bg-white/20 px-1 rounded text-[9px]">{isLec?`م${a?.section_number}`:`ف${a?.group_number}`}</span>}
                                     {room && <span className="bg-white/20 px-1 rounded text-[9px]">{room.name}</span>}
                                     {isCustom && <span className="bg-white/20 px-1 rounded text-[9px]">مقترح</span>}
+                                    {entry.joint_id && <span className="bg-amber-300 text-amber-900 px-1 rounded text-[9px] font-bold">مشتركة</span>}
                                   </div>
                                 </div>
                               );
@@ -730,7 +801,28 @@ export default function AdminSchedulePage() {
                           {!isCustom && <span className="bg-white/20 px-1.5 rounded text-[10px]">{a?.teaching_type==='محاضرة'?`م${a.section_number}`:`ف${a?.group_number}`}</span>}
                           {room && <span className="bg-white/20 px-1.5 rounded text-[10px]">{room.name}</span>}
                           {isCustom && <span className="bg-white/20 px-1.5 rounded text-[10px]">مقترح</span>}
+                          {entry.joint_id && <span className="bg-amber-300 text-amber-900 px-1.5 rounded text-[10px] font-bold">مشتركة مع {partnerLabels(entry).join('، ')}</span>}
                         </div>
+                        <button onClick={() => setRoomEditId(roomEditId === entry.id ? null : entry.id)}
+                          className="mt-2 bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-[11px] font-bold">
+                          {roomEditId === entry.id ? 'إلغاء' : 'تغيير القاعة'}
+                        </button>
+                        {roomEditId === entry.id && (
+                          <div className="mt-2 bg-white rounded-lg p-2">
+                            <p className="text-[11px] text-gray-500 mb-1.5">
+                              القاعات الشاغرة في هذا الوقت{entry.joint_id ? ' (تتغير قاعة الحصص المشتركة معاً)' : ''}:
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {getAvailableRooms(viewCell.slotId).map(r => (
+                                <button key={r.id} onClick={() => changeRoom(entry, r.id)}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium border border-gray-200 text-gray-700 hover:bg-[#c9a227] hover:text-white hover:border-[#c9a227]">
+                                  {r.name} <span className="text-[10px] opacity-60">{r.type} · {r.capacity}</span>
+                                </button>
+                              ))}
+                              {getAvailableRooms(viewCell.slotId).length === 0 && <span className="text-[11px] text-red-500">كل القاعات محجوزة في هذا الوقت</span>}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -740,6 +832,22 @@ export default function AdminSchedulePage() {
           </div>
         );
       })()}
+
+      {/* حذف حصة مشتركة */}
+      {delAsk && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setDelAsk(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()} dir="rtl">
+            <h3 className="font-bold text-gray-900">حصة مشتركة</h3>
+            <p className="text-sm text-gray-600 leading-6">هذه الحصة مشتركة مع {partnerLabels(delAsk).join('، ')}. ماذا تريد؟</p>
+            <button onClick={() => removeJoint(delAsk, false)}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-bold">حذف هذه الحصة فقط</button>
+            <button onClick={() => removeJoint(delAsk, true)}
+              className="w-full bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl text-sm font-bold">حذف الحصص المشتركة كلها</button>
+            <button onClick={() => setDelAsk(null)}
+              className="w-full bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm">إلغاء</button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {modal && (
@@ -785,7 +893,7 @@ export default function AdminSchedulePage() {
                         const isLec = a.teaching_type === 'محاضرة';
                         const sel = modalAssignment === a.id;
                         return (
-                          <button key={a.id} onClick={()=>setModalAssignment(a.id)}
+                          <button key={a.id} onClick={()=>{ setModalAssignment(a.id); setModalPartners([]); }}
                             className={`w-full text-right px-4 py-3 text-sm transition-all ${sel?(isLec?'bg-[#1a3a6b] text-white':'bg-teal-600 text-white'):'hover:bg-gray-50 text-gray-700'}`}>
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{a.module_name}</span>
@@ -807,6 +915,28 @@ export default function AdminSchedulePage() {
             )}
 
             
+
+            {/* حصة مشتركة (استثنائية) */}
+            {modalTab === 'assigned' && modalAssignment && getPartnerCandidates(modal.slotId).length > 0 && (
+              <div className="border border-amber-200 bg-amber-50/60 rounded-xl p-3 space-y-2">
+                <p className="text-xs font-bold text-amber-800">حصة مشتركة (حالة استثنائية — اختياري)</p>
+                <p className="text-[11px] text-amber-700 leading-5">
+                  تُدرَّس هذه الحصة نفسها لمجموعة أخرى في الوقت والقاعة نفسيهما. تُسجَّل للمجموعة الأخرى حصتها وتظهر في جدولها.
+                </p>
+                <div className="space-y-1">
+                  {getPartnerCandidates(modal.slotId).map(a => {
+                    const on = modalPartners.includes(a.id);
+                    return (
+                      <button key={a.id} type="button"
+                        onClick={() => setModalPartners(prev => on ? prev.filter(x => x !== a.id) : [...prev, a.id])}
+                        className={`w-full text-right px-3 py-2 rounded-lg text-xs border transition-all ${on ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'}`}>
+                        {on ? '✓ ' : ''}{a.level_name} — {a.teaching_type === 'محاضرة' ? `م${a.section_number}` : `ف${a.group_number}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* القاعات المتاحة فقط */}
             <div>
