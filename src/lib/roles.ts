@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // المناصب البيداغوجية والإدارية — مرجع واحد لكل المنصة
 // كل أستاذ يشغل منصباً واحداً على الأكثر، وكل منصب فريد في نطاقه
-// (إلا عضوية اللجنة العلمية: عدة أعضاء في لجنة كل قسم)
+// (إلا عضوية اللجنة العلمية وبعض أعضاء المجلس العلمي: عدة أعضاء في النطاق نفسه)
+// عضوية المجلس العلمي بحكم المنصب (العميد، النائبان، رئيسا القسمين، رئيسا اللجنتين) تلقائية وتُعرض في صفحة الهيكل
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type RoleScope = 'none' | 'department' | 'specialty';
@@ -21,6 +22,10 @@ export const ROLE_DEFS: RoleDef[] = [
   { key: 'dept_head',          label: 'رئيس القسم',                       scope: 'department', group: 'الأقسام' },
   { key: 'sci_head',           label: 'رئيس اللجنة العلمية',              scope: 'department', group: 'اللجان العلمية للأقسام' },
   { key: 'sci_member',         label: 'عضو اللجنة العلمية',               scope: 'department', group: 'اللجان العلمية للأقسام', multi: true },
+  { key: 'council_head',       label: 'رئيس المجلس العلمي للكلية',        scope: 'none',       group: 'المجلس العلمي للكلية' },
+  { key: 'council_rep_prof',   label: 'ممثل الأساتذة ذوي مصف الأستاذية',  scope: 'department', group: 'المجلس العلمي للكلية', multi: true },
+  { key: 'council_rep_assist', label: 'ممثل الأساتذة المساعدين',          scope: 'none',       group: 'المجلس العلمي للكلية', multi: true },
+  { key: 'lab_director',       label: 'مدير مخبر بحث (عضو المجلس العلمي)', scope: 'none',      group: 'المجلس العلمي للكلية', multi: true },
   { key: 'field_head',         label: 'مسؤول الميدان',                    scope: 'none',       group: 'الميدان والشعبة والتخصصات' },
   { key: 'branch_head',        label: 'مسؤول شعبة الحقوق',               scope: 'none',       group: 'الميدان والشعبة والتخصصات' },
   { key: 'spec_head',          label: 'مسؤول التخصص',                     scope: 'specialty',  group: 'الميدان والشعبة والتخصصات' },
@@ -61,6 +66,7 @@ export function roleTitle(role?: string | null, scope?: string | null): string {
     const dep = DEPARTMENTS.find(x => x.value === scope);
     if (!dep) return d.label;
     if (d.key === 'dept_head') return `رئيس ${dep.label}`;
+    if (d.key === 'council_rep_prof') return `${d.label} عن ${dep.label}`;
     return `${d.label} ل${dep.label}`;          // رئيس/عضو اللجنة العلمية لقسم القانون الخاص
   }
   if (d.key === 'spec_head') return scope ? `مسؤول تخصص ${scope}` : d.label;
