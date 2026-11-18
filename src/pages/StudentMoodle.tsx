@@ -149,11 +149,12 @@ export default function StudentMoodle({ student }: Props) {
   return (
     <div className="space-y-6">
       {/* ── موودل ── */}
-      <section className="space-y-2.5">
-        <div className="flex items-center gap-2">
-          <GraduationCap className="w-4 h-4 text-[#1a3a6b]" />
-          <h3 className="font-bold text-gray-900 text-base">منصة موودل</h3>
+      <section className="border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 bg-[#1a3a6b] text-white">
+          <GraduationCap className="w-4 h-4" />
+          <h3 className="font-bold text-base">منصة موودل</h3>
         </div>
+        <div className="p-4 space-y-2.5">
         <div>
           <p className="text-xs text-gray-500 mb-1.5">اسم المستخدم</p>
           <div className={row}>
@@ -175,14 +176,16 @@ export default function StudentMoodle({ student }: Props) {
           </a>
           <CopyButton text={MOODLE_LOGIN_URL} k="link" />
         </div>
+        </div>
       </section>
 
       {/* ── البريد المهني ── */}
-      <section className="space-y-2.5">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-[#1a3a6b]" />
-          <h3 className="font-bold text-gray-900 text-base">بريدك المهني</h3>
+      <section className="border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 bg-[#c9a227] text-white">
+          <Mail className="w-4 h-4" />
+          <h3 className="font-bold text-base">بريدك المهني</h3>
         </div>
+        <div className="p-4 space-y-2.5">
         <div>
           <p className="text-xs text-gray-500 mb-1.5">البريد</p>
           <div className={row}>
@@ -194,6 +197,7 @@ export default function StudentMoodle({ student }: Props) {
         <div className="bg-blue-50 border border-blue-100 text-blue-900 rounded-xl p-4 text-sm leading-relaxed">
           أضف هذا البريد في تطبيق <b>Gmail</b> على هاتفك: «إضافة حساب ← Google».
           يمكنك تغيير كلمة سر بريدك المهني من حسابك، وننصحك بذلك. وهذه هي كلمة السر الأولى، تتغير إن غيّرتها أنت.
+        </div>
         </div>
       </section>
 
