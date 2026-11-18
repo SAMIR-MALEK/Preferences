@@ -1,2 +1,4 @@
-// رابط موودل الخاص بالكلية — يظهر زر «الدخول إلى موودل» في فضاء الطالب إذا كان غير فارغ
+// روابط موودل الخاصة بالكلية
 export const MOODLE_URL = 'https://elearning.univ-bba.dz/';
+export const MOODLE_LOGIN_URL = 'https://elearning.univ-bba.dz/login/index.php';
+export const MOODLE_LOGIN_LABEL = 'elearning.univ-bba.dz/login/index.php';
