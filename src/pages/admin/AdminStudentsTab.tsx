@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, UserCheck, Printer } from 'lucide-react';
+import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, UserCheck, Printer, KeyRound } from 'lucide-react';
+import AdminMoodleImport from './AdminMoodleImport';
 import { useAuth } from '../../hooks/useAuth';
 import * as XLSX from 'xlsx';
 
@@ -58,6 +59,8 @@ export default function AdminStudentsTab() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importingGroups, setImportingGroups] = useState(false);
+  const [moodleOpen, setMoodleOpen] = useState(false);
+  const isSuperAdmin = user?.admin?.role === 'super_admin';
   const [sortCol, setSortCol] = useState<keyof Student>('last_name');
   const [sortAsc, setSortAsc] = useState(true);
   // ── الإدراج في فوج ──
@@ -519,6 +522,12 @@ export default function AdminStudentsTab() {
             className="flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">
             <Upload className="w-4 h-4" /> {importingGroups ? 'جارٍ الاستيراد...' : 'استيراد الأفواج'}
           </button>
+          {isSuperAdmin && (
+            <button onClick={() => setMoodleOpen(true)}
+              className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white px-3 py-2 rounded-xl text-sm transition-colors">
+              <KeyRound className="w-4 h-4" /> حسابات موودل
+            </button>
+          )}
           <button onClick={exportExcel}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <Download className="w-4 h-4" /> تحميل Excel
@@ -533,6 +542,8 @@ export default function AdminStudentsTab() {
           </button>
         </div>
       </div>
+
+      {moodleOpen && <AdminMoodleImport onClose={() => setMoodleOpen(false)} />}
 
       {importMsg && (
         <div className={`rounded-xl px-4 py-3 text-sm ${importMsg.startsWith('✓') ? 'bg-green-50 text-green-700 border border-green-200' : importMsg.startsWith('خطأ') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700'}`}>
