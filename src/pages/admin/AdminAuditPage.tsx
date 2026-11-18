@@ -25,6 +25,9 @@ const ACTION_LABELS: Record<string, string> = {
   assign: 'إسناد',
   unassign: 'حذف إسناد',
   update_assignment: 'تعديل إسناد',
+  add_schedule: 'إضافة حصة',
+  delete_schedule: 'حذف حصة',
+  change_room: 'تغيير قاعة',
   publish_results: 'نشر النتائج',
   unpublish_results: 'إخفاء النتائج',
   open_registration: 'فتح التسجيل',
@@ -120,6 +123,9 @@ export default function AdminAuditPage() {
     if (!d) return '';
     if (log.action === 'assign') return `${d.prof_name} ← ${d.module_name} (${d.teaching_type} ${d.section ? 'م' + d.section : 'ف' + d.group})`;
     if (log.action === 'unassign') return `حُذف: ${d.prof_name} من ${d.module_name}`;
+    if (log.action === 'delete_schedule') return `حُذفت: ${d.module_name} — ${d.prof_name} — ${d.level} ${d.teaching_type === 'محاضرة' ? 'م' + d.section : d.group ? 'ف' + d.group : ''} — ${d.day} ${d.time} — ${d.room_name}${d.joint_id ? ' (مشتركة)' : ''}`;
+    if (log.action === 'change_room') return `${d.module_name} (${d.level}) — ${d.day} ${d.time}: ${d.from_room} ← ${d.room_name}`;
+    if (log.action === 'add_schedule') return `${d.module_name} — ${d.day} ${d.time} — ${d.room}${d.joint ? ' (مشتركة)' : ''}`;
     if (log.action === 'reply_appeal') return `${d.prof_name}: ${d.status} — "${d.reply?.substring(0, 50)}"`;
     return JSON.stringify(d).substring(0, 80);
   }

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { toArabicNum } from '../../lib/utils';
 import { X, Save, CheckCircle, AlertCircle, RefreshCw, Zap, Plus, Printer } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { logAction } from '../../lib/logAction';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 const ACADEMIC_YEAR = '2026-2027';
@@ -62,6 +63,7 @@ export default function AdminSchedulePage() {
   const [modalPartners, setModalPartners] = useState<string[]>([]);       // إسنادات تُدمج مع الحصة الجديدة
   const [delAsk, setDelAsk] = useState<ScheduleEntry | null>(null);        // حذف حصة مشتركة: هذه فقط أم الكل؟
   const [roomEditId, setRoomEditId] = useState<string | null>(null);       // الحصة التي نغيّر قاعتها
+  const [delConfirm, setDelConfirm] = useState<ScheduleEntry | null>(null); // تأكيد حذف حصة عادية
   const [modalTab, setModalTab] = useState<'assigned' | 'custom'>('assigned');
   const [modalTypeFilter, setModalTypeFilter] = useState<'all' | 'lec' | 'td'>('all');
   const [modalAssignment, setModalAssignment] = useState('');
@@ -429,23 +431,59 @@ export default function AdminSchedulePage() {
     setTimeout(() => { win.print(); win.close(); }, 500);
   }
 
+  // وصف الحصة لسجل التدقيق (يكفي لاسترجاعها لاحقاً)
+  function describeEntry(e: ScheduleEntry) {
+    const a = assignments.find(x => x.id === e.assignment_id);
+    const slot = timeSlots.find(t => t.id === e.time_slot_id);
+    const room = rooms.find(r => r.id === e.room_id);
+    return {
+      module_name: a ? a.module_name : (e.custom_module || '—'),
+      prof_name: a ? a.professor_name : (e.custom_professor || '—'),
+      level: a?.level_name || '—',
+      teaching_type: a?.teaching_type || '—',
+      section: a?.section_number ?? null,
+      group: a?.group_number ?? null,
+      day: slot?.day || '—',
+      time: slot ? `${slot.start_time.substring(0, 5)}–${slot.end_time.substring(0, 5)}` : '—',
+      room_name: room?.name || '—',
+      // معرّفات للاسترجاع
+      assignment_id: e.assignment_id, room_id: e.room_id, time_slot_id: e.time_slot_id,
+      status: e.status, joint_id: e.joint_id || null,
+      custom_module: e.custom_module || null, custom_professor: e.custom_professor || null,
+    };
+  }
+  function audit(action: string, details: object) {
+    return logAction(user?.admin?.id, user?.admin?.full_name, action, 'schedule', details);
+  }
+
   async function removeEntry(id: string) {
     const entry = schedule.find(s => s.id === id);
+    if (!entry) return;
     // حصة مشتركة: نسأل هل نحذف هذه فقط أم الحصص المشتركة كلها
-    if (entry?.joint_id && schedule.some(s => s.joint_id === entry.joint_id && s.id !== id)) {
+    if (entry.joint_id && schedule.some(s => s.joint_id === entry.joint_id && s.id !== id)) {
       setDelAsk(entry);
       return;
     }
-    await supabase.from('schedules').delete().eq('id', id);
-    setSchedule(prev => prev.filter(s => s.id !== id));
+    // حصة عادية: تأكيد قبل الحذف
+    setDelConfirm(entry);
+  }
+
+  async function confirmDelete(entry: ScheduleEntry) {
+    setDelConfirm(null);
+    const { error } = await supabase.from('schedules').delete().eq('id', entry.id);
+    if (error) { setMessage({ type: 'error', text: 'تعذّر الحذف: ' + error.message }); return; }
+    await audit('delete_schedule', describeEntry(entry));
+    setSchedule(prev => prev.filter(s => s.id !== entry.id));
+    setMessage({ type: 'success', text: 'تم حذف الحصة' });
   }
 
   async function removeJoint(entry: ScheduleEntry, all: boolean) {
     setDelAsk(null);
     const jid = entry.joint_id;
-    const ids = all && jid ? schedule.filter(s => s.joint_id === jid).map(s => s.id) : [entry.id];
-    const { error } = await supabase.from('schedules').delete().in('id', ids);
+    const gone = all && jid ? schedule.filter(s => s.joint_id === jid) : [entry];
+    const { error } = await supabase.from('schedules').delete().in('id', gone.map(s => s.id));
     if (error) { setMessage({ type: 'error', text: error.message }); return; }
+    for (const g of gone) await audit('delete_schedule', describeEntry(g));
     // إن بقيت حصة واحدة فقط من المجموعة المشتركة فلم تعد مشتركة
     if (!all && jid) {
       const left = schedule.filter(s => s.joint_id === jid && s.id !== entry.id);
@@ -459,6 +497,12 @@ export default function AdminSchedulePage() {
     const ids = entry.joint_id ? schedule.filter(s => s.joint_id === entry.joint_id).map(s => s.id) : [entry.id];
     const { error } = await supabase.from('schedules').update({ room_id: roomId }).in('id', ids);
     if (error) { setMessage({ type: 'error', text: 'تعذّر تغيير القاعة: ' + error.message }); return; }
+    await audit('change_room', {
+      ...describeEntry(entry),
+      from_room: rooms.find(r => r.id === entry.room_id)?.name || '—',
+      room_name: rooms.find(r => r.id === roomId)?.name || '—',
+      room_id: roomId,
+    });
     setSchedule(prev => prev.map(s => ids.includes(s.id) ? { ...s, room_id: roomId } : s));
     setRoomEditId(null);
     setMessage({ type: 'success', text: 'تم تغيير القاعة' });
@@ -525,6 +569,12 @@ export default function AdminSchedulePage() {
     }
     if (error) { setMessage({ type: 'error', text: error.message }); }
     else {
+      await audit('add_schedule', {
+        assignment_ids: modalTab === 'assigned' ? [modalAssignment, ...partners] : [],
+        room: rooms.find(r => r.id === modalRoom)?.name || '—',
+        day: modal.day, time: modal.slotLabel, joint: partners.length > 0,
+        module_name: modalTab === 'assigned' ? (assignments.find(x => x.id === modalAssignment)?.module_name || '—') : customModule,
+      });
       setMessage({ type: 'success', text: partners.length > 0 ? 'تمت إضافة الحصة المشتركة' : 'تمت إضافة الحصة' });
       setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId(''); setSelectedEmptySlot(null); setModalPartners([]);
       await loadData();
@@ -829,6 +879,27 @@ export default function AdminSchedulePage() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* تأكيد حذف حصة */}
+      {delConfirm && (() => {
+        const d = describeEntry(delConfirm);
+        return (
+          <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setDelConfirm(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()} dir="rtl">
+              <h3 className="font-bold text-gray-900">حذف الحصة؟</h3>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-700 leading-6">
+                <p className="font-bold">{d.module_name}</p>
+                <p>{d.prof_name}</p>
+                <p className="text-gray-500 text-xs">{d.level} {d.teaching_type === 'محاضرة' ? `م${d.section}` : d.group ? `ف${d.group}` : ''} — {d.day} {d.time} — {d.room_name}</p>
+              </div>
+              <button onClick={() => confirmDelete(delConfirm)}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl text-sm font-bold">نعم، احذف</button>
+              <button onClick={() => setDelConfirm(null)}
+                className="w-full bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm">إلغاء</button>
             </div>
           </div>
         );
