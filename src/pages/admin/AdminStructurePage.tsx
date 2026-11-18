@@ -62,6 +62,40 @@ export default function AdminStructurePage() {
     );
   }
 
+  // عضو بحكم المنصب: يظهر تلقائياً من منصبه الأصلي
+  function CouncilEx({ role, scope, label }: { role: string; scope: string | null; label: string }) {
+    return <Seat role={role} scope={scope} label={label} />;
+  }
+
+  // عدة شاغلين لنفس الصفة (ممثلون، مدراء مخابر)
+  function Multi({ role, scope, label, want }: { role: string; scope: string | null; label: string; want: number }) {
+    const hs = holders(role, scope);
+    return (
+      <div className="px-4 py-3">
+        <p className="text-sm text-gray-600 mb-2">{label} <span className="text-xs text-gray-400">({hs.length} من {want})</span></p>
+        {hs.length === 0
+          ? <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full"><UserX className="w-3 h-3" /> شاغر</span>
+          : <span className="flex flex-wrap gap-1.5">
+              {hs.map(m => (
+                <span key={m.id} className="inline-flex items-center gap-1 text-[11px] bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                  <Users className="w-3 h-3" /> {m.name}
+                </span>
+              ))}
+            </span>}
+      </div>
+    );
+  }
+
+  const councilSeats = 1 + 3 + 2 + 2 + 3 + 2 + 1;
+  const councilFilled =
+    Math.min(1, holders('council_head', null).length)
+    + (['dean', 'vice_dean', 'vice_dean_research'] as const).filter(r => holders(r, null).length > 0).length
+    + DEPARTMENTS.filter(d => holders('dept_head', d.value).length > 0).length
+    + DEPARTMENTS.filter(d => holders('sci_head', d.value).length > 0).length
+    + Math.min(2, holders('council_rep_prof', 'عام').length) + Math.min(1, holders('council_rep_prof', 'خاص').length)
+    + Math.min(2, holders('council_rep_assist', null).length)
+    + Math.min(1, holders('lab_director', null).length);
+
   if (loading) return (
     <div className="flex items-center justify-center h-48">
       <div className="animate-spin h-6 w-6 border-2 border-amber-500 border-t-transparent rounded-full" />
@@ -117,6 +151,27 @@ export default function AdminStructurePage() {
             <Seat role="branch_head" scope={null} label="مسؤول شعبة الحقوق" />
           </div>
         </div>
+      </div>
+
+      <div className={card}>
+        <div className="px-4 py-3 border-b border-gray-100 bg-[#c9a227] text-white font-bold text-sm flex items-center justify-between gap-2">
+          <span>المجلس العلمي للكلية</span>
+          <span className="text-[11px] font-medium bg-white/20 rounded-full px-2.5 py-0.5">{councilFilled} من {councilSeats}</span>
+        </div>
+        <div className="divide-y divide-gray-100">
+          <Seat role="council_head" scope={null} label="رئيس المجلس العلمي" />
+          <CouncilEx role="dean" scope={null} label="عميد الكلية" />
+          <CouncilEx role="vice_dean" scope={null} label="نائب العميد المكلف بالبيداغوجيا" />
+          <CouncilEx role="vice_dean_research" scope={null} label="نائب العميد المكلف بالبحث العلمي" />
+          {DEPARTMENTS.map(d => <CouncilEx key={'dh' + d.value} role="dept_head" scope={d.value} label={`رئيس ${d.label}`} />)}
+          {DEPARTMENTS.map(d => <CouncilEx key={'sh' + d.value} role="sci_head" scope={d.value} label={`رئيس اللجنة العلمية ل${d.label}`} />)}
+          {DEPARTMENTS.map(d => <Multi key={'rp' + d.value} role="council_rep_prof" scope={d.value} label={`ممثلو الأساتذة ذوي مصف الأستاذية — ${d.label}`} want={d.value === 'عام' ? 2 : 1} />)}
+          <Multi role="council_rep_assist" scope={null} label="ممثلو الأساتذة المساعدين" want={2} />
+          <Multi role="lab_director" scope={null} label="مدير مخبر بحث" want={1} />
+        </div>
+        <p className="px-4 py-2.5 text-[11px] text-gray-400 border-t border-gray-100">
+          العميد ونائباه ورئيسا القسمين ورئيسا اللجنتين العلميتين أعضاء بحكم منصبهم فيظهرون هنا تلقائياً. الباقون يُعيَّنون من صفحة الأساتذة.
+        </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
