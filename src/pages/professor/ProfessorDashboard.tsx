@@ -1460,14 +1460,54 @@ function LectureListButton({ prof, assignment }: { prof: any; assignment: any })
     }
   }
 
+  // ملف موودل للمجموعة: بريد الطالب;الفوج — بدون كلمات السر
+  const [mdlBusy, setMdlBusy] = useState(false);
+  const [mdlMsg, setMdlMsg] = useState('');
+  async function downloadMoodleFile() {
+    setMdlBusy(true); setMdlMsg('');
+    try {
+      const students = await fetchStudents();
+      if (students.length === 0) { setMdlMsg('لا يوجد طلبة في هذه المجموعة'); return; }
+      const { data, error } = await supabase.rpc('moodle_group_file', { p_student_ids: students.map((x: any) => x.id) });
+      if (error || !data) { setMdlMsg('تعذّر إنشاء الملف، حاول لاحقاً'); return; }
+      const rows: { email: string; groupe: string }[] = data.rows || [];
+      if (rows.length === 0) { setMdlMsg('لا يوجد طالب جاهز لهذا الملف'); return; }
+      const lines = rows.map(r => `${r.email};الفوج ${String(r.groupe).padStart(2, '0')}`);
+      const text = '\r\n\r\n' + lines.join('\r\n') + '\r\n';
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `موودل_م${sectionLabel}_${(assignment.module_name || '').replace(/\s+/g, '_')}.txt`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const skipped: string[] = [];
+      if (data.no_account) skipped.push(`${data.no_account} بلا حساب موودل`);
+      if (data.no_group) skipped.push(`${data.no_group} بلا فوج`);
+      if (data.not_valid) skipped.push(`${data.not_valid} غير مسجَّلين نهائياً`);
+      setMdlMsg(`تم: ${rows.length} طالباً` + (skipped.length ? ` — غير مدرجين: ${skipped.join('، ')}` : ''));
+    } catch {
+      setMdlMsg('حدث خطأ، حاول لاحقاً');
+    } finally {
+      setMdlBusy(false);
+    }
+  }
+
   return (
-    <div>
+    <div className="flex flex-col items-end gap-1">
       <button onClick={openList}
         className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
         style={{ background: 'rgba(37,99,235,0.08)', color: '#1e40af', border: '1px solid rgba(37,99,235,0.25)' }}>
         <Users className="w-3 h-3" />
         قائمة الطلبة
       </button>
+      <button onClick={downloadMoodleFile} disabled={mdlBusy}
+        className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50"
+        style={{ background: 'rgba(201,162,39,0.12)', color: '#7a5c00', border: '1px solid rgba(201,162,39,0.4)' }}>
+        <FileText className="w-3 h-3" />
+        {mdlBusy ? 'جارٍ الإنشاء...' : 'ملف موودل'}
+      </button>
+      {mdlMsg && <p className="text-[10px] text-gray-500 max-w-[180px] text-right leading-4">{mdlMsg}</p>}
 
       {open && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4" dir="rtl" onClick={closeList}>
