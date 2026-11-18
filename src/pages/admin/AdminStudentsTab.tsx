@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, UserCheck, Printer, KeyRound } from 'lucide-react';
+import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, UserCheck, Printer, KeyRound, Activity } from 'lucide-react';
 import AdminMoodleImport from './AdminMoodleImport';
+import AdminLoginStats from './AdminLoginStats';
 import { useAuth } from '../../hooks/useAuth';
 import * as XLSX from 'xlsx';
 
@@ -60,6 +61,7 @@ export default function AdminStudentsTab() {
   const [deleting, setDeleting] = useState(false);
   const [importingGroups, setImportingGroups] = useState(false);
   const [moodleOpen, setMoodleOpen] = useState(false);
+  const [loginsOpen, setLoginsOpen] = useState(false);
   const isSuperAdmin = user?.admin?.role === 'super_admin';
   const [sortCol, setSortCol] = useState<keyof Student>('last_name');
   const [sortAsc, setSortAsc] = useState(true);
@@ -528,6 +530,12 @@ export default function AdminStudentsTab() {
               <KeyRound className="w-4 h-4" /> حسابات موودل
             </button>
           )}
+          {isSuperAdmin && (
+            <button onClick={() => setLoginsOpen(true)}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm transition-colors">
+              <Activity className="w-4 h-4" /> دخول الطلبة
+            </button>
+          )}
           <button onClick={exportExcel}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <Download className="w-4 h-4" /> تحميل Excel
@@ -544,6 +552,7 @@ export default function AdminStudentsTab() {
       </div>
 
       {moodleOpen && <AdminMoodleImport onClose={() => setMoodleOpen(false)} />}
+      {loginsOpen && <AdminLoginStats onClose={() => setLoginsOpen(false)} />}
 
       {importMsg && (
         <div className={`rounded-xl px-4 py-3 text-sm ${importMsg.startsWith('✓') ? 'bg-green-50 text-green-700 border border-green-200' : importMsg.startsWith('خطأ') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700'}`}>
