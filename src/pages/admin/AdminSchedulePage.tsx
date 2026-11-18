@@ -680,8 +680,9 @@ export default function AdminSchedulePage() {
                               const isCustom = !entry.assignment_id;
                               const isLec = a?.teaching_type === 'محاضرة';
                               return (
-                                <div key={entry.id} onClick={e => e.stopPropagation()}
-                                  className={`rounded-lg p-1.5 relative group text-white ${isCustom?'bg-amber-500':isLec?'bg-[#1a3a6b]':'bg-teal-600'}`}>
+                                <div key={entry.id}
+                                  onClick={e => { e.stopPropagation(); if (slotId) setViewCell({day, slotId, slotLabel: getSlotLabel(slotNum)}); }}
+                                  className={`cursor-pointer rounded-lg p-1.5 relative group text-white ${isCustom?'bg-amber-500':isLec?'bg-[#1a3a6b]':'bg-teal-600'}`}>
                                   <button onClick={e=>{e.stopPropagation();removeEntry(entry.id);}}
                                     className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center">
                                     <X className="w-2.5 h-2.5"/>
