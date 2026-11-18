@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import StudentAbsences from './StudentAbsences';
+import StudentMoodle from './StudentMoodle';
 import {
   BookOpen, Clock, MapPin, User, LogOut, AlertCircle,
   CheckCircle, XCircle, Upload, Send, ChevronDown, ChevronUp,
-  Calendar, Users, FileText, Bell, UserX
+  Calendar, Users, FileText, Bell, UserX, KeyRound
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -446,7 +447,7 @@ export default function StudentPage() {
   });
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
-  const [activeTab, setActiveTab] = useState<'schedule' | 'info' | 'requests' | 'absences'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'info' | 'requests' | 'absences' | 'moodle'>('schedule');
 
   function handleLogin(s: Student) {
     try { sessionStorage.setItem('student_session', JSON.stringify(s)); } catch {}
@@ -556,6 +557,7 @@ export default function StudentPage() {
     { key: 'info', label: 'معلوماتي', icon: User },
     { key: 'requests', label: 'طلباتي', icon: FileText },
     { key: 'absences', label: 'غياباتي', icon: UserX },
+    { key: 'moodle', label: 'موودل', icon: KeyRound },
   ] as const;
 
   return (
@@ -715,6 +717,10 @@ export default function StudentPage() {
 
             {activeTab === 'absences' && (
               <StudentAbsences student={student} />
+            )}
+
+            {activeTab === 'moodle' && (
+              <StudentMoodle student={student} />
             )}
           </div>
         </div>
