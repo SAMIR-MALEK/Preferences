@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { MOODLE_URL } from '../lib/moodle';
-import { Copy, Check, Eye, EyeOff, ExternalLink, AlertCircle, ShieldAlert } from 'lucide-react';
+import { MOODLE_LOGIN_URL, MOODLE_LOGIN_LABEL } from '../lib/moodle';
+import { Copy, Check, Eye, EyeOff, ExternalLink, AlertCircle, ShieldAlert, Mail, GraduationCap } from 'lucide-react';
 
 interface Props {
   student: { mat_bac: string; annee_bac: number | null };
@@ -111,71 +111,96 @@ export default function StudentMoodle({ student }: Props) {
   }
 
   const row = 'flex items-center justify-between gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3';
+  const copyBtn = 'flex items-center gap-1 text-xs font-medium text-[#1a3a6b] bg-white border border-gray-200 hover:bg-gray-100 rounded-lg px-2.5 py-1.5 flex-shrink-0';
+
+  const CopyButton = ({ text, k }: { text: string; k: string }) => (
+    <button onClick={() => copy(text, k)} className={copyBtn}>
+      {copied === k ? <><Check className="w-3.5 h-3.5 text-green-600" /> تم</> : <><Copy className="w-3.5 h-3.5" /> نسخ</>}
+    </button>
+  );
+
+  const passwordRow = (
+    <div>
+      <p className="text-xs text-gray-500 mb-1.5">كلمة السر</p>
+      <div className={row}>
+        <span className="font-mono text-sm text-gray-900 break-all" dir="ltr">
+          {password ?? '••••••••'}
+        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {password ? (
+            <>
+              <CopyButton text={password} k="pwd" />
+              <button onClick={hide}
+                className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg px-2.5 py-1.5">
+                <EyeOff className="w-3.5 h-3.5" /> إخفاء
+              </button>
+            </>
+          ) : (
+            <button onClick={reveal} disabled={revealing}
+              className="flex items-center gap-1 text-xs font-medium text-white bg-[#1a3a6b] hover:bg-[#0a1628] rounded-lg px-3 py-1.5 disabled:opacity-50">
+              <Eye className="w-3.5 h-3.5" /> {revealing ? 'جارٍ...' : 'إظهار'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="font-bold text-gray-900 text-base">حسابي في موودل</h3>
-        <p className="text-xs text-gray-500 mt-0.5">منصة التعليم عن بعد</p>
-      </div>
-
-      <div className="space-y-2.5">
+    <div className="space-y-6">
+      {/* ── موودل ── */}
+      <section className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <GraduationCap className="w-4 h-4 text-[#1a3a6b]" />
+          <h3 className="font-bold text-gray-900 text-base">منصة موودل</h3>
+        </div>
         <div>
           <p className="text-xs text-gray-500 mb-1.5">اسم المستخدم</p>
           <div className={row}>
             <span className="font-mono text-sm text-gray-900 break-all" dir="ltr">{info.username}</span>
-            <button onClick={() => copy(info.username || '', 'user')}
-              className="flex items-center gap-1 text-xs font-medium text-[#1a3a6b] bg-white border border-gray-200 hover:bg-gray-100 rounded-lg px-2.5 py-1.5 flex-shrink-0">
-              {copied === 'user' ? <><Check className="w-3.5 h-3.5 text-green-600" /> تم</> : <><Copy className="w-3.5 h-3.5" /> نسخ</>}
-            </button>
+            <CopyButton text={info.username || ''} k="user" />
           </div>
         </div>
+        {passwordRow}
+        {revealError && <p className="text-xs text-red-600">{revealError}</p>}
+        <div className="bg-blue-50 border border-blue-100 text-blue-900 rounded-xl p-4 text-sm leading-relaxed">
+          للدخول إلى موودل افتح صفحة الدخول، ثم <b>اكتب اسم المستخدم وكلمة السر</b> أعلاه.
+          كلمة سر موودل <b>ثابتة ولا تتغير</b>.
+        </div>
+        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
+          <span>صفحة الدخول:</span>
+          <a href={MOODLE_LOGIN_URL} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[#1a3a6b] hover:underline font-mono" dir="ltr">
+            {MOODLE_LOGIN_LABEL} <ExternalLink className="w-3 h-3" />
+          </a>
+          <CopyButton text={MOODLE_LOGIN_URL} k="link" />
+        </div>
+      </section>
 
+      {/* ── البريد المهني ── */}
+      <section className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-[#1a3a6b]" />
+          <h3 className="font-bold text-gray-900 text-base">بريدك المهني</h3>
+        </div>
         <div>
-          <p className="text-xs text-gray-500 mb-1.5">كلمة السر</p>
+          <p className="text-xs text-gray-500 mb-1.5">البريد</p>
           <div className={row}>
-            <span className="font-mono text-sm text-gray-900 break-all" dir="ltr">
-              {password ?? '••••••••'}
-            </span>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {password ? (
-                <>
-                  <button onClick={() => copy(password, 'pwd')}
-                    className="flex items-center gap-1 text-xs font-medium text-[#1a3a6b] bg-white border border-gray-200 hover:bg-gray-100 rounded-lg px-2.5 py-1.5">
-                    {copied === 'pwd' ? <><Check className="w-3.5 h-3.5 text-green-600" /> تم</> : <><Copy className="w-3.5 h-3.5" /> نسخ</>}
-                  </button>
-                  <button onClick={hide}
-                    className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg px-2.5 py-1.5">
-                    <EyeOff className="w-3.5 h-3.5" /> إخفاء
-                  </button>
-                </>
-              ) : (
-                <button onClick={reveal} disabled={revealing}
-                  className="flex items-center gap-1 text-xs font-medium text-white bg-[#1a3a6b] hover:bg-[#0a1628] rounded-lg px-3 py-1.5 disabled:opacity-50">
-                  <Eye className="w-3.5 h-3.5" /> {revealing ? 'جارٍ...' : 'إظهار'}
-                </button>
-              )}
-            </div>
+            <span className="font-mono text-sm text-gray-900 break-all" dir="ltr">{info.email}</span>
+            <CopyButton text={info.email || ''} k="mail" />
           </div>
-          {revealError && <p className="text-xs text-red-600 mt-1.5">{revealError}</p>}
         </div>
-      </div>
-
-      <div className="bg-blue-50 border border-blue-100 text-blue-900 rounded-xl p-4 text-sm leading-relaxed">
-        للدخول إلى موودل استعمل اسم المستخدم وكلمة السر أعلاه. كلمة سر موودل <b>ثابتة ولا تتغير</b>.
-      </div>
+        {passwordRow}
+        <div className="bg-blue-50 border border-blue-100 text-blue-900 rounded-xl p-4 text-sm leading-relaxed">
+          أضف هذا البريد في تطبيق <b>Gmail</b> على هاتفك: «إضافة حساب ← Google».
+          يمكنك تغيير كلمة سر بريدك المهني من حسابك، وننصحك بذلك. وهذه هي كلمة السر الأولى، تتغير إن غيّرتها أنت.
+        </div>
+      </section>
 
       <div className="flex items-center gap-2 text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm font-medium">
         <ShieldAlert className="w-4 h-4 flex-shrink-0" />
         لا تعطِ كلمة السر لأي شخص.
       </div>
-
-      {MOODLE_URL && (
-        <a href={MOODLE_URL} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white rounded-xl py-3 text-sm font-bold transition-colors">
-          <ExternalLink className="w-4 h-4" /> الدخول إلى موودل
-        </a>
-      )}
     </div>
   );
 }

@@ -557,7 +557,7 @@ export default function StudentPage() {
     { key: 'info', label: 'معلوماتي', icon: User },
     { key: 'requests', label: 'طلباتي', icon: FileText },
     { key: 'absences', label: 'غياباتي', icon: UserX },
-    { key: 'moodle', label: 'موودل', icon: KeyRound },
+    { key: 'moodle', label: 'حساباتي', icon: KeyRound },
   ] as const;
 
   return (
