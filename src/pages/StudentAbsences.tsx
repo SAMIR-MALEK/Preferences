@@ -6,7 +6,7 @@ import {
   fmtDay, todayISO, dayOnly, recordCounts, justificationFor,
   absenceLevel, LEVEL_STYLE, J_STYLE, fetchAll, fetchByIds,
 } from '../lib/attendance';
-import { AlertTriangle, Upload, Send, FileText, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, Upload, Send, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
   student: { id: string; groupe: number | null };
@@ -142,12 +142,7 @@ export default function StudentAbsences({ student }: Props) {
       </div>
 
       {/* الغيابات حسب المقياس */}
-      {byModule.length === 0 ? (
-        <div className="text-center py-10 text-gray-400">
-          <CheckCircle className="w-9 h-9 mx-auto mb-3 text-green-400" />
-          <p className="text-sm">لا توجد غيابات مسجّلة عليك في الأعمال الموجهة</p>
-        </div>
-      ) : byModule.map(m => {
+      {byModule.length === 0 ? null : byModule.map(m => {
         const lvl = absenceLevel(m.count, excluded.has(m.moduleId));
         const st = LEVEL_STYLE[lvl];
         const pct = Math.min(100, (m.count / ABSENCE_LIMIT) * 100);
