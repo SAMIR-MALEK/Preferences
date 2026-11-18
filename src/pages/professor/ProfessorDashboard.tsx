@@ -1495,6 +1495,7 @@ function LectureListButton({ prof, assignment }: { prof: any; assignment: any })
 
   return (
     <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5">
       <button onClick={openList}
         className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
         style={{ background: 'rgba(37,99,235,0.08)', color: '#1e40af', border: '1px solid rgba(37,99,235,0.25)' }}>
@@ -1507,6 +1508,7 @@ function LectureListButton({ prof, assignment }: { prof: any; assignment: any })
         <FileText className="w-3 h-3" />
         {mdlBusy ? 'جارٍ الإنشاء...' : 'ملف موودل'}
       </button>
+      </div>
       {mdlMsg && <p className="text-[10px] text-gray-500 max-w-[180px] text-right leading-4">{mdlMsg}</p>}
 
       {open && (
