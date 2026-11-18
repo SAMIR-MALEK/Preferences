@@ -98,6 +98,8 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
       setError('رقم البكالوريا أو السنة غير صحيح');
       return;
     }
+    // تسجيل الدخول للإحصاء (لا يعطّل الدخول إن فشل)
+    try { supabase.rpc('log_student_login', { p_bac: matBac.trim(), p_year: Number(anneeBac.trim()) }).then(() => {}, () => {}); } catch {}
     onLogin(data as Student);
   }
 
