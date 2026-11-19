@@ -141,6 +141,9 @@ export default function TimetablePage() {
     if (selectedLevel && selectedSection) loadSchedule();
   }, [selectedLevel, selectedSection, selectedGroup, timeSlots]);
 
+  // محاضرات عن بعد: حصة بلا وقت ولا قاعة
+  const remoteRows = rows.filter((r: any) => !r.day);
+
   const byDay = DAYS.map(day => ({
     day,
     slots: rows.filter((s: any) => s.day === day).sort((a: any, b: any) => a.slot_number - b.slot_number),
@@ -228,6 +231,7 @@ export default function TimetablePage() {
 <h1>التوقيت الأسبوعي — ${title}</h1>
 <p>كلية الحقوق والعلوم السياسية — الموسم الجامعي 2026/2027</p>
 ${viewMode === 'cards' ? cardsHtml : classicHtml}
+${remoteRows.length ? `<div style="margin-top:16px;border:1px solid #ddd6fe;background:#faf5ff;border-radius:12px;padding:12px 16px"><strong style="color:#6b21a8;font-size:13px">حصص عن بعد</strong>${remoteRows.map((r: any) => `<p style="margin:6px 0 0;color:#1f2937;font-size:13px">${r.module_name}${r.prof_name !== '—' ? ` — أ. ${r.prof_name}` : ''} — عن بعد</p>`).join('')}</div>` : ''}
 <p style="margin-top:20px;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px">تحت إشراف نائب العميد د. عشاش حمزة</p>
 </body>
 </html>`;
@@ -404,6 +408,21 @@ ${viewMode === 'cards' ? cardsHtml : classicHtml}
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {remoteRows.length > 0 && (
+              <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-2">
+                <h3 className="font-bold text-purple-800 text-sm">حصص عن بعد</h3>
+                {remoteRows.map((r: any) => (
+                  <div key={r.id} className="flex items-center justify-between gap-2 bg-white rounded-xl px-3 py-2 border border-purple-100">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-gray-800">{r.module_name}</p>
+                      <p className="text-xs text-gray-500">{r.prof_name !== '—' ? `أ. ${r.prof_name}` : ''}</p>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium shrink-0">عن بعد</span>
+                  </div>
+                ))}
               </div>
             )}
 

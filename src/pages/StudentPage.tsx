@@ -36,6 +36,7 @@ interface ScheduleEntry {
   teaching_type: string; // 'lecture' | 'td'
   custom_module?: string;
   custom_professor?: string;
+  remote?: boolean; // محاضرة عن بعد: بلا وقت ولا قاعة
 }
 
 interface GroupChangeRequest {
@@ -213,8 +214,10 @@ function StatusBanner({ sit_ins }: { sit_ins: string | null }) {
 
 // ─── Schedule Table ───────────────────────────────────────────────────────────
 
-function ScheduleView({ schedule }: { schedule: ScheduleEntry[] }) {
-  if (schedule.length === 0) {
+function ScheduleView({ schedule: all }: { schedule: ScheduleEntry[] }) {
+  const schedule = all.filter(e => !e.remote);
+  const remoteList = all.filter(e => e.remote);
+  if (all.length === 0) {
     return (
       <div className="text-center py-12 text-gray-400">
         <Calendar className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -279,6 +282,26 @@ function ScheduleView({ schedule }: { schedule: ScheduleEntry[] }) {
           </div>
         </div>
       ))}
+      {remoteList.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-purple-700 uppercase tracking-wide mb-2 px-1">حصص عن بعد</h3>
+          <div className="space-y-2">
+            {remoteList.map(entry => (
+              <div key={entry.id} className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm">{entry.module_name}</p>
+                  {entry.professor_name && (
+                    <span className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                      <User className="w-3 h-3" /> {entry.professor_name}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium shrink-0">عن بعد</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -543,8 +566,9 @@ export default function StudentPage() {
         teaching_type: asgn?.teaching_type || '',
         custom_module: s.custom_module || '',
         custom_professor: s.custom_professor || '',
+        remote: !ts,
       };
-    }).filter(e => e.day);
+    }).filter(e => e.day || e.remote);
 
     setSchedule(entries);
     setLoadingSchedule(false);
