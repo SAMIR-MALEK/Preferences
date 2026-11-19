@@ -1,3 +1,4 @@
+import RemoteSessionsPanel from '../../components/RemoteSessionsPanel';
 import { useState, useEffect, useRef } from 'react';
 import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
@@ -2240,6 +2241,7 @@ function ProfScheduleTab({ prof }: any) {
   const [scheduled, setScheduled] = useState<any[]>([]);
   const [unscheduled, setUnscheduled] = useState<any[]>([]);
   const [remoteItems, setRemoteItems] = useState<any[]>([]);
+  const [openRemote, setOpenRemote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [totalHours, setTotalHours] = useState(0);
 
@@ -2402,7 +2404,8 @@ function ProfScheduleTab({ prof }: any) {
           <h3 className="font-bold text-gray-800 text-sm mb-3">💻 حصص عن بعد</h3>
           <div className="bg-purple-50 border border-purple-200 rounded-2xl overflow-hidden">
             {remoteItems.map((s: any) => (
-              <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-purple-100 last:border-0">
+              <div key={s.id} className="px-4 py-3 border-b border-purple-100 last:border-0">
+              <div className="flex items-center gap-3">
                 <div className="flex-1">
                   <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
                   <p className="text-gray-500 text-[10px] mt-0.5">
@@ -2414,6 +2417,12 @@ function ProfScheduleTab({ prof }: any) {
                   <span className="text-[10px] text-gray-400">{s.weekly_hours?.toFixed(2)}س</span>
                   <LectureListButton prof={prof} assignment={s} />
                 </div>
+              </div>
+              <button onClick={() => setOpenRemote(openRemote === s.id ? null : s.id)}
+                className="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-1.5 text-xs font-bold">
+                {openRemote === s.id ? 'إخفاء' : 'برمجة جلسة / رابط'}
+              </button>
+              {openRemote === s.id && <RemoteSessionsPanel assignmentId={s.assignment_id} />}
               </div>
             ))}
           </div>
