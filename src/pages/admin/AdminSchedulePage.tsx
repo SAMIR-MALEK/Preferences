@@ -846,7 +846,7 @@ export default function AdminSchedulePage() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button onClick={() => setOpenRemote(openRemote === e.id ? null : e.id)}
                       className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-2.5 h-7 text-[11px] font-bold">
-                      {openRemote === e.id ? 'إخفاء' : 'الجلسات'}
+                      {openRemote === e.id ? 'إخفاء' : 'برمجة حصة عن بعد'}
                     </button>
                     <button onClick={() => removeEntry(e.id)} className="bg-red-50 hover:bg-red-100 text-red-600 rounded-lg w-7 h-7 flex items-center justify-center">
                       <X className="w-4 h-4" />
