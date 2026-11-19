@@ -4,6 +4,7 @@ import { toArabicNum } from '../../lib/utils';
 import { X, Save, CheckCircle, AlertCircle, RefreshCw, Zap, Plus, Printer } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { logAction } from '../../lib/logAction';
+import RemoteSessionsPanel from '../../components/RemoteSessionsPanel';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 const ACADEMIC_YEAR = '2026-2027';
@@ -59,6 +60,7 @@ export default function AdminSchedulePage() {
 
   const printRef = useRef<HTMLDivElement>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [openRemote, setOpenRemote] = useState<string | null>(null);
   const [viewCell, setViewCell] = useState<{day:string;slotId:string;slotLabel:string} | null>(null);
   const [mergeAssignment, setMergeAssignment] = useState('');            // إسناد مختار للدمج (حصة مشتركة)
   const [mergeSaving, setMergeSaving] = useState(false);
@@ -835,14 +837,23 @@ export default function AdminSchedulePage() {
           <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-2">
             <h3 className="font-bold text-purple-800 text-sm">حصص عن بعد</h3>
             {remote.map(({ e, a }) => (
-              <div key={e.id} className="flex items-center justify-between gap-2 bg-white rounded-xl px-3 py-2 border border-purple-100">
-                <div className="min-w-0">
-                  <p className="font-bold text-sm text-gray-800 truncate">{a!.module_name}</p>
-                  <p className="text-xs text-gray-500 truncate">{a!.professor_name} — محاضرة م{a!.section_number} — عن بعد</p>
+              <div key={e.id} className="bg-white rounded-xl px-3 py-2 border border-purple-100">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm text-gray-800 truncate">{a!.module_name}</p>
+                    <p className="text-xs text-gray-500 truncate">{a!.professor_name} — محاضرة م{a!.section_number} — عن بعد</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={() => setOpenRemote(openRemote === e.id ? null : e.id)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-2.5 h-7 text-[11px] font-bold">
+                      {openRemote === e.id ? 'إخفاء' : 'الجلسات'}
+                    </button>
+                    <button onClick={() => removeEntry(e.id)} className="bg-red-50 hover:bg-red-100 text-red-600 rounded-lg w-7 h-7 flex items-center justify-center">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => removeEntry(e.id)} className="shrink-0 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg w-7 h-7 flex items-center justify-center">
-                  <X className="w-4 h-4" />
-                </button>
+                {openRemote === e.id && <RemoteSessionsPanel assignmentId={a!.id} />}
               </div>
             ))}
           </div>
