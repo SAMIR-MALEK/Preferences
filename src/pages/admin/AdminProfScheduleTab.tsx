@@ -72,22 +72,24 @@ export default function AdminProfScheduleTab() {
       const hours = vacataire ? 1.5 : (a?.teaching_type === 'محاضرة' ? 2.25 : 1.5);
       return {
         id: s.id,
-        day: s.time_slot?.day,
-        start_time: s.time_slot?.start_time?.slice(0, 5),
-        end_time: s.time_slot?.end_time?.slice(0, 5),
-        slot_number: s.time_slot?.slot_number,
+        // محاضرة عن بعد: حصة بلا وقت ولا قاعة
+        remote: !s.time_slot,
+        day: s.time_slot?.day || 'عن بعد',
+        start_time: s.time_slot?.start_time?.slice(0, 5) || '',
+        end_time: s.time_slot?.end_time?.slice(0, 5) || '',
+        slot_number: s.time_slot?.slot_number ?? 99,
         module_name: a?.module?.name_ar || '—',
         level_name: lvlMap.get(a?.level_id) || a?.level?.name_ar || '—',
         level_dept: (lvlsData || []).find((l: any) => l.id === a?.level_id)?.department || '',
         teaching_type: a?.teaching_type,
         section: a?.section_number,
         group: a?.group_number,
-        room: roomMap.get(s.room_id) || '—',
+        room: s.time_slot ? (roomMap.get(s.room_id) || '—') : 'عن بعد',
         weekly_hours: hours,
         is_overtime: s.overtime_updated_by ? s.is_overtime : null,
         overtime_locked: !!s.overtime_updated_by,
       };
-    }).filter((s: any) => s.day);
+    });
 
     const dayOrder = Object.fromEntries(DAYS.map((d, i) => [d, i]));
     scheduled.sort((a: any, b: any) => {
@@ -225,7 +227,7 @@ export default function AdminProfScheduleTab() {
     if (!w) return;
     const rows = schedule.map(s => `
       <tr>
-        <td>${s.day}</td><td>${s.start_time} — ${s.end_time}</td>
+        <td>${s.day}</td><td>${s.start_time ? `${s.start_time} — ${s.end_time}` : 'عن بعد'}</td>
         <td>${s.level_name}</td>
         <td>${s.teaching_type === 'محاضرة' ? `المجموعة ${String(s.section).padStart(2,'0')}` : `الفوج ${String(s.group).padStart(2,'0')}`}</td>
         <td>${s.module_name}</td><td>${s.teaching_type}</td><td>${s.room}</td><td>${s.weekly_hours}س</td>
@@ -270,7 +272,7 @@ export default function AdminProfScheduleTab() {
     if (!w) return;
     const rows = overtimeSlots.map(s => `
       <tr>
-        <td>${s.day}</td><td>${s.start_time} — ${s.end_time}</td><td>${s.level_name}</td>
+        <td>${s.day}</td><td>${s.start_time ? `${s.start_time} — ${s.end_time}` : 'عن بعد'}</td><td>${s.level_name}</td>
         <td>${s.module_name}</td><td>${s.teaching_type}</td>
         <td>${s.teaching_type === 'محاضرة' ? `م${String(s.section).padStart(2,'0')}` : `ف${String(s.group).padStart(2,'0')}`}</td>
         <td>${s.room}</td>
@@ -421,7 +423,7 @@ export default function AdminProfScheduleTab() {
                       <div key={i} className={`flex items-center gap-3 px-4 py-3 ${s.is_overtime ? 'bg-amber-50/40' : ''}`}>
                         <div className="min-w-[90px] text-center">
                           <p className="text-xs font-bold text-[#1a3a6b]">{s.day}</p>
-                          <p className="text-[10px] text-gray-400">{s.start_time} — {s.end_time}</p>
+                          <p className="text-[10px] text-gray-400">{s.start_time ? `${s.start_time} — ${s.end_time}` : ''}</p>
                         </div>
                         <div className="w-px h-10 bg-gray-200" />
                         <div className="flex-1">

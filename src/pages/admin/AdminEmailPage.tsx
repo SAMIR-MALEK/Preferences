@@ -113,9 +113,9 @@ export default function AdminEmailPage() {
       if (!schedMap[s.assignment_id]) schedMap[s.assignment_id] = [];
       const ts = s.time_slot as any;
       schedMap[s.assignment_id].push({
-        day: ts?.day ?? null,
+        day: ts?.day ?? (s.time_slot_id ? null : 'عن بعد'),
         time_slot: ts ? `${(ts.start_time || '').slice(0, 5)}–${(ts.end_time || '').slice(0, 5)}` : null,
-        room: roomMap[s.room_id] || null,
+        room: roomMap[s.room_id] || (s.time_slot_id ? null : 'عن بعد'),
       });
     });
     (modulesData || []).forEach((m: any) => { moduleMap[m.id] = m.name_ar; });

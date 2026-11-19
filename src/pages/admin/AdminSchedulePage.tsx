@@ -28,8 +28,8 @@ interface Assignment {
 interface ScheduleEntry {
   id: string;
   assignment_id: string | null;
-  room_id: string;
-  time_slot_id: string;
+  room_id: string | null;       // فارغ للمحاضرة عن بعد
+  time_slot_id: string | null;  // فارغ للمحاضرة عن بعد (لا وقت ولا قاعة)
   status: string;
   custom_module?: string;
   custom_professor?: string;
@@ -210,7 +210,7 @@ export default function AdminSchedulePage() {
     const groups = new Set<string>(); // "levelId_section_group" أو "levelId_section_lec"
 
     entries.forEach(e => {
-      roomIds.add(e.room_id);
+      if (e.room_id) roomIds.add(e.room_id);
       if (e.assignment_id) {
         const a = assignments.find(x => x.id === e.assignment_id);
         if (a) {
@@ -234,7 +234,11 @@ export default function AdminSchedulePage() {
     return schedule.filter(s => s.assignment_id === assignmentId).length;
   }
 
+  // محاضرة عن بعد: حصة بلا وقت ولا قاعة
+  function isRemoteEntry(e: ScheduleEntry) { return !e.time_slot_id; }
+
   function isFullyScheduled(a: Assignment) {
+    if (schedule.some(s => s.assignment_id === a.id && isRemoteEntry(s))) return true;
     const required = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
     return scheduledCount(a.id) >= required;
   }
@@ -492,9 +496,10 @@ export default function AdminSchedulePage() {
       teaching_type: a?.teaching_type || '—',
       section: a?.section_number ?? null,
       group: a?.group_number ?? null,
-      day: slot?.day || '—',
-      time: slot ? `${slot.start_time.substring(0, 5)}–${slot.end_time.substring(0, 5)}` : '—',
-      room_name: room?.name || '—',
+      day: slot?.day || (isRemoteEntry(e) ? 'عن بعد' : '—'),
+      time: slot ? `${slot.start_time.substring(0, 5)}–${slot.end_time.substring(0, 5)}` : (isRemoteEntry(e) ? 'عن بعد' : '—'),
+      room_name: room?.name || (isRemoteEntry(e) ? 'عن بعد' : '—'),
+      remote: isRemoteEntry(e),
       // معرّفات للاسترجاع
       assignment_id: e.assignment_id, room_id: e.room_id, time_slot_id: e.time_slot_id,
       status: e.status, joint_id: e.joint_id || null,
@@ -564,6 +569,31 @@ export default function AdminSchedulePage() {
       if (!a) return '';
       return `${a.level_name} ${a.teaching_type === 'محاضرة' ? 'م' + a.section_number : 'ف' + a.group_number}`;
     }).filter(Boolean);
+  }
+
+  // تسجيل محاضرة «عن بعد»: بلا فترة ولا قاعة (موعدها يحدده الأستاذ في كل مرة)
+  async function addRemote() {
+    if (!modal || modalTab !== 'assigned' || !modalAssignment) return;
+    const a = assignments.find(x => x.id === modalAssignment);
+    if (!a || a.teaching_type !== 'محاضرة') { setMessage({ type: 'error', text: 'خيار «عن بعد» للمحاضرات فقط' }); return; }
+    if (schedule.some(s => s.assignment_id === a.id && isRemoteEntry(s))) { setMessage({ type: 'error', text: 'هذه المحاضرة مسجّلة عن بعد أصلاً' }); return; }
+    setSaving(true);
+    const { error } = await supabase.from('schedules').insert({
+      assignment_id: a.id, room_id: null, time_slot_id: null,
+      academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة',
+      ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
+    });
+    if (error) { setMessage({ type: 'error', text: error.message }); }
+    else {
+      await audit('add_schedule', {
+        assignment_ids: [a.id], remote: true, day: 'عن بعد', time: 'عن بعد', room: 'عن بعد', joint: false,
+        module_name: a.module_name, prof_name: a.professor_name,
+      });
+      setMessage({ type: 'success', text: 'سُجّلت المحاضرة عن بعد' });
+      setModal(null); setModalAssignment(''); setModalRoom('');
+      await loadData();
+    }
+    setSaving(false);
   }
 
   async function addEntry() {
@@ -796,6 +826,28 @@ export default function AdminSchedulePage() {
           </div>
         </div>
       )}
+
+      {selectedLevel && (() => {
+        const remote = schedule.filter(e => isRemoteEntry(e) && e.assignment_id).map(e => ({ e, a: assignments.find(x => x.id === e.assignment_id) }))
+          .filter(x => x.a && x.a.level_id === selectedLevel && x.a.section_number === selectedSection);
+        if (remote.length === 0) return null;
+        return (
+          <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-2">
+            <h3 className="font-bold text-purple-800 text-sm">حصص عن بعد</h3>
+            {remote.map(({ e, a }) => (
+              <div key={e.id} className="flex items-center justify-between gap-2 bg-white rounded-xl px-3 py-2 border border-purple-100">
+                <div className="min-w-0">
+                  <p className="font-bold text-sm text-gray-800 truncate">{a!.module_name}</p>
+                  <p className="text-xs text-gray-500 truncate">{a!.professor_name} — محاضرة م{a!.section_number} — عن بعد</p>
+                </div>
+                <button onClick={() => removeEntry(e.id)} className="shrink-0 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg w-7 h-7 flex items-center justify-center">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* View Cell Modal */}
       {viewCell && (() => {
@@ -1033,7 +1085,16 @@ export default function AdminSchedulePage() {
               </>
             )}
 
-            
+            {modalTab === 'assigned' && (() => {
+              const sel = assignments.find(x => x.id === modalAssignment);
+              if (!sel || sel.teaching_type !== 'محاضرة') return null;
+              return (
+                <button onClick={addRemote} disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-40">
+                  تسجيل هذه المحاضرة «عن بعد» (بلا وقت ولا قاعة)
+                </button>
+              );
+            })()}
 
             {/* القاعات المتاحة فقط */}
             {modalTab !== 'merge' && (<>
@@ -1131,6 +1192,7 @@ export async function runSchedulingAlgorithm(
 
   // تهيئة من الجدول الموجود
   existingSchedule.forEach(s => {
+    if (!s.time_slot_id || !s.room_id) return; // محاضرة عن بعد: لا تحجز وقتاً ولا قاعة
     ensureOcc(s.time_slot_id);
     occupied[s.time_slot_id].roomIds.add(s.room_id);
     if (s.assignment_id) {
@@ -1147,6 +1209,7 @@ export async function runSchedulingAlgorithm(
 
   // الإسنادات غير المكتملة
   const unscheduled = assignments.filter(a => {
+    if (existingSchedule.some(s => s.assignment_id === a.id && !s.time_slot_id)) return false; // عن بعد
     const required = a.teaching_type === 'محاضرة' ? a.weekly_sessions : 1;
     const done = existingSchedule.filter(s => s.assignment_id === a.id).length;
     return done < required;
