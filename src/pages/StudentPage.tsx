@@ -306,6 +306,56 @@ function ScheduleView({ schedule: all }: { schedule: ScheduleEntry[] }) {
   );
 }
 
+// ─── إشعار جلسة عن بعد (للطلبة المسجّلين فقط) ─────────────────────────────────
+
+interface LiveSession { id: string; starts_at: string; link: string; module_name: string; professor_name: string; }
+
+function RemoteLiveBanner({ student }: { student: Student }) {
+  const [list, setList] = useState<LiveSession[]>([]);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      const { data, error } = await supabase.rpc('student_remote_sessions', {
+        p_bac: student.mat_bac, p_year: student.annee_bac,
+      });
+      if (alive && !error) setList((data as LiveSession[]) || []);
+    }
+    load();
+    const t1 = setInterval(load, 60000);
+    const t2 = setInterval(() => setNow(Date.now()), 30000);
+    return () => { alive = false; clearInterval(t1); clearInterval(t2); };
+  }, [student.mat_bac, student.annee_bac]);
+
+  const visible = list.filter(s => new Date(s.starts_at).getTime() + 2 * 3600 * 1000 > now);
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="p-4 border-b border-gray-100 space-y-2">
+      {visible.map(s => {
+        const start = new Date(s.starts_at);
+        const live = start.getTime() <= now;
+        const day = start.toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long' });
+        const time = start.toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit', hour12: false });
+        return (
+          <div key={s.id} className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-purple-700">{live ? '🔴 محاضرة عن بعد جارية الآن' : '💻 محاضرة عن بعد'}</p>
+                <p className="font-bold text-gray-800 text-sm mt-0.5">{s.module_name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{s.professor_name ? `${s.professor_name} — ` : ''}{day} — {time}</p>
+              </div>
+              <a href={s.link} target="_blank" rel="noopener noreferrer"
+                className="shrink-0 bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-xs font-bold">انضمام</a>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Group Change Request ─────────────────────────────────────────────────────
 
 function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess: () => void }) {
@@ -646,6 +696,8 @@ export default function StudentPage() {
               <StatusBanner sit_ins={student.sit_ins} />
             </div>
           )}
+
+          {student.sit_ins === 'Validée' && <RemoteLiveBanner student={student} />}
 
           {/* Tabs */}
           <div className="flex border-b border-gray-100">
