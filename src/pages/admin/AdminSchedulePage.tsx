@@ -124,21 +124,6 @@ export default function AdminSchedulePage() {
 
   useEffect(() => { loadData(); }, []);
 
-  async function clearDrafts() {
-    if (!window.confirm('سيتم حذف كل الحصص بحالة "مسودة". هل تريد المتابعة؟')) return;
-    await supabase.from('schedules').delete()
-      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مسودة');
-    await loadData();
-    setMessage({ type: 'success', text: '✓ تم مسح المسودات' });
-  }
-
-  async function approveDrafts() {
-    await supabase.from('schedules').update({ status: 'معتمد' })
-      .eq('academic_year', ACADEMIC_YEAR).eq('semester', 1).eq('status', 'مسودة');
-    await loadData();
-    setMessage({ type: 'success', text: '✓ تم اعتماد كل المسودات' });
-  }
-
   async function runAlgo() {
     if (!window.confirm('سيتم توليد التوقيت تلقائياً للإسنادات غير المجدولة. هل تريد المتابعة؟')) return;
     setRunning(true);
@@ -312,7 +297,7 @@ export default function AdminSchedulePage() {
     const jid = c.host.joint_id || (crypto as any).randomUUID();
     const row: any = {
       assignment_id: c.a.id, room_id: c.host.room_id, time_slot_id: modal.slotId,
-      academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة', joint_id: jid,
+      academic_year: ACADEMIC_YEAR, semester: 1, status: 'معتمد', joint_id: jid,
       ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
     };
     const { data: ins, error } = await supabase.from('schedules').insert(row).select('id').single();
@@ -567,7 +552,7 @@ export default function AdminSchedulePage() {
     setSaving(true);
     const insertData: any = {
       room_id: modalRoom, time_slot_id: modal.slotId,
-      academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة',
+      academic_year: ACADEMIC_YEAR, semester: 1, status: 'معتمد',
       ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
     };
     if (modalTab === 'assigned') {
@@ -627,14 +612,6 @@ export default function AdminSchedulePage() {
         <div className="flex gap-2">
           <button onClick={loadData} className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
             <RefreshCw className="w-4 h-4" /> تحديث
-          </button>
-          <button onClick={clearDrafts}
-            className="flex items-center gap-2 bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded-xl text-sm font-medium transition-colors">
-            مسح المسودات
-          </button>
-          <button onClick={approveDrafts}
-            className="flex items-center gap-2 bg-green-100 text-green-700 hover:bg-green-200 px-3 py-2 rounded-xl text-sm font-medium transition-colors">
-            اعتماد الكل
           </button>
           <button onClick={runAlgo} disabled={running}
             className="flex items-center gap-2 bg-[#c9a227] hover:bg-[#b8911f] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
@@ -1285,7 +1262,7 @@ export async function runSchedulingAlgorithm(
             time_slot_id: slotId,
             academic_year: academicYear,
             semester: 1,
-            status: 'مسودة',
+            status: 'معتمد',
           });
           markOcc(slotId, a.professor_id || '', room.id, groupKey);
           if (a.professor_id && !profDays[a.professor_id]) profDays[a.professor_id] = new Set();
