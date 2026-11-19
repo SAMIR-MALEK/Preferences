@@ -321,6 +321,29 @@ export default function AdminSchedulePage() {
     setMergeSaving(false);
   }
 
+  function openAdd(day: string, slotId: string, slotLabel: string) {
+    setModal({ day, slotId, slotLabel });
+    setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
+    setModalSearch(''); setModalTypeFilter('all');
+    setCustomModule(''); setCustomModuleId(''); setCustomProfessor('');
+    // جلب المقاييس غير المُسنَدة
+    supabase.from('modules')
+      .select('id, name_ar, level:levels(name_ar)')
+      .eq('is_active', true)
+      .eq('semester', 1)
+      .then(({ data: mods }) => {
+        if (!mods) return;
+        supabase.from('assignments')
+          .select('module_id')
+          .eq('academic_year', ACADEMIC_YEAR)
+          .eq('semester', 1)
+          .then(({ data: asgn }) => {
+            const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
+            setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
+          });
+      });
+  }
+
   function getAvailableAssignments(slotId: string): Assignment[] {
     return assignments
       .filter(a => {
@@ -724,11 +747,8 @@ export default function AdminSchedulePage() {
                       const entries = getCellEntries(day, slotNum);
                       return (
                         <td key={slotNum}
-                          onClick={() => {
-                            if (!slotId) return;
-                            setViewCell({day, slotId, slotLabel: getSlotLabel(slotNum)});
-                          }}
-                          className="border border-gray-100 p-1 align-top cursor-pointer hover:bg-blue-50/30 transition-colors"
+                          onClick={() => { if (slotId && entries.length === 0) openAdd(day, slotId, getSlotLabel(slotNum)); }}
+                          className="border border-gray-100 p-1 align-top hover:bg-blue-50/30 transition-colors"
                           style={{minWidth:165, minHeight:90}}>
                           <div className="space-y-1 min-h-[80px]">
                             {entries.slice(0,3).map(entry => {
@@ -758,34 +778,13 @@ export default function AdminSchedulePage() {
                             {entries.length > 3 && (
                               <div className="text-center text-[10px] text-gray-400 bg-gray-100 rounded py-0.5">+{toArabicNum(entries.length-3)} أخرى</div>
                             )}
+                            {entries.length === 0 && (
                             <button
-                              onClick={e => {
-                                e.stopPropagation();
-                                if (!slotId) return;
-                                setModal({day, slotId, slotLabel: getSlotLabel(slotNum)});
-                                setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
-                                setModalSearch(''); setModalTypeFilter('all');
-                                setCustomModule(''); setCustomModuleId(''); setCustomProfessor('');
-    // جلب المقاييس غير المُسنَدة
-    supabase.from('modules')
-      .select('id, name_ar, level:levels(name_ar)')
-      .eq('is_active', true)
-      .eq('semester', 1)
-      .then(({ data: mods }) => {
-        if (!mods) return;
-        supabase.from('assignments')
-          .select('module_id')
-          .eq('academic_year', ACADEMIC_YEAR)
-          .eq('semester', 1)
-          .then(({ data: asgn }) => {
-            const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
-            setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
-          });
-      });
-                              }}
+                              onClick={e => { e.stopPropagation(); if (slotId) openAdd(day, slotId, getSlotLabel(slotNum)); }}
                               className="w-full mt-1 flex items-center justify-center h-7 border-2 border-dashed border-gray-200 rounded-lg text-gray-300 hover:border-[#1a3a6b] hover:text-[#1a3a6b] transition-all text-lg">
                               +
                             </button>
+                            )}
                           </div>
                         </td>
                       );
@@ -807,40 +806,15 @@ export default function AdminSchedulePage() {
               onClick={e => e.stopPropagation()} dir="rtl">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-gray-900 text-lg font-display">حصص هذا الوقت</h3>
+                  <h3 className="font-bold text-gray-900 text-lg font-display">خيارات الحصة</h3>
                   <p className="text-gray-400 text-sm">{viewCell.day} — {viewCell.slotLabel}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => {
-                    setModal({day: viewCell.day, slotId: viewCell.slotId, slotLabel: viewCell.slotLabel});
-                    setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
-                    setModalSearch(''); setModalTypeFilter('all');
-                    setCustomModule(''); setCustomModuleId(''); setCustomProfessor('');
-    // جلب المقاييس غير المُسنَدة
-    supabase.from('modules')
-      .select('id, name_ar, level:levels(name_ar)')
-      .eq('is_active', true)
-      .eq('semester', 1)
-      .then(({ data: mods }) => {
-        if (!mods) return;
-        supabase.from('assignments')
-          .select('module_id')
-          .eq('academic_year', ACADEMIC_YEAR)
-          .eq('semester', 1)
-          .then(({ data: asgn }) => {
-            const assignedIds = new Set((asgn || []).map((a: any) => a.module_id));
-            setUnassignedModules(mods.filter((m: any) => !assignedIds.has(m.id)));
-          });
-      });
-                    setViewCell(null);
-                  }} className="flex items-center gap-1 bg-[#1a3a6b] text-white px-3 py-1.5 rounded-xl text-xs font-bold">
-                    <Plus className="w-3 h-3" /> إضافة
-                  </button>
                   <button onClick={() => setViewCell(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
                 </div>
               </div>
               {cellEntries.length === 0 ? (
-                <p className="text-center text-gray-400 py-4">لا توجد حصص — اضغط إضافة</p>
+                <p className="text-center text-gray-400 py-4">لا توجد حصص</p>
               ) : (
                 <div className="space-y-2">
                   {cellEntries.map(entry => {
