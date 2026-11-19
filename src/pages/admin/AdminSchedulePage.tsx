@@ -60,11 +60,12 @@ export default function AdminSchedulePage() {
   const printRef = useRef<HTMLDivElement>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [viewCell, setViewCell] = useState<{day:string;slotId:string;slotLabel:string} | null>(null);
-  const [modalPartners, setModalPartners] = useState<string[]>([]);       // إسنادات تُدمج مع الحصة الجديدة
+  const [mergeAssignment, setMergeAssignment] = useState('');            // إسناد مختار للدمج (حصة مشتركة)
+  const [mergeSaving, setMergeSaving] = useState(false);
   const [delAsk, setDelAsk] = useState<ScheduleEntry | null>(null);        // حذف حصة مشتركة: هذه فقط أم الكل؟
   const [roomEditId, setRoomEditId] = useState<string | null>(null);       // الحصة التي نغيّر قاعتها
   const [delConfirm, setDelConfirm] = useState<ScheduleEntry | null>(null); // تأكيد حذف حصة عادية
-  const [modalTab, setModalTab] = useState<'assigned' | 'custom'>('assigned');
+  const [modalTab, setModalTab] = useState<'assigned' | 'custom' | 'merge'>('assigned');
   const [modalTypeFilter, setModalTypeFilter] = useState<'all' | 'lec' | 'td'>('all');
   const [modalAssignment, setModalAssignment] = useState('');
   const [modalRoom, setModalRoom] = useState('');
@@ -279,20 +280,60 @@ export default function AdminSchedulePage() {
     return groupsFree(a, slotId);
   }
 
-  // إسنادات يمكن دمجها مع الإسناد المختار في حصة مشتركة:
-  // الأستاذ نفسه والمقياس نفسه والنوع نفسه في مستوى/تخصص/فوج آخر، ومجموعته حرّة في هذا الوقت
-  function getPartnerCandidates(slotId: string): Assignment[] {
-    const sel = assignments.find(x => x.id === modalAssignment);
-    if (!sel || !sel.professor_id) return [];
-    const norm = (x: string) => x.replace(/\s+/g, ' ').trim();
-    return assignments.filter(a =>
-      a.id !== sel.id
-      && a.professor_id === sel.professor_id
-      && a.teaching_type === sel.teaching_type
-      && norm(a.module_name) === norm(sel.module_name)
-      && !isFullyScheduled(a)
-      && groupsFree(a, slotId)
-    );
+  // دمج حصتين (حالة استثنائية): إسنادات المستوى غير المبرمجة بعد، التي أستاذها مشغول فعلاً في هذا الوقت
+  // بحصة من النوع نفسه. لا نشترط تطابق اسم المقياس: القرار للمشرف.
+  function getMergeCandidates(slotId: string): { a: Assignment; host: ScheduleEntry | null; hostA: Assignment | null; blocked: boolean }[] {
+    const inSlot = schedule.filter(e => e.time_slot_id === slotId && e.assignment_id);
+    const out: { a: Assignment; host: ScheduleEntry | null; hostA: Assignment | null; blocked: boolean }[] = [];
+    for (const a of assignments) {
+      if (a.level_id !== selectedLevel || a.section_number !== selectedSection) continue;
+      if (!a.professor_id || isFullyScheduled(a)) continue;
+      if (modalTypeFilter === 'lec' && a.teaching_type !== 'محاضرة') continue;
+      if (modalTypeFilter === 'td' && a.teaching_type !== 'أعمال موجهة') continue;
+      if (modalSearch && !a.module_name.includes(modalSearch) && !a.professor_name.includes(modalSearch)) continue;
+      // حصة الأستاذ نفسها في هذا الوقت، من النوع نفسه
+      const host = inSlot.find(e => {
+        const h = assignments.find(x => x.id === e.assignment_id);
+        return h && h.professor_id === a.professor_id && h.teaching_type === a.teaching_type;
+      });
+      if (!host) continue;                       // الأستاذ غير مشغول: يظهر في القائمة العادية
+      if (!groupsFree(a, slotId)) continue;      // مجموعة/فوج هذا الإسناد مشغول بحصة أخرى
+      const hostA = assignments.find(x => x.id === host.assignment_id) || null;
+      // الحد الأقصى حصتان: إن كانت الحصة مدمجة فعلاً مع أخرى فلا دمج ثالث
+      const blocked = !!host.joint_id && inSlot.some(e => e.joint_id === host.joint_id && e.id !== host.id);
+      out.push({ a, host, hostA, blocked });
+    }
+    return out;
+  }
+
+  async function doMerge(c: { a: Assignment; host: ScheduleEntry | null; hostA: Assignment | null }) {
+    if (!modal || !c.host) return;
+    setMergeSaving(true);
+    const jid = c.host.joint_id || (crypto as any).randomUUID();
+    const row: any = {
+      assignment_id: c.a.id, room_id: c.host.room_id, time_slot_id: modal.slotId,
+      academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة', joint_id: jid,
+      ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
+    };
+    const { data: ins, error } = await supabase.from('schedules').insert(row).select('id').single();
+    if (error || !ins) { setMessage({ type: 'error', text: 'تعذّر الدمج: ' + (error?.message || '') }); setMergeSaving(false); return; }
+    if (!c.host.joint_id) {
+      const { error: e2 } = await supabase.from('schedules').update({ joint_id: jid }).eq('id', c.host.id);
+      if (e2) {
+        await supabase.from('schedules').delete().eq('id', ins.id);   // تراجع كامل
+        setMessage({ type: 'error', text: 'تعذّر الدمج: ' + e2.message }); setMergeSaving(false); return;
+      }
+    }
+    await audit('add_schedule', {
+      module_name: c.a.module_name, prof_name: c.a.professor_name,
+      day: modal.day, time: modal.slotLabel,
+      room: rooms.find(r => r.id === c.host!.room_id)?.name || '—',
+      joint: true, assignment_ids: [c.a.id, c.host.assignment_id],
+    });
+    setMessage({ type: 'success', text: 'تم الدمج: حصة مشتركة' });
+    setModal(null); setMergeAssignment('');
+    await loadData();
+    setMergeSaving(false);
   }
 
   function getAvailableAssignments(slotId: string): Assignment[] {
@@ -555,28 +596,17 @@ export default function AdminSchedulePage() {
       }
     }
 
-    // حصة مشتركة: نفس الوقت والقاعة لعدة إسنادات (تُنشأ يدوياً فقط)
-    const partners = modalTab === 'assigned'
-      ? modalPartners.filter(id => getPartnerCandidates(modal.slotId).some(c => c.id === id))
-      : [];
-    let error: any = null;
-    if (partners.length > 0) {
-      const jid = (crypto as any).randomUUID();
-      const rows = [modalAssignment, ...partners].map(aid => ({ ...insertData, assignment_id: aid, joint_id: jid }));
-      ({ error } = await supabase.from('schedules').insert(rows));
-    } else {
-      ({ error } = await supabase.from('schedules').insert(insertData).select().single());
-    }
+    const { error } = await supabase.from('schedules').insert(insertData).select().single();
     if (error) { setMessage({ type: 'error', text: error.message }); }
     else {
       await audit('add_schedule', {
-        assignment_ids: modalTab === 'assigned' ? [modalAssignment, ...partners] : [],
+        assignment_ids: modalTab === 'assigned' ? [modalAssignment] : [],
         room: rooms.find(r => r.id === modalRoom)?.name || '—',
-        day: modal.day, time: modal.slotLabel, joint: partners.length > 0,
+        day: modal.day, time: modal.slotLabel, joint: false,
         module_name: modalTab === 'assigned' ? (assignments.find(x => x.id === modalAssignment)?.module_name || '—') : customModule,
       });
-      setMessage({ type: 'success', text: partners.length > 0 ? 'تمت إضافة الحصة المشتركة' : 'تمت إضافة الحصة' });
-      setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId(''); setSelectedEmptySlot(null); setModalPartners([]);
+      setMessage({ type: 'success', text: 'تمت إضافة الحصة' });
+      setModal(null); setModalAssignment(''); setModalRoom(''); setCustomModuleId(''); setSelectedEmptySlot(null);
       await loadData();
     }
     setSaving(false);
@@ -939,8 +969,74 @@ export default function AdminSchedulePage() {
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${modalTab==='assigned'?'bg-white text-[#1a3a6b] shadow-sm':'text-gray-500'}`}>
                 من الإسناد
               </button>
-
+              <button onClick={()=>{ setModalTab('merge'); setMergeAssignment(''); }}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${modalTab==='merge'?'bg-white text-amber-700 shadow-sm':'text-gray-500'}`}>
+                دمج حصتين
+              </button>
             </div>
+
+            {modalTab === 'merge' && (() => {
+              const cands = getMergeCandidates(modal.slotId);
+              const sel = cands.find(c => c.a.id === mergeAssignment && !c.blocked) || null;
+              const room = sel?.host ? rooms.find(r => r.id === sel.host!.room_id) : null;
+              const unit = sel?.a.teaching_type === 'محاضرة' ? 'مجموعتين' : 'فوجين';
+              const lbl = (x: Assignment | null) => x ? `${x.level_name} ${x.teaching_type === 'محاضرة' ? 'م' + x.section_number : 'ف' + x.group_number}` : '';
+              return (
+                <>
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 leading-5">
+                    حالة استثنائية: تظهر هنا إسنادات هذا المستوى غير المبرمجة التي أستاذها يدرّس فعلاً في هذا الوقت، فتُسجَّل حصتها في وقته وقاعته نفسيهما.
+                  </p>
+                  <div className="flex gap-1">
+                    {([{v:'all',l:'الكل'},{v:'lec',l:'محاضرات'},{v:'td',l:'TD'}] as const).map(f => (
+                      <button key={f.v} onClick={()=>setModalTypeFilter(f.v)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${modalTypeFilter===f.v?'bg-amber-500 text-white':'bg-gray-100 text-gray-500'}`}>
+                        {f.l}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
+                    {cands.length === 0 ? (
+                      <p className="text-center text-gray-400 py-6 text-sm">لا يوجد إسناد قابل للدمج في هذا الوقت</p>
+                    ) : (
+                      <div className="divide-y divide-gray-50">
+                        {cands.map(c => {
+                          const on = mergeAssignment === c.a.id && !c.blocked;
+                          return (
+                            <button key={c.a.id} disabled={c.blocked}
+                              onClick={() => setMergeAssignment(c.a.id)}
+                              className={`w-full text-right px-4 py-3 text-sm transition-all ${c.blocked ? 'opacity-50 cursor-not-allowed text-gray-400' : on ? 'bg-amber-500 text-white' : 'hover:bg-gray-50 text-gray-700'}`}>
+                              <div className="font-medium">{c.a.module_name}</div>
+                              <div className={`text-xs mt-0.5 ${on ? 'text-white/80' : 'text-gray-400'}`}>
+                                {c.a.professor_name} — {c.a.teaching_type === 'محاضرة' ? `م${c.a.section_number}` : `ف${c.a.group_number}`}
+                              </div>
+                              {c.blocked && <div className="text-[11px] text-red-500 mt-0.5">هذه الحصة مدمجة فعلاً مع حصتين</div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {sel && sel.host && (
+                    <div className="border border-amber-300 bg-amber-50 rounded-xl p-3 space-y-2">
+                      <p className="text-sm text-amber-900 leading-6">
+                        الأستاذ <b>{sel.a.professor_name}</b> يدرّس فعلاً في هذا الوقت
+                        {' '}<b>{sel.hostA?.module_name}</b> ({lbl(sel.hostA)}) في القاعة <b>{room?.name || '—'}</b>.
+                        <br />هل تسمح له بتدريس {unit} في الوقت نفسه والقاعة <b>{room?.name || '—'}</b>؟
+                      </p>
+                      <p className="text-[11px] text-amber-700">المقياس الذي ستبرمجه: {sel.a.module_name} ({lbl(sel.a)})</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => doMerge(sel)} disabled={mergeSaving}
+                          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-xl text-sm font-bold disabled:opacity-50">
+                          {mergeSaving ? 'جارٍ الدمج...' : 'نعم، ادمج'}
+                        </button>
+                        <button onClick={() => setMergeAssignment('')}
+                          className="flex-1 bg-white border border-gray-200 text-gray-600 py-2 rounded-xl text-sm">إلغاء</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {modalTab === 'assigned' && (
               <>
@@ -965,7 +1061,7 @@ export default function AdminSchedulePage() {
                         const isLec = a.teaching_type === 'محاضرة';
                         const sel = modalAssignment === a.id;
                         return (
-                          <button key={a.id} onClick={()=>{ setModalAssignment(a.id); setModalPartners([]); }}
+                          <button key={a.id} onClick={()=>setModalAssignment(a.id)}
                             className={`w-full text-right px-4 py-3 text-sm transition-all ${sel?(isLec?'bg-[#1a3a6b] text-white':'bg-teal-600 text-white'):'hover:bg-gray-50 text-gray-700'}`}>
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{a.module_name}</span>
@@ -988,29 +1084,8 @@ export default function AdminSchedulePage() {
 
             
 
-            {/* حصة مشتركة (استثنائية) */}
-            {modalTab === 'assigned' && modalAssignment && getPartnerCandidates(modal.slotId).length > 0 && (
-              <div className="border border-amber-200 bg-amber-50/60 rounded-xl p-3 space-y-2">
-                <p className="text-xs font-bold text-amber-800">حصة مشتركة (حالة استثنائية — اختياري)</p>
-                <p className="text-[11px] text-amber-700 leading-5">
-                  تُدرَّس هذه الحصة نفسها لمجموعة أخرى في الوقت والقاعة نفسيهما. تُسجَّل للمجموعة الأخرى حصتها وتظهر في جدولها.
-                </p>
-                <div className="space-y-1">
-                  {getPartnerCandidates(modal.slotId).map(a => {
-                    const on = modalPartners.includes(a.id);
-                    return (
-                      <button key={a.id} type="button"
-                        onClick={() => setModalPartners(prev => on ? prev.filter(x => x !== a.id) : [...prev, a.id])}
-                        className={`w-full text-right px-3 py-2 rounded-lg text-xs border transition-all ${on ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'}`}>
-                        {on ? '✓ ' : ''}{a.level_name} — {a.teaching_type === 'محاضرة' ? `م${a.section_number}` : `ف${a.group_number}`}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* القاعات المتاحة فقط */}
+            {modalTab !== 'merge' && (<>
             <div>
               <label className="text-xs text-gray-500 mb-2 block font-medium">
                 القاعة المتاحة <span className="text-gray-300">({toArabicNum(getAvailableRooms(modal.slotId).length)} متاحة)</span>
@@ -1036,6 +1111,7 @@ export default function AdminSchedulePage() {
               <Save className="w-4 h-4"/>
               {saving?'جارٍ الحفظ...':'إضافة الحصة'}
             </button>
+            </>)}
           </div>
         </div>
       )}
