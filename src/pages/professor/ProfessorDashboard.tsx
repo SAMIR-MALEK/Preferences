@@ -2239,6 +2239,7 @@ function StatusBadge({ status }: { status: string }) {
 function ProfScheduleTab({ prof }: any) {
   const [scheduled, setScheduled] = useState<any[]>([]);
   const [unscheduled, setUnscheduled] = useState<any[]>([]);
+  const [remoteItems, setRemoteItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalHours, setTotalHours] = useState(0);
 
@@ -2299,7 +2300,11 @@ function ProfScheduleTab({ prof }: any) {
           end_time: s.time_slot?.end_time?.slice(0, 5),
           slot_number: s.time_slot?.slot_number,
         };
-      }).filter((s: any) => s.day);
+      });
+      // محاضرات عن بعد: حصة بلا وقت ولا قاعة
+      const remoteList = scheduledItems.filter((s: any) => !s.day);
+      setRemoteItems(remoteList);
+      scheduledItems.splice(0, scheduledItems.length, ...scheduledItems.filter((s: any) => s.day));
 
       const dayOrder = Object.fromEntries(['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map((d,i) => [d,i]));
       scheduledItems.sort((a: any, b: any) => {
@@ -2308,7 +2313,7 @@ function ProfScheduleTab({ prof }: any) {
       });
       setScheduled(scheduledItems);
 
-      const scheduledIds = new Set(scheduledItems.map((s: any) => s.assignment_id));
+      const scheduledIds = new Set([...scheduledItems, ...remoteList].map((s: any) => s.assignment_id));
       const unsch: any[] = [];
       const tdSeen = new Set<string>();
       assignments.filter((a: any) => !scheduledIds.has(a.id)).forEach((a: any) => {
@@ -2392,6 +2397,29 @@ function ProfScheduleTab({ prof }: any) {
         </div>
       )}
 
+      {remoteItems.length > 0 && (
+        <div>
+          <h3 className="font-bold text-gray-800 text-sm mb-3">💻 حصص عن بعد</h3>
+          <div className="bg-purple-50 border border-purple-200 rounded-2xl overflow-hidden">
+            {remoteItems.map((s: any) => (
+              <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-purple-100 last:border-0">
+                <div className="flex-1">
+                  <p className="font-bold text-gray-800 text-xs">{s.module_name}</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">
+                    {s.level_name} — {` م${String(s.section).padStart(2,'0')}`} — عن بعد
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">عن بعد</span>
+                  <span className="text-[10px] text-gray-400">{s.weekly_hours?.toFixed(2)}س</span>
+                  <LectureListButton prof={prof} assignment={s} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {unscheduled.length > 0 && (
         <div>
           <h3 className="font-bold text-gray-800 text-sm mb-3">⏳ سيُبرمج توقيتها لاحقاً</h3>
@@ -2414,7 +2442,7 @@ function ProfScheduleTab({ prof }: any) {
         </div>
       )}
 
-      {scheduled.length === 0 && unscheduled.length === 0 && (
+      {scheduled.length === 0 && unscheduled.length === 0 && remoteItems.length === 0 && (
         <p className="text-center text-gray-400 text-sm py-8">لا توجد إسنادات بعد</p>
       )}
     </div>
