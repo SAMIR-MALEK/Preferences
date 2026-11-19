@@ -297,7 +297,7 @@ export default function AdminSchedulePage() {
     const jid = c.host.joint_id || (crypto as any).randomUUID();
     const row: any = {
       assignment_id: c.a.id, room_id: c.host.room_id, time_slot_id: modal.slotId,
-      academic_year: ACADEMIC_YEAR, semester: 1, status: 'معتمد', joint_id: jid,
+      academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة', joint_id: jid,
       ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
     };
     const { data: ins, error } = await supabase.from('schedules').insert(row).select('id').single();
@@ -552,7 +552,7 @@ export default function AdminSchedulePage() {
     setSaving(true);
     const insertData: any = {
       room_id: modalRoom, time_slot_id: modal.slotId,
-      academic_year: ACADEMIC_YEAR, semester: 1, status: 'معتمد',
+      academic_year: ACADEMIC_YEAR, semester: 1, status: 'مسودة',
       ...(user?.admin?.id ? { created_by: user.admin.id } : {}),
     };
     if (modalTab === 'assigned') {
@@ -1262,7 +1262,7 @@ export async function runSchedulingAlgorithm(
             time_slot_id: slotId,
             academic_year: academicYear,
             semester: 1,
-            status: 'معتمد',
+            status: 'مسودة',
           });
           markOcc(slotId, a.professor_id || '', room.id, groupKey);
           if (a.professor_id && !profDays[a.professor_id]) profDays[a.professor_id] = new Set();
