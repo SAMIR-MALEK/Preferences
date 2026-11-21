@@ -88,12 +88,9 @@ function LoginScreen({ onLogin }: { onLogin: (s: Student) => void }) {
     }
     setLoading(true);
     setError('');
-    const { data, error: err } = await supabase
-      .from('students')
-      .select('*')
-      .eq('mat_bac', matBac.trim())
-      .eq('annee_bac', Number(anneeBac.trim()))
-      .maybeSingle();
+    const { data, error: err } = await supabase.rpc('student_login', {
+      p_bac: matBac.trim(), p_year: Number(anneeBac.trim()),
+    });
     setLoading(false);
     if (err || !data) {
       setError('رقم البكالوريا أو السنة غير صحيح');
@@ -401,13 +398,11 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
     }
 
     // fallback: الأفواج الموجودة في جدول students على مستوى التخصص كله
-    const { data } = await supabase
-      .from('students')
-      .select('groupe')
-      .eq('specialite', student.specialite)
-      .not('groupe', 'is', null);
-    if (data) {
-      const unique = [...new Set(data.map(d => d.groupe as number))].sort((a, b) => a - b);
+    const { data } = await supabase.rpc('student_group_list', {
+      p_bac: student.mat_bac, p_year: student.annee_bac,
+    });
+    if (Array.isArray(data)) {
+      const unique = [...new Set((data as number[]))].sort((a, b) => a - b);
       setAvailableGroupes(unique.filter(g => g !== student.groupe));
     }
   }

@@ -9,7 +9,7 @@ import {
 import { AlertTriangle, Upload, Send, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
-  student: { id: string; groupe: number | null };
+  student: { id: string; groupe: number | null; mat_bac: string; annee_bac: number | null };
 }
 
 const MAX_FILE_MB = 5;
@@ -41,7 +41,7 @@ export default function StudentAbsences({ student }: Props) {
     try {
       // فوج الطالب الحالي وتاريخ إدراجه (قد يكون تغيّر منذ تسجيل الدخول)
       let meRow: any = null;
-      const r1 = await supabase.from('students').select('id, groupe, groupe_since').eq('id', student.id).maybeSingle();
+      const r1 = await supabase.rpc('student_me', { p_bac: student.mat_bac, p_year: student.annee_bac });
       if (!r1.error) meRow = r1.data;
       setMe(meRow || { id: student.id, groupe: student.groupe, groupe_since: null });
 
