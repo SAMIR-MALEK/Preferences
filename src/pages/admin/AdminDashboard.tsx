@@ -32,10 +32,11 @@ import AdminDisciplinaryPage  from './AdminDisciplinaryPage';
 import AdminMakeupPage        from './AdminMakeupPage';
 import AdminAttendancePage    from './AdminAttendancePage';
 import AdminStructurePage     from './AdminStructurePage';
+import AdminStaffPage         from './AdminStaffPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure' | 'staff';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -158,16 +159,19 @@ export default function AdminDashboard() {
       items: [
         { id: 'email',    label: 'إرسال بريد',   icon: Mail     },
         { id: 'audit',    label: 'سجل التدقيق',  icon: Shield   },
+        { id: 'staff',    label: 'حسابات المصالح', icon: Users  },
         { id: 'settings', label: 'الإعدادات',    icon: Settings },
       ],
     },
   ];
 
   // فلترة حسب الصلاحيات
-  const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit'];
+  const isSuperAdmin = user?.admin?.role === 'super_admin' || (user?.admin as any)?.is_super === true;
+  const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit', 'staff'];
   const navGroups: NavGroup[] = allGroups.map(g => ({
     ...g,
-    items: isDeptHead ? g.items.filter(i => !deptHeadHidden.includes(i.id)) : g.items,
+    items: isDeptHead ? g.items.filter(i => !deptHeadHidden.includes(i.id))
+      : isSuperAdmin ? g.items : g.items.filter(i => i.id !== 'staff'),
   })).filter(g => g.items.length > 0);
 
   return (
@@ -328,6 +332,7 @@ export default function AdminDashboard() {
         {tab === 'makeup'                    && <AdminMakeupPage />}
         {tab === 'attendance'                && <AdminAttendancePage />}
         {tab === 'structure'                 && <AdminStructurePage />}
+        {isSuperAdmin && tab === 'staff'     && <AdminStaffPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}
       </main>
