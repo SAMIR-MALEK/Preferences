@@ -45,22 +45,17 @@ export default function StudentAbsences({ student }: Props) {
       if (!r1.error) meRow = r1.data;
       setMe(meRow || { id: student.id, groupe: student.groupe, groupe_since: null });
 
-      const recs = await fetchAll<AttRecord>(() => supabase.from('attendance_records')
-        .select('id, session_id, student_id, status, module_id, group_number, session_date, is_makeup')
-        .eq('student_id', student.id).eq('status', ST_ABSENT).order('session_date', { ascending: true }).order('id'));
+      const ab = await supabase.rpc('student_absences', { p_bac: student.mat_bac, p_year: student.annee_bac });
+      if (ab.error) throw ab.error;
+      const recs: AttRecord[] = ab.data?.records || [];
       setRecords(recs);
 
       const modIds = [...new Set(recs.map(r => r.module_id))];
       const mods = modIds.length > 0 ? await fetchByIds<any>('modules', 'id, name_ar', 'id', modIds) : [];
       setModules(new Map(mods.map(m => [m.id, m.name_ar])));
 
-      const exc = await fetchAll<any>(() => supabase.from('attendance_exclusions')
-        .select('id, module_id').eq('student_id', student.id).eq('academic_year', ATT_YEAR).order('id'));
-      setExcluded(new Set(exc.map(e => e.module_id)));
-
-      const js = await fetchAll<Justification>(() => supabase.from('absence_justifications')
-        .select('*').eq('student_id', student.id).order('created_at', { ascending: false }).order('id'));
-      setJusts(js);
+      setExcluded(new Set((ab.data?.exclusions || []).map((e: any) => e.module_id)));
+      setJusts(ab.data?.justifications || []);
     } catch (e: any) {
       setError('تعذّر تحميل الغيابات. حاول لاحقاً.');
     }
@@ -110,13 +105,10 @@ export default function StudentAbsences({ student }: Props) {
       if (upErr) throw new Error('تعذّر رفع الوثيقة: ' + upErr.message);
       const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(path);
 
-      const { error: insErr } = await supabase.from('absence_justifications').insert({
-        student_id: student.id,
-        date_from: dateFrom,
-        date_to: dateTo,
-        kind,
-        reason: reason.trim() || null,
-        file_url: urlData.publicUrl,
+      const { error: insErr } = await supabase.rpc('student_justification_submit', {
+        p_bac: student.mat_bac, p_year: student.annee_bac,
+        p_from: dateFrom, p_to: dateTo, p_kind: kind,
+        p_reason: reason.trim() || null, p_file_url: urlData.publicUrl,
       });
       if (insErr) throw new Error(insErr.message);
 
