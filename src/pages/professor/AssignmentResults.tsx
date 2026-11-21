@@ -136,11 +136,7 @@ export default function AssignmentResults({ prof }: Props) {
     const lsMap = new Map((levelSemesters || []).map((ls: any) => [ls.level_id, ls]));
 
     const { data: filledAssignments } = await supabase
-      .from('assignments')
-      .select('module_id, teaching_type')
-      .eq('academic_year', ACADEMIC_YEAR)
-      .eq('semester', SEMESTER)
-      .in('status', ['نهائي', 'مؤقت']);
+      .rpc('filled_assignment_keys', { p_year: ACADEMIC_YEAR, p_semester: SEMESTER });
 
     if (allSlots && filledAssignments) {
       // المحاضرات الشاغرة (مجموعة واحدة على الأقل بدون أستاذ)
