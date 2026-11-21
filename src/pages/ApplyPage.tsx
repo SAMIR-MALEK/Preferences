@@ -32,7 +32,7 @@ export default function ApplyPage() {
   const [tab, setTab] = useState<'apply' | 'track'>('apply');
   const [step, setStep] = useState<1 | 2>(1);
   const [submitting, setSubmitting] = useState(false);
-  const [duplicate, setDuplicate] = useState<{ref: string; nin: string} | null>(null);
+  const [duplicate, setDuplicate] = useState<{ref?: string; nin?: string} | null>(null);
   const [result, setResult] = useState<{ ref: string } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [modules, setModules] = useState<any[]>([]);
@@ -94,14 +94,12 @@ export default function ApplyPage() {
 
   async function handleSubmit() {
     setSubmitting(true);
-    // تحقق من التكرار
-    const { data: existing } = await supabase.from('vacataire_applications')
-      .select('ref_number, nin')
-      .or(`nin.eq.${form.nin},email.eq.${form.email},phone.eq.${form.phone}`)
-      .eq('academic_year', '2026-2027')
-      .maybeSingle();
-    if (existing) {
-      setDuplicate({ ref: existing.ref_number, nin: existing.nin });
+    // تحقق من التكرار (عبر دالة تعيد رقم الملف فقط إن طابق الرقم الوطني)
+    const { data: chk } = await supabase.rpc('vacataire_check', {
+      p_nin: form.nin, p_email: form.email, p_phone: form.phone,
+    });
+    if (chk?.duplicate) {
+      setDuplicate({ ref: chk.ref, nin: chk.nin });
       setSubmitting(false);
       return;
     }
@@ -114,21 +112,8 @@ export default function ApplyPage() {
         const { data: urlData } = supabase.storage.from('diplomas').getPublicUrl(path);
         degreeUrl = urlData.publicUrl;
       }
-      const year = new Date().getFullYear();
-      // جلب أعلى رقم موجود
-      const { data: lastApp } = await supabase.from('vacataire_applications')
-        .select('ref_number')
-        .eq('academic_year', '2026-2027')
-        .order('ref_number', { ascending: false })
-        .limit(1);
-      let lastNum = 0;
-      if (lastApp && lastApp.length > 0) {
-        const lastRef = lastApp[0].ref_number;
-        lastNum = parseInt(lastRef.split('-')[0]) || 0;
-      }
-      const seq = String(lastNum + 1).padStart(3, '0');
-      const ref = `${seq}-${year}`;
-      const { error } = await supabase.from('vacataire_applications').insert({
+      // رقم الملف يُولَّد في الخادم
+      const { data: sub, error } = await supabase.rpc('vacataire_submit', { p: {
         nin: form.nin, last_name: form.last_name, first_name: form.first_name,
         last_name_fr: form.last_name_fr, first_name_fr: form.first_name_fr,
         birth_date: form.birth_date, phone: form.phone, email: form.email,
@@ -140,9 +125,10 @@ export default function ApplyPage() {
         preferred_period: form.preferred_period,
         motivation: form.motivation,
         preferred_modules_keys: Array.from(selectedModules),
-        ref_number: ref, status: 'قيد الدراسة', academic_year: '2026-2027',
-      });
+      } });
       if (error) throw error;
+      if (sub?.duplicate) { setDuplicate({ ref: sub.ref, nin: sub.nin }); setSubmitting(false); return; }
+      const ref = sub.ref as string;
       setResult({ ref });
     } catch (e: any) { alert('حدث خطأ: ' + e.message); }
     setSubmitting(false);
@@ -157,9 +143,9 @@ export default function ApplyPage() {
       const { error: uploadError } = await supabase.storage.from('diplomas').upload(path, file);
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('diplomas').getPublicUrl(path);
-      const { error: updateError } = await supabase.from('vacataire_applications')
-        .update({ degree_file_url: urlData.publicUrl })
-        .eq('ref_number', trackResult.ref_number);
+      const { error: updateError } = await supabase.rpc('vacataire_set_degree', {
+        p_nin: trackResult.nin, p_ref: trackResult.ref_number, p_url: urlData.publicUrl,
+      });
       if (updateError) throw updateError;
       setTrackResult({ ...trackResult, degree_file_url: urlData.publicUrl });
       alert('✓ تم رفع الشهادة بنجاح');
@@ -170,9 +156,7 @@ export default function ApplyPage() {
   async function handleTrack() {
     setTrackError(''); setTrackResult(null);
     if (!trackNin || !trackRef) { setTrackError('يرجى إدخال NIN ورقم الملف'); return; }
-    const { data } = await supabase.from('vacataire_applications')
-      .select('ref_number, status, last_name, first_name, created_at, admin_note, degree_file_url, nin, login_username, login_password')
-      .eq('nin', trackNin).eq('ref_number', trackRef).single();
+    const { data } = await supabase.rpc('vacataire_track', { p_nin: trackNin, p_ref: trackRef });
     if (!data) { setTrackError('لم يُعثر على الطلب — تحقق من المعلومات'); return; }
     setTrackResult(data);
   }
@@ -231,12 +215,18 @@ export default function ApplyPage() {
                 {duplicate && (
                   <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 space-y-2">
                     <p className="font-bold text-amber-800 text-sm">⚠ لديك طلب مسجّل مسبقاً</p>
-                    <p className="text-amber-700 text-xs">رقم ملفك: <strong className="text-lg">{duplicate.ref}</strong></p>
-                    <p className="text-amber-600 text-xs">يمكنك متابعة طلبك من تبويب المتابعة</p>
-                    <button onClick={() => { setTab('track'); setTrackNin(duplicate!.nin); setTrackRef(duplicate!.ref); setDuplicate(null); }}
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-xl text-sm font-bold transition-colors">
-                      متابعة طلبي ←
-                    </button>
+                    {duplicate.ref ? (
+                      <>
+                        <p className="text-amber-700 text-xs">رقم ملفك: <strong className="text-lg">{duplicate.ref}</strong></p>
+                        <p className="text-amber-600 text-xs">يمكنك متابعة طلبك من تبويب المتابعة</p>
+                        <button onClick={() => { setTab('track'); setTrackNin(duplicate!.nin || ''); setTrackRef(duplicate!.ref || ''); setDuplicate(null); }}
+                          className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-xl text-sm font-bold transition-colors">
+                          متابعة طلبي ←
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-amber-700 text-xs">يوجد طلب مسجّل بالبريد الإلكتروني أو رقم الهاتف نفسه. إن كان طلبك فتابعه من تبويب المتابعة برقمك الوطني ورقم ملفك.</p>
+                    )}
                   </div>
                 )}
                 {errors.length > 0 && (
