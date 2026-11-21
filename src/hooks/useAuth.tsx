@@ -41,6 +41,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const { data: staffData } = await supabase
+        .from('staff_viewers')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (staffData && staffData.is_active) {
+        setUser({ id: userId, role: 'staff' as UserRole, staff: staffData });
+        setLoading(false);
+        return;
+      }
+
       setUser(null);
       setLoading(false);
     } catch {
