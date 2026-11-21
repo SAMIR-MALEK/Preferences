@@ -230,7 +230,16 @@ export const DEPARTMENT_LEVEL_CODES: Record<AdminDepartment, string[]> = {
   'عام': ['L1', 'L3G', 'M1URB', 'M2URB', 'M1INFO', 'M2INFO', 'M1CJ', 'M2CJ'],
 };
 
-export type UserRole = 'professor' | 'admin' | null;
+export type UserRole = 'professor' | 'admin' | 'staff' | null;
+
+export interface StaffViewer {
+  user_id: string;
+  username: string;
+  full_name: string;
+  service: string;
+  department: AdminDepartment | null;
+  is_active: boolean;
+}
 
 export interface AuthUser {
   id: string;
@@ -238,4 +247,5 @@ export interface AuthUser {
   role: UserRole;
   professor?: Professor;
   admin?: Admin;
+  staff?: StaffViewer;
 }
