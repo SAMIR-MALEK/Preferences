@@ -926,24 +926,10 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
   // طلبة الفوج (نفس منطق المطابقة السابق) + تاريخ الإدراج إن وُجد
   async function fetchStudents(): Promise<any[]> {
-    const { data: specRows } = await supabase
-      .from('students').select('specialite').eq('groupe', assignment.group_number);
-    const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))];
-    const normalize = (s: string) => s.replace(/\s+/g, ' ').replace(/ال/g, '').trim();
-    const matchedSpec = uniqueSpecs.find(sp => normalize(sp) === normalize(levelName)) || uniqueSpecs[0] || null;
-
-    const run = async (cols: string) => {
-      let q: any = supabase.from('students')
-        .select(cols)
-        .eq('groupe', assignment.group_number)
-        .order('last_name', { ascending: true });
-      if (matchedSpec) q = q.eq('specialite', matchedSpec);
-      return await q;
-    };
-    let res: any = await run('id, last_name, first_name, mat_etudiant, groupe_since');
-    // إن لم يكن عمود تاريخ الإدراج موجوداً بعد في قاعدة البيانات نعود للأعمدة القديمة
-    if (res.error) res = await run('id, last_name, first_name, mat_etudiant');
-    return res.data || [];
+    // الدالة تتحقق أن التكليف للأستاذ نفسه وتعيد طلبة فوجه فقط
+    const { data, error } = await supabase.rpc('prof_students', { p_assignment_id: String(assignment.assignment_id || '') });
+    if (error) return [];
+    return data || [];
   }
 
   async function openList() {
@@ -1319,16 +1305,8 @@ function LectureListButton({ prof, assignment }: { prof: any; assignment: any })
 
   async function fetchStudents(): Promise<any[]> {
     if (section == null) return [];
-    const { data: specRows } = await supabase
-      .from('students').select('specialite').eq('section', section);
-    const uniqueSpecs: string[] = [...new Set((specRows || []).map((r: any) => r.specialite).filter(Boolean))] as string[];
-    const normalize = (x: string) => x.replace(/\s+/g, ' ').replace(/ال/g, '').trim();
-    const matchedSpec = uniqueSpecs.find(sp => normalize(sp) === normalize(levelName)) || uniqueSpecs[0] || null;
-    let q: any = supabase.from('students')
-      .select('id, last_name, first_name, mat_etudiant, groupe')
-      .eq('section', section);
-    if (matchedSpec) q = q.eq('specialite', matchedSpec);
-    const { data } = await q;
+    const { data, error } = await supabase.rpc('prof_students', { p_assignment_id: String(assignment.assignment_id || '') });
+    if (error) return [];
     return (data || []).sort((a: any, b: any) =>
       `${a.last_name || ''} ${a.first_name || ''}`.localeCompare(`${b.last_name || ''} ${b.first_name || ''}`, 'ar'));
   }

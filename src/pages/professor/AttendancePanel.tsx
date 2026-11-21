@@ -72,8 +72,10 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
         setExcluded(new Set(exc.filter(e => e.module_id === moduleId).map(e => e.student_id)));
 
         // التبريرات: بدون رابط الوثيقة — لا يُجلب إلا بعد موافقة رئيس القسم على طلب الاطلاع
-        const js = await fetchByIds<Justification>('absence_justifications',
-          'id, student_id, date_from, date_to, kind, status, created_at', 'student_id', studentIds);
+        const jr = await supabase.rpc('prof_justifications',
+          { p_assignment_id: String(assignment.assignment_id || ''), p_student_ids: studentIds });
+        if (jr.error) throw jr.error;
+        const js: Justification[] = jr.data || [];
         setJusts(js);
 
         if (prof?.id && js.length > 0) {
@@ -230,9 +232,9 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
 
   async function openDocument(j: Justification) {
     setReqBusy(j.id);
-    const { data } = await supabase.from('absence_justifications').select('file_url').eq('id', j.id).maybeSingle();
+    const { data } = await supabase.rpc('prof_justification_document', { p_id: String(j.id) });
     setReqBusy(null);
-    if (data?.file_url) window.open(data.file_url, '_blank');
+    if (data) window.open(data as string, '_blank');
     else setMsg({ type: 'err', text: 'لا توجد وثيقة مرفقة بهذا التبرير' });
   }
 
