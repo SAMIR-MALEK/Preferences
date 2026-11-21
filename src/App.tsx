@@ -6,6 +6,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ApplyPage from './pages/ApplyPage';
 import TimetablePage from './pages/TimetablePage';
 import StudentPage from './pages/StudentPage';
+import StaffDashboard from './pages/staff/StaffDashboard';
 
 function AppRouter() {
   const { user, loading } = useAuth();
@@ -27,6 +28,7 @@ function AppRouter() {
   if (!user) return <LoginPage />;
   if (user.role === 'admin') return <AdminDashboard />;
   if (user.role === 'professor') return <ProfessorDashboard />;
+  if (user.role === 'staff') return <StaffDashboard />;
   return <LoginPage />;
 }
 
