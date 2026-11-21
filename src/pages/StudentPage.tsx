@@ -408,12 +408,10 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
   }
 
   async function loadRequests() {
-    const { data } = await supabase
-      .from('group_change_requests')
-      .select('*')
-      .eq('student_id', student.id)
-      .order('created_at', { ascending: false });
-    if (data) setRequests(data);
+    const { data } = await supabase.rpc('student_requests_list', {
+      p_bac: student.mat_bac, p_year: student.annee_bac,
+    });
+    if (Array.isArray(data)) setRequests(data as GroupChangeRequest[]);
   }
 
   // الطالب قدّم طلباً من قبل (مهما كانت حالته)
@@ -439,13 +437,11 @@ function GroupChangePanel({ student, onSuccess }: { student: Student; onSuccess:
       }
     }
 
-    const { error } = await supabase.from('group_change_requests').insert({
-      student_id: student.id,
-      current_section: student.section,
-      current_groupe: student.groupe,
-      requested_groupe: Number(requestedGroupe),
-      reason: reason.trim(),
-      attachment_url: attachmentUrl,
+    const { error } = await supabase.rpc('student_request_submit', {
+      p_bac: student.mat_bac, p_year: student.annee_bac,
+      p_requested: Number(requestedGroupe),
+      p_reason: reason.trim(),
+      p_attachment: attachmentUrl,
     });
 
     setSubmitting(false);
