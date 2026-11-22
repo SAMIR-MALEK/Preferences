@@ -60,6 +60,8 @@ export default function AdminStudentsTab() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importingGroups, setImportingGroups] = useState(false);
+  const [grpPlan, setGrpPlan] = useState<any | null>(null);      // معاينة تحديث الأفواج قبل الحفظ
+  const [grpApplying, setGrpApplying] = useState(false);
   const [moodleOpen, setMoodleOpen] = useState(false);
   const [loginsOpen, setLoginsOpen] = useState(false);
   const isSuperAdmin = user?.admin?.role === 'super_admin';
@@ -108,13 +110,23 @@ export default function AdminStudentsTab() {
       let existing: any[] = [];
       let from = 0;
       while (true) {
-        const { data } = await supabase.from('students').select('id, mat_bac, mat_etudiant').range(from, from + 999);
+        const { data } = await supabase.from('students').select('id, mat_bac, annee_bac, mat_etudiant').order('id').range(from, from + 999);
         if (!data || data.length === 0) break;
         existing = [...existing, ...data];
         if (data.length < 1000) break;
         from += 1000;
       }
-      const existingMap = new Map(existing.map((s: any) => [`${String(s.mat_bac).trim()}`, s.id]));
+      // الطالب يُعرَّف برقم البكالوريا + سنة البكالوريا معا (رقم البكالوريا وحده قد يتكرر بين سنوات مختلفة)
+      const byKey = new Map<string, string>();
+      const byBac = new Map<string, string[]>();
+      for (const e of existing) {
+        const b = String(e.mat_bac).trim();
+        byKey.set(`${b}|${e.annee_bac ?? ''}`, e.id);
+        byBac.set(b, [...(byBac.get(b) || []), e.id]);
+      }
+      let ambiguous = 0;
+      let dupInFile = 0;
+      const seenKeys = new Set<string>();
 
       const toInsert: any[] = [];
       const toUpdate: any[] = [];
@@ -141,9 +153,24 @@ export default function AdminStudentsTab() {
           groupe: r['Groupe'] ? Number(r['Groupe']) : null,
         };
 
-        const existingId = existingMap.get(matBac);
+        const rowKey = `${matBac}|${record.annee_bac ?? ''}`;
+        if (seenKeys.has(rowKey)) { dupInFile++; continue; }
+        seenKeys.add(rowKey);
+
+        let existingId: string | undefined;
+        if (record.annee_bac) {
+          existingId = byKey.get(rowKey);           // نفس الرقم ونفس السنة = نفس الطالب؛ سنة أخرى = طالب آخر (إضافة)
+        } else {
+          const ids = byBac.get(matBac) || [];
+          if (ids.length > 1) { ambiguous++; continue; }   // سنة غير مذكورة ورقم مكرر: لا نخمّن
+          existingId = ids[0];
+        }
         if (existingId) {
-          toUpdate.push({ id: existingId, ...record });
+          // لا نمحو القسم/الفوج إذا لم يكن في الملف
+          const upd: any = { ...record };
+          if (!r['Section']) delete upd.section;
+          if (!r['Groupe']) delete upd.groupe;
+          toUpdate.push({ id: existingId, ...upd });
         } else {
           toInsert.push(record);
         }
@@ -172,7 +199,7 @@ export default function AdminStudentsTab() {
         if (updated % 100 === 0) setImportMsg(`تحديث ${updated}/${toUpdate.length}...`);
       }
 
-      setImportMsg(`✓ تم: إضافة ${inserted} جديد + تحديث ${updated} طالب`);
+      setImportMsg(`✓ تم: إضافة ${inserted} جديد + تحديث ${updated} طالب` + (ambiguous ? ` — تجاوز ${ambiguous} سطر غامض (رقم مكرر دون سنة)` : '') + (dupInFile ? ` — تجاوز ${dupInFile} سطر مكرر في الملف` : ''));
       await loadStudents();
     } catch (e: any) {
       setImportMsg('خطأ: ' + e.message);
@@ -206,6 +233,12 @@ export default function AdminStudentsTab() {
     XLSX.writeFile(wb, `طلبة_${scope}_${new Date().toLocaleDateString('fr')}.xlsx`);
   }
 
+  // تطبيع اسم العمود: بلا حركات ولا مسافات ولا رموز
+  function normHeader(h: any): string {
+    return String(h ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9؀-ۿ]/g, '');
+  }
+
+  // الخطوة 1: قراءة ملف الأفواج وبناء معاينة (لا يُحفظ شيء هنا)
   async function importGroups(file: File) {
     setImportingGroups(true);
     setImportMsg('جارٍ قراءة ملف الأفواج...');
@@ -213,69 +246,135 @@ export default function AdminStudentsTab() {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      // البحث عن سطر الرؤوس — قد يكون في أي صف (الملف الرسمي يبدأ من السطر 7)
-      const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-      // إيجاد السطر الذي يحتوي على "Matricule" أو "Section"
+      // سطر الرؤوس: يحتوي Matricule و Section (قد يكون في أي سطر)
       let headerRowIdx = -1;
       for (let i = 0; i < rawRows.length; i++) {
-        const rowStr = String(rawRows[i]).toLowerCase();
-        if (rowStr.includes('matricule') && rowStr.includes('section')) {
-          headerRowIdx = i;
-          break;
-        }
+        const hs = rawRows[i].map(normHeader);
+        if (hs.includes('matricule') && hs.includes('section')) { headerRowIdx = i; break; }
       }
-
-      // إذا لم نجد سطر الرؤوس، نحاول قراءة عادية
-      let rows: any[];
-      if (headerRowIdx >= 0) {
-        const headers: string[] = rawRows[headerRowIdx].map((h: any) => String(h).trim());
-        rows = rawRows.slice(headerRowIdx + 1).map((row: any[]) => {
-          const obj: any = {};
-          headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
-          return obj;
-        });
-      } else {
-        rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (headerRowIdx < 0) {
+        setImportMsg('خطأ: لم يتم العثور على سطر الرؤوس (Matricule / Section) في الملف');
+        setImportingGroups(false);
+        return;
       }
-
-      // استخراج الصفوف التي تحتوي على بيانات طلبة
-      const updates: { mat_bac: string; section: number; groupe: number }[] = [];
-      for (const r of rows) {
-        const mat = String(r['Matricule'] || r['matricule'] || '').trim();
-        const secRaw = String(r['Section'] || '').trim(); // المجموعة 01
-        const grpRaw = String(r['Groupe'] || '').trim();  // الفوج 02
-        if (!mat || !secRaw || !grpRaw) continue;
-        const secMatch = secRaw.match(/\d+/);
-        const grpMatch = grpRaw.match(/\d+/);
-        if (!secMatch || !grpMatch) continue;
-        updates.push({ mat_bac: mat, section: Number(secMatch[0]), groupe: Number(grpMatch[0]) });
+      const hdr = rawRows[headerRowIdx].map(normHeader);
+      const col = (names: string[]) => hdr.findIndex(h => names.includes(h));
+      const cMat = col(['matricule']);
+      const cYear = col(['anneebac', 'anneedubac', 'annebac']);
+      const cSec = col(['section']);
+      const cGrp = col(['groupe']);
+      const cNom = col(['nom']);
+      const cPre = col(['prenom']);
+      if (cMat < 0 || cSec < 0 || cGrp < 0) {
+        setImportMsg('خطأ: أعمدة ناقصة في الملف (المطلوب: Matricule, Section, Groupe)');
+        setImportingGroups(false);
+        return;
       }
-
-      if (updates.length === 0) {
-        setImportMsg('لم يتم العثور على بيانات أفواج في الملف');
+      if (cYear < 0) {
+        setImportMsg('خطأ: عمود «Année Bac» غير موجود في الملف — ضروري لتمييز الطلبة الذين يتشابه رقم بكالوريتهم');
         setImportingGroups(false);
         return;
       }
 
-      setImportMsg(`${updates.length} طالب — جارٍ التحديث...`);
-      let updated = 0;
-      const BATCH = 50;
-      for (let i = 0; i < updates.length; i += BATCH) {
-        const batch = updates.slice(i, i + BATCH);
-        await Promise.all(batch.map(u =>
-          supabase.from('students').update({ section: u.section, groupe: u.groupe }).eq('mat_bac', u.mat_bac)
-        ));
-        updated += batch.length;
-        setImportMsg(`تحديث ${updated}/${updates.length}...`);
+      // الطلبة الحاليون
+      let all: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase.from('students')
+          .select('id, mat_bac, annee_bac, last_name, first_name, specialite, section, groupe, groupe_since')
+          .order('id').range(from, from + 999);
+        if (error) throw new Error(error.message);
+        if (!data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < 1000) break;
+        from += 1000;
+      }
+      const index = new Map<string, any[]>();
+      for (const st of all) {
+        const k = `${String(st.mat_bac).trim()}|${st.annee_bac ?? ''}`;
+        index.set(k, [...(index.get(k) || []), st]);
       }
 
-      setImportMsg(`✓ تم تحديث أفواج ${updated} طالب`);
-      await loadStudents();
+      const changes = new Map<string, any>();
+      const conflictIds = new Set<string>();
+      const seen = new Map<string, string>();
+      const unmatched: { name: string; mat: string; year: number }[] = [];
+      let rowsRead = 0, same = 0, ambiguous = 0, incomplete = 0;
+
+      for (const r of rawRows.slice(headerRowIdx + 1)) {
+        const mat = String(r[cMat] ?? '').trim();
+        if (!mat) continue;
+        rowsRead++;
+        const yM = String(r[cYear] ?? '').match(/\d{4}/);
+        const sM = String(r[cSec] ?? '').match(/\d+/);
+        const gM = String(r[cGrp] ?? '').match(/\d+/);
+        const name = `${cNom >= 0 ? String(r[cNom] ?? '').trim() : ''} ${cPre >= 0 ? String(r[cPre] ?? '').trim() : ''}`.trim();
+        if (!yM || !sM || !gM) { incomplete++; continue; }
+        const year = Number(yM[0]);
+        const sec = Number(sM[0]);
+        const grp = Number(gM[0]);
+
+        const list = index.get(`${mat}|${year}`);
+        if (!list) { unmatched.push({ name, mat, year }); continue; }
+        if (list.length > 1) { ambiguous++; continue; }
+        const st = list[0];
+
+        const sig = `${sec}-${grp}`;
+        if (seen.has(st.id)) {
+          if (seen.get(st.id) !== sig) { conflictIds.add(st.id); changes.delete(st.id); }
+          continue;
+        }
+        seen.set(st.id, sig);
+
+        if (st.section === sec && st.groupe === grp) { same++; continue; }
+        changes.set(st.id, {
+          id: st.id,
+          name: `${st.last_name} ${st.first_name}`.trim(),
+          spec: st.specialite,
+          fromSec: st.section, fromGrp: st.groupe,
+          toSec: sec, toGrp: grp,
+          since: st.groupe_since || null,
+        });
+      }
+
+      setGrpPlan({
+        rowsRead,
+        same,
+        changes: Array.from(changes.values()),
+        unmatched,
+        ambiguous: ambiguous + conflictIds.size,
+        incomplete,
+      });
+      setImportMsg('');
     } catch (e: any) {
       setImportMsg('خطأ: ' + e.message);
     }
     setImportingGroups(false);
+  }
+
+  // الخطوة 2: بعد التأكيد — يُغيَّر القسم والفوج فقط (لا تُمَسّ تواريخ الإدراج ولا الغيابات)
+  async function applyGroupPlan() {
+    if (!grpPlan) return;
+    setGrpApplying(true);
+    let ok = 0, fail = 0, firstErr = '';
+    const list: any[] = grpPlan.changes;
+    const BATCH = 25;
+    for (let i = 0; i < list.length; i += BATCH) {
+      const batch = list.slice(i, i + BATCH);
+      const res = await Promise.all(batch.map(c =>
+        supabase.from('students').update({ section: c.toSec, groupe: c.toGrp }).eq('id', c.id)
+      ));
+      res.forEach(r => { if (r.error) { fail++; firstErr = firstErr || r.error.message; } else ok++; });
+      setImportMsg(`تحديث ${Math.min(i + BATCH, list.length)}/${list.length}...`);
+    }
+    setGrpPlan(null);
+    setGrpApplying(false);
+    setImportMsg(fail
+      ? `خطأ: تعذّر تحديث ${fail} طالب (${firstErr}) — تم تحديث ${ok}`
+      : `✓ تم تغيير فوج ${ok} طالب — تواريخ الإدراج والغيابات لم تُمَسّ`);
+    await loadStudents();
   }
 
   async function deleteAllStudents() {
@@ -696,6 +795,72 @@ export default function AdminStudentsTab() {
           <span className="px-3 py-1.5 text-sm text-gray-500">{page+1} / {totalPages}</span>
           <button onClick={() => setPage(p => Math.min(totalPages-1, p+1))} disabled={page >= totalPages-1}
             className="px-3 py-1.5 rounded-xl border text-sm disabled:opacity-40">التالي</button>
+        </div>
+      )}
+
+      {grpPlan && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !grpApplying && setGrpPlan(null)}>
+          <div className="bg-white rounded-2xl p-5 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-gray-800">معاينة تحديث الأفواج</h3>
+              <button onClick={() => !grpApplying && setGrpPlan(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">المقارنة برقم البكالوريا + سنة البكالوريا. لم يُحفظ أي شيء بعد.</p>
+
+            <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+              <div className="bg-gray-50 rounded-xl p-2.5">سطور الملف<p className="font-bold text-gray-800 text-lg">{grpPlan.rowsRead}</p></div>
+              <div className="bg-gray-50 rounded-xl p-2.5">بلا تغيير<p className="font-bold text-gray-800 text-lg">{grpPlan.same}</p></div>
+              <div className="bg-green-50 rounded-xl p-2.5 text-green-700">سيتغيّر فوجهم<p className="font-bold text-lg">{grpPlan.changes.length}</p></div>
+              <div className="bg-red-50 rounded-xl p-2.5 text-red-600">لم يُعثر عليهم<p className="font-bold text-lg">{grpPlan.unmatched.length}</p></div>
+              <div className="bg-amber-50 rounded-xl p-2.5 text-amber-700">غامض / متعارض<p className="font-bold text-lg">{grpPlan.ambiguous}</p></div>
+              <div className="bg-amber-50 rounded-xl p-2.5 text-amber-700">سطر ناقص<p className="font-bold text-lg">{grpPlan.incomplete}</p></div>
+            </div>
+
+            <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-3 py-2 text-xs mb-3">
+              تُحفظ تواريخ الإدراج كما هي، ولا تُمَسّ الغيابات ولا تسجيلات الحصص. يتغيّر القسم والفوج فقط.
+            </div>
+
+            {grpPlan.changes.some((c: any) => c.since) && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-700 rounded-xl px-3 py-2 text-xs mb-3">
+                {grpPlan.changes.filter((c: any) => c.since).length} طالب منهم لديهم تاريخ إدراج: يتغيّر فوجهم حسب الملف ويبقى تاريخ الإدراج محفوظا.
+              </div>
+            )}
+
+            {grpPlan.changes.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-bold text-gray-600 mb-1">أمثلة على التغييرات ({Math.min(10, grpPlan.changes.length)} من {grpPlan.changes.length}):</p>
+                <div className="space-y-1">
+                  {grpPlan.changes.slice(0, 10).map((c: any) => (
+                    <p key={c.id} className="text-xs text-gray-600 bg-gray-50 rounded-lg px-2 py-1">
+                      {c.name} — {c.fromGrp ? `م${c.fromSec}/ف${c.fromGrp}` : 'غير موزّع'} ← <span className="font-bold text-[#1a3a6b]">م{c.toSec}/ف{c.toGrp}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {grpPlan.unmatched.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-bold text-red-600 mb-1">لم يُعثر عليهم ({Math.min(10, grpPlan.unmatched.length)} من {grpPlan.unmatched.length}):</p>
+                <div className="space-y-1">
+                  {grpPlan.unmatched.slice(0, 10).map((u: any, i: number) => (
+                    <p key={i} className="text-xs text-gray-600 bg-red-50 rounded-lg px-2 py-1" dir="rtl">{u.name || '—'} — {u.mat} ({u.year})</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-4">
+              <button onClick={applyGroupPlan} disabled={grpApplying || grpPlan.changes.length === 0}
+                className="flex-1 bg-[#1a3a6b] hover:bg-[#0a1628] text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                {grpApplying ? 'جارٍ التحديث...' : grpPlan.changes.length === 0 ? 'لا شيء للتحديث' : `تأكيد تغيير ${grpPlan.changes.length} طالب`}
+              </button>
+              <button onClick={() => setGrpPlan(null)} disabled={grpApplying}
+                className="flex-1 py-2.5 rounded-xl text-sm border border-gray-200 text-gray-600 hover:bg-gray-50">
+                إلغاء
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
