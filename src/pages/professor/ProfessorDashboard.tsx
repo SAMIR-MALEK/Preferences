@@ -1579,6 +1579,12 @@ function LectureListButton({ prof, assignment }: { prof: any; assignment: any })
 // ألوان افتراضية للتخصصات (تُطبَّق بالترتيب)
 const SPEC_COLORS = ['#1a3a6b', '#7c3aed', '#0891b2', '#16a34a', '#ea580c', '#db2777', '#d97706'];
 
+// صلاحية عنوان المذكرة: 3 كلمات حقيقية على الأقل و15 حرفاً (القاعدة نفسها مفروضة في قاعدة البيانات)
+const titleLetters = (t: any) => (String(t ?? '').match(/[ء-يA-Za-zÀ-ÿ]/g) || []).length;
+const titleWords = (t: any) => String(t ?? '').trim().split(/\s+/).filter(w => titleLetters(w) >= 2).length;
+const isValidTitle = (t: any) => titleLetters(t) >= 15 && titleWords(t) >= 3;
+const normTitle = (t: any) => String(t ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+
 // مذكرات التخرج — المرحلة 1: اقتراح العناوين بتخصصات ديناميكية
 function ThesisProposalsTab({ prof }: any) {
   const [specialities, setSpecialities] = useState<any[]>([]);
@@ -1687,6 +1693,12 @@ function ThesisProposalsTab({ prof }: any) {
 
   async function save(specId: string) {
     if (!form.title_ar.trim()) { setError('العنوان بالعربية إلزامي'); return; }
+    if (!isValidTitle(form.title_ar)) {
+      setError('العنوان غير صالح: اكتب عنواناً حقيقياً (3 كلمات على الأقل و15 حرفاً، دون نقاط أو رموز).');
+      return;
+    }
+    const dupe = bySpec(specId).some(p => (!editItem || p.id !== editItem.id) && normTitle(p.title_ar) === normTitle(form.title_ar));
+    if (dupe) { setError('هذا العنوان مودَع من قبل في هذا التخصص.'); return; }
     setSaving(true);
     setError('');
 
@@ -1695,10 +1707,9 @@ function ThesisProposalsTab({ prof }: any) {
         title_ar: form.title_ar.trim(),
         title_fr: form.title_fr.trim() || null,
         description: form.description.trim() || null,
-        updated_at: new Date().toISOString(),
       }).eq('id', editItem.id);
       setSaving(false);
-      if (err) { setError('حدث خطأ، حاول مجدداً'); return; }
+      if (err) { setError(err.message?.includes('العنوان') ? err.message : 'حدث خطأ، حاول مجدداً'); return; }
     } else {
       const existing = bySpec(specId);
       const spec = specialities.find((s: any) => String(s.id) === String(specId))!;
@@ -1720,7 +1731,7 @@ function ThesisProposalsTab({ prof }: any) {
         proposal_order: existing.length + 1,
       });
       setSaving(false);
-      if (err) { setError('حدث خطأ، حاول مجدداً'); return; }
+      if (err) { setError(err.message?.includes('العنوان') ? err.message : 'حدث خطأ، حاول مجدداً'); return; }
     }
 
     setActiveForm(null);
@@ -1759,7 +1770,11 @@ function ThesisProposalsTab({ prof }: any) {
   }
 
   // تحقق من اكتمال الحد الأدنى في كل التخصصات
-  const allMinMet = specialities.length > 0 && specialities.every(spec => bySpec(spec.id).length >= spec.min);
+  const allMinMet = specialities.length > 0 && specialities.every(spec => {
+    const l = bySpec(spec.id);
+    // الحد الأدنى من العناوين الصالحة، ولا يبقى أي عنوان غير صالح قبل الإرسال
+    return l.filter(p => isValidTitle(p.title_ar)).length >= spec.min && l.every(p => isValidTitle(p.title_ar));
+  });
   // العداد: كل العناوين (مقترح + مُرسَل)
   const totalProposals = proposals.length;
   // هل أُرسلت بالفعل: لا يبقى أي عنوان «مقترح» (المقبول والمرفوض مُرسَل أصلاً)
@@ -1835,9 +1850,10 @@ function ThesisProposalsTab({ prof }: any) {
       <div className="flex flex-col gap-8">
         {specialities.map((spec, specIdx) => {
           const list = bySpec(spec.id);
-          const count = list.length;
+          const count = list.filter(p => isValidTitle(p.title_ar)).length;   // الصالحة فقط
+          const invalidCount = list.length - count;
           const metMin = count >= spec.min;
-          const atMax = spec.max !== null && count >= spec.max;
+          const atMax = spec.max !== null && list.length >= spec.max;
           // canAdd: لا يمكن الإضافة إذا أُرسلت العناوين أو اكتمل العدد الأقصى — إلا بسماح من الإدارة
           const specUnlocked = unlockedIds.has(String(spec.id));
           const specSubmitted = list.length > 0 && !list.some(p => p.status === 'مقترح');
@@ -1887,7 +1903,12 @@ function ThesisProposalsTab({ prof }: any) {
                         }`}>
                           {metMin ? `✓ ${count} عناوين — الحد الأدنى مكتمل` : `${count} من ${spec.min} عناوين مطلوبة`}
                         </span>
-                        {spec.max !== null && count >= spec.max && (
+                        {invalidCount > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-bold">
+                            ⚠ {invalidCount} عنوان غير صالح لا يُحتسب
+                          </span>
+                        )}
+                        {spec.max !== null && list.length >= spec.max && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-bold">
                             ✓ وصلت للحد الأقصى
                           </span>
@@ -1937,6 +1958,9 @@ function ThesisProposalsTab({ prof }: any) {
                               {p.proposal_order}
                             </span>
                             <StatusBadge status={p.status} />
+                            {!isValidTitle(p.title_ar) && (
+                              <span className="text-[11px] bg-red-100 text-red-700 font-bold rounded-full px-2 py-0.5">عنوان غير صالح — يجب تعويضه</span>
+                            )}
                           </div>
                           {canEdit && (
                             <div className="flex items-center gap-1">
