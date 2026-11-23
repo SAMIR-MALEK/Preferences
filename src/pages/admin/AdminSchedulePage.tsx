@@ -666,9 +666,9 @@ export default function AdminSchedulePage() {
           <p className="text-gray-500 text-sm">{toArabicNum(schedule.length)} حصة مجدولة</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={loadData} className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
+          {!user?.admin?.readOnly && <button onClick={loadData} className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
             <RefreshCw className="w-4 h-4" /> تحديث
-          </button>
+          </button>}
           <button onClick={runAlgo} disabled={running}
             className="flex items-center gap-2 bg-[#c9a227] hover:bg-[#b8911f] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
             <Zap className="w-4 h-4" />

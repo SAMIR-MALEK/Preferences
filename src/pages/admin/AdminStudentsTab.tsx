@@ -858,10 +858,10 @@ export default function AdminStudentsTab() {
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <Download className="w-4 h-4" /> تحميل Excel
           </button>
-          <button onClick={loadStudents}
+          {!user?.admin?.readOnly && <button onClick={loadStudents}
             className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-2 rounded-xl text-sm hover:bg-gray-200">
             <RefreshCw className="w-4 h-4" /> تحديث
-          </button>
+          </button>}
           <button onClick={() => setConfirmDelete(true)}
             className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-xl text-sm transition-colors">
             <X className="w-4 h-4" /> حذف الكل
