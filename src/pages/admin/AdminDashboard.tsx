@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { DEPARTMENT_LEVEL_CODES } from '../../types';
 import { useReadOnlyGuard } from '../../lib/readOnlyGuard';
+import ChangePasswordModal from '../../components/ChangePasswordModal';
 
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
@@ -44,6 +45,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<AdminTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const mainRef = useRef<HTMLElement | null>(null);
+  const [pwOpen, setPwOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     main: true, components: false, pedagogy: false, students: false, system: false,
   });
@@ -305,6 +307,13 @@ export default function AdminDashboard() {
         </nav>
 
         <div className="p-2 border-t border-white/5">
+          {isStaff && (
+            <button onClick={() => setPwOpen(true)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-400 hover:text-[#c9a227] hover:bg-white/5 transition-all">
+              <Settings className="w-3.5 h-3.5" />
+              تغيير كلمة السر
+            </button>
+          )}
           <button onClick={signOut}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
             <LogOut className="w-3.5 h-3.5" />
@@ -312,6 +321,8 @@ export default function AdminDashboard() {
           </button>
         </div>
       </aside>
+
+      {pwOpen && <ChangePasswordModal onClose={() => setPwOpen(false)} />}
 
       {/* Main */}
       <main ref={mainRef} className="flex-1 overflow-y-auto bg-[#eef1f7] p-5 pt-20 lg:pt-5">
