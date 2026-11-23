@@ -576,6 +576,7 @@ export default function AdminSchedulePage() {
 
   // تسجيل محاضرة «عن بعد»: بلا فترة ولا قاعة (موعدها يحدده الأستاذ في كل مرة)
   async function addRemote() {
+    if (user?.admin?.readOnly) return;
     if (!modal || modalTab !== 'assigned' || !modalAssignment) return;
     const a = assignments.find(x => x.id === modalAssignment);
     if (!a || a.teaching_type !== 'محاضرة') { setMessage({ type: 'error', text: 'خيار «عن بعد» للمحاضرات فقط' }); return; }
@@ -844,7 +845,7 @@ export default function AdminSchedulePage() {
                     <p className="font-bold text-sm text-gray-800 truncate">{a!.module_name}</p>
                     <p className="text-xs text-gray-500 truncate">{a!.professor_name} — محاضرة م{a!.section_number} — عن بعد</p>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  {!user?.admin?.readOnly && <div className="flex items-center gap-1.5 shrink-0">
                     <button onClick={() => setOpenRemote(openRemote === e.id ? null : e.id)}
                       className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-2.5 h-7 text-[11px] font-bold">
                       {openRemote === e.id ? 'إخفاء' : 'برمجة حصة عن بعد'}
@@ -852,9 +853,9 @@ export default function AdminSchedulePage() {
                     <button onClick={() => removeEntry(e.id)} className="bg-red-50 hover:bg-red-100 text-red-600 rounded-lg w-7 h-7 flex items-center justify-center">
                       <X className="w-4 h-4" />
                     </button>
-                  </div>
+                  </div>}
                 </div>
-                {openRemote === e.id && <RemoteSessionsPanel assignmentId={a!.id} />}
+                {!user?.admin?.readOnly && openRemote === e.id && <RemoteSessionsPanel assignmentId={a!.id} />}
               </div>
             ))}
           </div>
