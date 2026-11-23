@@ -328,6 +328,7 @@ export default function AdminSchedulePage() {
   }
 
   function openAdd(day: string, slotId: string, slotLabel: string) {
+    if (user?.admin?.readOnly) return;   // المصالح: عرض فقط
     setModal({ day, slotId, slotLabel });
     setModalTab('assigned'); setModalAssignment(''); setModalRoom('');
     setModalSearch(''); setModalTypeFilter('all');
@@ -792,10 +793,10 @@ export default function AdminSchedulePage() {
                                 <div key={entry.id}
                                   onClick={e => { e.stopPropagation(); if (slotId) setViewCell({day, slotId, slotLabel: getSlotLabel(slotNum)}); }}
                                   className={`cursor-pointer rounded-lg p-1.5 relative group text-white ${isCustom?'bg-amber-500':isLec?'bg-[#1a3a6b]':'bg-teal-600'}`}>
-                                  <button onClick={e=>{e.stopPropagation();removeEntry(entry.id);}}
+                                  {!user?.admin?.readOnly && <button onClick={e=>{e.stopPropagation();removeEntry(entry.id);}}
                                     className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center">
                                     <X className="w-2.5 h-2.5"/>
-                                  </button>
+                                  </button>}
                                   <p className="font-bold text-[11px] leading-tight ml-4 truncate">{isCustom?entry.custom_module:a?.module_name}</p>
                                   <p className="text-white/75 text-[10px] truncate">{isCustom?(entry.custom_professor||'-'):a?.professor_name}</p>
                                   <div className="flex gap-1 mt-0.5 flex-wrap">
@@ -810,7 +811,7 @@ export default function AdminSchedulePage() {
                             {entries.length > 3 && (
                               <div className="text-center text-[10px] text-gray-400 bg-gray-100 rounded py-0.5">+{toArabicNum(entries.length-3)} أخرى</div>
                             )}
-                            {entries.length === 0 && (
+                            {entries.length === 0 && !user?.admin?.readOnly && (
                             <button
                               onClick={e => { e.stopPropagation(); if (slotId) openAdd(day, slotId, getSlotLabel(slotNum)); }}
                               className="w-full mt-1 flex items-center justify-center h-7 border-2 border-dashed border-gray-200 rounded-lg text-gray-300 hover:border-[#1a3a6b] hover:text-[#1a3a6b] transition-all text-lg">

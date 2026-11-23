@@ -98,8 +98,8 @@ export default function AdminDashboard() {
   const isStaff = user?.admin?.readOnly === true;   // مصلحة التدريس: عرض فقط
   const department = user?.admin?.department;
   const allowedLevelCodes = isDeptHead && department ? DEPARTMENT_LEVEL_CODES[department] : null;
-  const STAFF_TABS: AdminTab[] = ['dashboard', 'structure', 'specialties', 'sections', 'modules', 'rooms',
-    'professors', 'vacataire', 'schedule', 'profschedule', 'students', 'board'];
+  const STAFF_TABS: AdminTab[] = ['dashboard', 'sections', 'modules', 'rooms',
+    'professors', 'schedule', 'profschedule', 'students'];
   const canSee = (t: AdminTab) => !isStaff || STAFF_TABS.includes(t);
   useReadOnlyGuard(mainRef, isStaff);
 
@@ -320,14 +320,14 @@ export default function AdminDashboard() {
         {!isStaff && tab === 'import'     && <AdminImportPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'sections'   && <AdminSectionsPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'modules'    && <AdminModulesPage allowedLevelCodes={allowedLevelCodes} />}
-        {tab === 'specialties' && <AdminSpecialtiesPage />}
+        {!isStaff && tab === 'specialties' && <AdminSpecialtiesPage />}
         {!isStaff && tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
         {!isDeptHead && tab === 'assignment' && <AdminAssignmentPage />}
-        {tab === 'board'      && <AdminAssignmentBoardPage />}
+        {!isStaff && tab === 'board'      && <AdminAssignmentBoardPage />}
         {tab === 'rooms'      && <AdminRoomsPage />}
         {tab === 'schedule'   && <AdminSchedulePage />}
         {!isDeptHead && tab === 'audit'      && <AdminAuditPage />}
-        {tab === 'vacataire' && <AdminVacataireTab />}
+        {!isStaff && tab === 'vacataire' && <AdminVacataireTab />}
         {tab === 'students' && <AdminStudentsTab />}
         {!isStaff && tab === 'grouprequests' && (
           <AdminGroupRequests
@@ -340,7 +340,7 @@ export default function AdminDashboard() {
         {!isStaff && tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {!isStaff && tab === 'makeup'                    && <AdminMakeupPage />}
         {!isStaff && tab === 'attendance'                && <AdminAttendancePage />}
-        {tab === 'structure'                 && <AdminStructurePage />}
+        {!isStaff && tab === 'structure'                 && <AdminStructurePage />}
         {isSuperAdmin && tab === 'staff'     && <AdminStaffPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
         {!isDeptHead && tab === 'email'      && <AdminEmailPage />}

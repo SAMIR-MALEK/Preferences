@@ -247,7 +247,8 @@ const emptyVacForm = {
 
 export default function AdminProfessorsPage() {
   const { user } = useAuth();
-  const isDeptHead = user?.admin?.role === 'dept_head';
+  const isDeptHead = user?.admin?.role === 'dept_head' || user?.admin?.readOnly === true;
+  const isStaff = user?.admin?.readOnly === true;
   const [professors, setProfessors] = useState<Professor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -855,7 +856,7 @@ export default function AdminProfessorsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        {prof.diploma_url && (
+                        {!isStaff && prof.diploma_url && (
                           <button onClick={() => handleViewDiploma(prof.diploma_url!)}
                             title="عرض الشهادة المرفوعة"
                             className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-lg transition-colors">

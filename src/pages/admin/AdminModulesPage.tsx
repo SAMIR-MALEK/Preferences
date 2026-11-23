@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 import { toArabicNum } from '../../lib/utils';
 import type { Level, Module, LevelSemester, UEType, DeliveryMode } from '../../types';
 import { UE_TYPES, DELIVERY_MODES } from '../../types';
@@ -13,6 +14,8 @@ interface Props {
 }
 
 export default function AdminModulesPage({ allowedLevelCodes }: Props) {
+  const { user } = useAuth();
+  const readOnly = user?.admin?.readOnly === true;
   const [levels, setLevels] = useState<Level[]>([]);
   const [modules, setModules] = useState<Record<string, { s1: Module[]; s2: Module[] }>>({});
   const [lsData, setLsData] = useState<LevelSemester[]>([]);
@@ -281,7 +284,7 @@ export default function AdminModulesPage({ allowedLevelCodes }: Props) {
               <Download className="w-4 h-4" /> تصدير Excel
             </button>
           )}
-          {!allowedLevelCodes && (
+          {!allowedLevelCodes && !readOnly && (
             <button onClick={() => setAddingLevel(true)}
               className="flex items-center gap-2 bg-[#1a3a6b] hover:bg-[#0d2040] text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
               <Plus className="w-4 h-4" /> مستوى جديد

@@ -629,6 +629,7 @@ export default function AdminStudentsTab() {
   }
 
   function openInsertion(st: Student) {
+    if (user?.admin?.readOnly) return;
     setInsStudent(st);
     setInsGroupe(st.groupe ? String(st.groupe) : '');
     setInsDate(st.groupe_since ? String(st.groupe_since).slice(0, 10) : todayISO());
@@ -988,10 +989,10 @@ export default function AdminStudentsTab() {
                       className="text-gray-400 hover:text-[#1a3a6b] transition-colors p-1">
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => openInsertion(s)} title="إدراج في فوج"
+                    {!user?.admin?.readOnly && <button onClick={() => openInsertion(s)} title="إدراج في فوج"
                       className="text-gray-400 hover:text-amber-600 transition-colors p-1">
                       <UserCheck className="w-4 h-4" />
-                    </button>
+                    </button>}
                     {s.groupe_since && s.groupe && (
                       <button onClick={() => printInsertion(s)} title="طباعة الإدراج"
                         className="text-gray-400 hover:text-[#1a3a6b] transition-colors p-1">
