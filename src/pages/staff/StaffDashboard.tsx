@@ -7,17 +7,16 @@ import { GraduationCap, LogOut, Printer, Download, Search } from 'lucide-react';
 // وقاعدة البيانات نفسها ترفض أي كتابة من هذه الحسابات.
 
 const YEAR = '2026-2027';
-type Tab = 'levels' | 'modules' | 'rooms' | 'professors' | 'timetable' | 'profschedule' | 'students' | 'insertions';
+type Tab = 'levels' | 'assign' | 'timetable' | 'profschedule' | 'professors' | 'students';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'levels', label: 'التخصصات والمجموعات' },
-  { id: 'modules', label: 'المقاييس' },
-  { id: 'rooms', label: 'القاعات' },
-  { id: 'professors', label: 'الأساتذة' },
+  { id: 'levels', label: 'المستويات' },
+  { id: 'assign', label: 'التكاليف' },
   { id: 'timetable', label: 'التوقيت' },
   { id: 'profschedule', label: 'برامج الأساتذة' },
+  { id: 'professors', label: 'الأساتذة' },
   { id: 'students', label: 'الطلبة' },
-  { id: 'insertions', label: 'الإدراجات في الأفواج' },
 ];
+const TRUNK = ['L1', 'L2'];   // الجذع المشترك: يظهر لكل المصالح
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 
 type Col = { key: string; label: string };
@@ -142,11 +141,10 @@ export default function StaffDashboard() {
   const [levels, setLevels] = useState<any[]>([]);
   const [levelSems, setLevelSems] = useState<any[]>([]);
   const [modules, setModules] = useState<any[]>([]);
-  const [rooms, setRooms] = useState<any[]>([]);
+  const [assigns, setAssigns] = useState<any[]>([]);
   const [profs, setProfs] = useState<any[]>([]);
   const [sched, setSched] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [insertions, setInsertions] = useState<any[]>([]);
 
   // فلاتر
   const [fLevel, setFLevel] = useState('');
@@ -155,17 +153,18 @@ export default function StaffDashboard() {
   const [fSpec, setFSpec] = useState('');
   const [fSection, setFSection] = useState('');
   const [fGroup, setFGroup] = useState('');
+  const [aView, setAView] = useState<'sum' | 'det'>('sum');
 
   useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, []);
 
   async function loadAll() {
     setLoading(true); setError('');
     try {
-      const [lv, ls, md, rm, pr, sc, st, ins] = await Promise.all([
+      const [lv, ls, md, as, pr, sc, st] = await Promise.all([
         supabase.from('levels').select('id, code, name_ar, department, degree_type, speciality').order('display_order'),
         supabase.from('level_semesters').select('level_id, semester, num_sections, num_groups'),
         supabase.from('modules').select('id, level_id, code, name_ar, semester, has_lectures, has_td, is_active, display_order').order('display_order'),
-        supabase.from('rooms').select('id, name, code, capacity, floor, type, is_active').order('name'),
+        supabase.rpc('sv_assignments'),
         supabase.from('professors').select('id, last_name, first_name, rank, degree_speciality, email, phone, is_active').order('last_name'),
         supabase.from('schedules').select(`id, semester, status, custom_module, custom_professor,
           assignment:assignments ( id, teaching_type, section_number, group_number, professor_id,
@@ -174,21 +173,18 @@ export default function StaffDashboard() {
           time_slot:time_slots ( day, start_time, end_time, slot_number ), room:rooms ( name )`)
           .eq('academic_year', YEAR).limit(5000),
         supabase.rpc('sv_students'),
-        supabase.rpc('sv_insertions'),
       ]);
-      const firstErr = [lv, ls, md, rm, pr, sc, st, ins].find((r: any) => r.error);
+      const firstErr = [lv, ls, md, as, pr, sc, st].find((r: any) => r.error);
       if (firstErr) throw (firstErr as any).error;
-      const inScope = (d: string | null | undefined) => !dept || d === dept;
-      const lvls = (lv.data || []).filter((l: any) => inScope(l.department));
+      const lvls = (lv.data || []).filter((l: any) => !dept || l.department === dept || TRUNK.includes(l.code));
       const ids = new Set(lvls.map((l: any) => l.id));
       setLevels(lvls);
       setLevelSems((ls.data || []).filter((x: any) => ids.has(x.level_id)));
       setModules((md.data || []).filter((m: any) => ids.has(m.level_id)));
-      setRooms(rm.data || []);
+      setAssigns(((as.data as any[]) || []));
       setProfs(pr.data || []);
-      setSched((sc.data || []) as any[]);
+      setSched(((sc.data || []) as any[]).filter((x: any) => !dept || ids.has(x.assignment?.level?.id)));
       setStudents((st.data as any[]) || []);
-      setInsertions((ins.data as any[]) || []);
     } catch (e: any) {
       setError('تعذّر تحميل البيانات: ' + (e?.message || ''));
     }
@@ -211,18 +207,15 @@ export default function StaffDashboard() {
     };
   }), [levels, levelSems]);
 
-  const moduleRows = useMemo(() => modules
-    .filter(m => (!fLevel || m.level_id === fLevel) && (!fSem || String(m.semester) === fSem))
-    .map(m => ({
-      id: m.id, level: levelName.get(m.level_id) || '—', code: m.code, name: m.name_ar, sem: m.semester,
-      kinds: [m.has_lectures ? 'محاضرة' : '', m.has_td ? 'أعمال موجهة' : ''].filter(Boolean).join(' + '),
-      active: m.is_active === false ? 'غير نشط' : 'نشط',
-    })), [modules, fLevel, fSem, levelName]);
-
-  const roomRows = useMemo(() => rooms.map(r => ({
-    id: r.id, name: r.name, code: r.code, capacity: r.capacity, floor: r.floor, type: r.type,
-    active: r.is_active === false ? 'غير نشطة' : 'نشطة',
-  })), [rooms]);
+  const levelCards = useMemo(() => levels.map(l => {
+    const sem = Number(fSem || 1);
+    const ls = levelSems.find(x => x.level_id === l.id && x.semester === sem);
+    const mods = modules.filter(m => m.level_id === l.id && m.semester === sem && m.is_active !== false).length;
+    const profsN = new Set(assigns.filter(x => x.level_id === l.id && x.semester === sem).map(x => x.professor_id)).size;
+    const sess = sched.filter((x: any) => x.assignment?.level?.id === l.id && x.semester === sem).length;
+    return { id: l.id, name: l.name_ar, code: l.code, dept: l.department,
+      sections: ls?.num_sections ?? '—', groups: ls?.num_groups ?? '—', mods, profsN, sess };
+  }), [levels, levelSems, modules, assigns, sched, fSem]);
 
   const profRows = useMemo(() => profs.map(p => ({
     id: p.id, name: `${p.last_name || ''} ${p.first_name || ''}`.trim(), rank: p.rank, spec: p.degree_speciality,
@@ -263,11 +256,32 @@ export default function StaffDashboard() {
       section: pad2(s.section), group: pad2(s.groupe), sit: s.sit_ins, since: s.groupe_since || '',
     })), [students, fSpec, fSection, fGroup]);
 
-  const insRows = useMemo(() => insertions.map(i => ({
-    id: i.id, name: `${i.last_name || ''} ${i.first_name || ''}`.trim(), mat: i.mat_etudiant, spec: i.specialite,
-    from: `م${pad2(i.from_section)} / ف${pad2(i.from_groupe)}`, to: `م${pad2(i.to_section)} / ف${pad2(i.to_groupe)}`,
-    date: i.effective_date || '', note: i.note || '', by: i.created_by || '',
-  })), [insertions]);
+  // ── التكاليف ──
+  const asgSem = assigns.filter(x => (!fSem || String(x.semester) === fSem) && (!fLevel || x.level_id === fLevel));
+  const asgDetRows = useMemo(() => asgSem
+    .filter(x => !fProf || x.professor_id === fProf)
+    .map((x, i) => ({
+      id: i, prof: `${x.last_name || ''} ${x.first_name || ''}`.trim(), level: x.level_name, module: x.module_name,
+      kind: x.teaching_type, sg: x.teaching_type === 'محاضرة' ? `م${pad2(x.section_number)}` : `ف${pad2(x.group_number)}`,
+      hours: x.weekly_hours,
+    })).sort((a, b) => a.prof.localeCompare(b.prof, 'ar') || String(a.level).localeCompare(String(b.level), 'ar')),
+    [asgSem, fProf]);
+  const asgSumRows = useMemo(() => {
+    const m = new Map<string, any>();
+    asgSem.forEach(x => {
+      if (!m.has(x.professor_id)) {
+        const permanent = !/^v/i.test(String(x.username || ''));
+        const total = Number(x.prof_total) || 0;
+        const max = Number(x.max_weekly_hours) || 9;
+        m.set(x.professor_id, { id: x.professor_id, prof: `${x.last_name || ''} ${x.first_name || ''}`.trim(),
+          rank: x.rank || '', status: permanent ? 'دائم' : 'مؤقت', total,
+          extra: permanent ? Math.max(0, total - max) : '—', n: 0 });
+      }
+      m.get(x.professor_id).n++;
+    });
+    return [...m.values()].filter(r => !fProf || r.id === fProf)
+      .sort((a, b) => a.prof.localeCompare(b.prof, 'ar'));
+  }, [asgSem, fProf]);
 
   const semSelect = (
     <Select value={fSem} onChange={setFSem} placeholder="كل السداسيات"
@@ -321,22 +335,49 @@ export default function StaffDashboard() {
         )}
         {!loading && !error && (
           <>
-            {tab === 'levels' && <DataTable title="التخصصات والمجموعات" subtitle={scopeLabel} rows={levelRows}
-              cols={[{ key: 'code', label: 'الرمز' }, { key: 'name', label: 'المستوى / التخصص' }, { key: 'dept', label: 'القسم' },
-                { key: 'type', label: 'الطور' }, { key: 's1', label: 'السداسي 1' }, { key: 's2', label: 'السداسي 2' }]} />}
+            {tab === 'levels' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">{semSelect}<span className="text-xs text-gray-500">{scopeLabel}</span></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {levelCards.map(c => (
+                    <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-bold text-sm text-[#1a3a6b]">{c.name}</p>
+                        <span className="text-[10px] bg-gray-100 text-gray-500 rounded-md px-1.5 py-0.5">{c.code}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">{c.sections} مجموعة × {c.groups} فوج</p>
+                      <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                        <div><p className="font-bold text-base">{c.mods}</p><p className="text-[10px] text-gray-500">مقياس</p></div>
+                        <div><p className="font-bold text-base">{c.profsN}</p><p className="text-[10px] text-gray-500">أستاذ مكلّف</p></div>
+                        <div><p className="font-bold text-base">{c.sess}</p><p className="text-[10px] text-gray-500">حصة مبرمجة</p></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <DataTable title="التخصصات والمجموعات" subtitle={scopeLabel} rows={levelRows}
+                  cols={[{ key: 'code', label: 'الرمز' }, { key: 'name', label: 'المستوى / التخصص' }, { key: 'dept', label: 'القسم' },
+                    { key: 'type', label: 'الطور' }, { key: 's1', label: 'السداسي 1' }, { key: 's2', label: 'السداسي 2' }]} />
+              </div>
+            )}
 
-            {tab === 'modules' && <DataTable title="المقاييس" subtitle={scopeLabel} rows={moduleRows}
-              extra={<><Select value={fLevel} onChange={setFLevel} placeholder="كل المستويات" options={levelOpts} />{semSelect}</>}
-              cols={[{ key: 'level', label: 'المستوى' }, { key: 'code', label: 'الرمز' }, { key: 'name', label: 'المقياس' },
-                { key: 'sem', label: 'السداسي' }, { key: 'kinds', label: 'النوع' }, { key: 'active', label: 'الحالة' }]} />}
-
-            {tab === 'rooms' && <DataTable title="القاعات" rows={roomRows}
-              cols={[{ key: 'name', label: 'القاعة' }, { key: 'code', label: 'الرمز' }, { key: 'capacity', label: 'السعة' },
-                { key: 'floor', label: 'الطابق' }, { key: 'type', label: 'النوع' }, { key: 'active', label: 'الحالة' }]} />}
-
-            {tab === 'professors' && <DataTable title="الأساتذة" rows={profRows}
-              cols={[{ key: 'name', label: 'اللقب والاسم' }, { key: 'rank', label: 'الرتبة' }, { key: 'spec', label: 'التخصص' },
-                { key: 'email', label: 'البريد' }, { key: 'phone', label: 'الهاتف' }, { key: 'active', label: 'الحالة' }]} />}
+            {tab === 'assign' && (
+              <DataTable
+                title={aView === 'sum' ? 'الحجم الساعي والساعات الإضافية' : 'تكاليف الأساتذة'}
+                subtitle={`${scopeLabel} — السداسي ${fSem || 'الكل'}${fLevel ? ' — ' + levelName.get(fLevel) : ''}`}
+                rows={aView === 'sum' ? asgSumRows : asgDetRows}
+                extra={<>
+                  <Select value={aView} onChange={v => setAView((v || 'sum') as any)} placeholder="ملخص"
+                    options={[{ value: 'sum', label: 'ملخص حسب الأستاذ' }, { value: 'det', label: 'تفصيل التكاليف' }]} />
+                  <Select value={fLevel} onChange={setFLevel} placeholder="كل المستويات" options={levelOpts} />
+                  <Select value={fProf} onChange={setFProf} placeholder="كل الأساتذة" options={profOpts} />
+                  {semSelect}
+                </>}
+                cols={aView === 'sum'
+                  ? [{ key: 'prof', label: 'اللقب والاسم' }, { key: 'rank', label: 'الرتبة' }, { key: 'status', label: 'الصفة' },
+                     { key: 'n', label: 'عدد التكاليف' }, { key: 'total', label: 'الحجم الأسبوعي (س)' }, { key: 'extra', label: 'ساعات إضافية (س)' }]
+                  : [{ key: 'prof', label: 'الأستاذ' }, { key: 'level', label: 'المستوى' }, { key: 'module', label: 'المقياس' },
+                     { key: 'kind', label: 'النوع' }, { key: 'sg', label: 'م/ف' }, { key: 'hours', label: 'الحجم الأسبوعي (س)' }]} />
+            )}
 
             {tab === 'timetable' && <DataTable title="التوقيت" subtitle={`${scopeLabel} — ${fLevel ? levelName.get(fLevel) : 'كل المستويات'}`} rows={timetableRows}
               extra={<><Select value={fLevel} onChange={setFLevel} placeholder="كل المستويات" options={levelOpts} />{semSelect}</>}
@@ -351,18 +392,18 @@ export default function StaffDashboard() {
                   { key: 'module', label: 'المقياس' }, { key: 'kind', label: 'النوع' }, { key: 'sg', label: 'م/ف' }, { key: 'room', label: 'القاعة' }]} />
             )}
 
+            {tab === 'professors' && <DataTable title="الأساتذة" rows={profRows}
+              cols={[{ key: 'name', label: 'اللقب والاسم' }, { key: 'rank', label: 'الرتبة' }, { key: 'spec', label: 'التخصص' },
+                { key: 'email', label: 'البريد' }, { key: 'phone', label: 'الهاتف' }, { key: 'active', label: 'الحالة' }]} />}
+
             {tab === 'students' && <DataTable title="قائمة الطلبة" subtitle={`${scopeLabel}${fSpec ? ' — ' + fSpec : ''}`} rows={studentRows}
               extra={<><Select value={fSpec} onChange={setFSpec} placeholder="كل التخصصات" options={specOpts} />{sectionGroupSelects}</>}
               cols={[{ key: 'mat', label: 'رقم التسجيل' }, { key: 'name', label: 'اللقب والاسم' }, { key: 'spec', label: 'التخصص' },
                 { key: 'section', label: 'المجموعة' }, { key: 'group', label: 'الفوج' }, { key: 'sit', label: 'الوضعية' }, { key: 'since', label: 'مدرج في الفوج منذ' }]} />}
 
-            {tab === 'insertions' && <DataTable title="الإدراجات في الأفواج" subtitle={scopeLabel} rows={insRows}
-              cols={[{ key: 'date', label: 'التاريخ' }, { key: 'name', label: 'اللقب والاسم' }, { key: 'mat', label: 'رقم التسجيل' },
-                { key: 'spec', label: 'التخصص' }, { key: 'from', label: 'من' }, { key: 'to', label: 'إلى' }, { key: 'note', label: 'ملاحظة' }, { key: 'by', label: 'سجّله' }]} />}
           </>
         )}
       </main>
     </div>
   );
 }
-
