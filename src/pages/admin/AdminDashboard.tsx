@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { DEPARTMENT_LEVEL_CODES } from '../../types';
+import { useReadOnlyGuard } from '../../lib/readOnlyGuard';
 
 import {
   GraduationCap, Users, ClipboardList, Settings, LogOut,
@@ -42,6 +43,7 @@ export default function AdminDashboard() {
   const { user, signOut } = useAuth();
   const [tab, setTab] = useState<AdminTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mainRef = useRef<HTMLElement | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     main: true, components: false, pedagogy: false, students: false, system: false,
   });
@@ -93,8 +95,13 @@ export default function AdminDashboard() {
   }
 
   const isDeptHead = user?.admin?.role === 'dept_head';
+  const isStaff = user?.admin?.readOnly === true;   // مصلحة التدريس: عرض فقط
   const department = user?.admin?.department;
   const allowedLevelCodes = isDeptHead && department ? DEPARTMENT_LEVEL_CODES[department] : null;
+  const STAFF_TABS: AdminTab[] = ['dashboard', 'structure', 'specialties', 'sections', 'modules', 'rooms',
+    'professors', 'vacataire', 'schedule', 'profschedule', 'students', 'board'];
+  const canSee = (t: AdminTab) => !isStaff || STAFF_TABS.includes(t);
+  useReadOnlyGuard(mainRef, isStaff);
 
   type NavItem = { id: AdminTab; label: string; icon: any; badge?: number };
   type NavGroup = { key: string; label: string; items: NavItem[] };
@@ -170,7 +177,8 @@ export default function AdminDashboard() {
   const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit', 'staff'];
   const navGroups: NavGroup[] = allGroups.map(g => ({
     ...g,
-    items: isDeptHead ? g.items.filter(i => !deptHeadHidden.includes(i.id))
+    items: isStaff ? g.items.filter(i => STAFF_TABS.includes(i.id) && i.id !== 'import')
+      : isDeptHead ? g.items.filter(i => !deptHeadHidden.includes(i.id))
       : isSuperAdmin ? g.items : g.items.filter(i => i.id !== 'staff'),
   })).filter(g => g.items.length > 0);
 
@@ -240,6 +248,7 @@ export default function AdminDashboard() {
               <p className="text-white text-xs font-medium">{user?.admin?.full_name}</p>
               <p className="text-gray-500 text-[10px]">
                 {user?.admin?.role === 'super_admin' ? 'مشرف عام'
+                  : isStaff ? (user?.admin?.service || 'مصلحة التدريس')
                   : user?.admin?.role === 'dept_head' ? `رئيس قسم القانون ${department}`
                   : 'مشرف'}
               </p>
@@ -305,14 +314,14 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto bg-[#eef1f7] p-5 pt-20 lg:pt-5">
-        {tab === 'dashboard'  && <AdminHome stats={stats} setTab={setTab} />}
-        {tab === 'professors' && <AdminProfessorsPage />}
-        {tab === 'import'     && <AdminImportPage allowedLevelCodes={allowedLevelCodes} />}
+      <main ref={mainRef} className="flex-1 overflow-y-auto bg-[#eef1f7] p-5 pt-20 lg:pt-5">
+        {tab === 'dashboard'  && <AdminHome stats={stats} setTab={setTab} staff={isStaff} />}
+        {canSee(tab) && tab === 'professors' && <AdminProfessorsPage />}
+        {!isStaff && tab === 'import'     && <AdminImportPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'sections'   && <AdminSectionsPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'modules'    && <AdminModulesPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'specialties' && <AdminSpecialtiesPage />}
-        {tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
+        {!isStaff && tab === 'wishes'     && <AdminWishesViewerPage allowedLevelCodes={allowedLevelCodes} />}
         {!isDeptHead && tab === 'assignment' && <AdminAssignmentPage />}
         {tab === 'board'      && <AdminAssignmentBoardPage />}
         {tab === 'rooms'      && <AdminRoomsPage />}
@@ -320,17 +329,17 @@ export default function AdminDashboard() {
         {!isDeptHead && tab === 'audit'      && <AdminAuditPage />}
         {tab === 'vacataire' && <AdminVacataireTab />}
         {tab === 'students' && <AdminStudentsTab />}
-        {tab === 'grouprequests' && (
+        {!isStaff && tab === 'grouprequests' && (
           <AdminGroupRequests
             role={user?.admin?.role === 'dept_head' ? 'dept_head' : 'super_admin'}
             department={user?.admin?.department as 'عام' | 'خاص' | undefined}
           />
         )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
-        {tab === 'thesis'                        && <AdminThesisPage />}
-        {tab === 'disciplinary'              && <AdminDisciplinaryPage />}
-        {tab === 'makeup'                    && <AdminMakeupPage />}
-        {tab === 'attendance'                && <AdminAttendancePage />}
+        {!isStaff && tab === 'thesis'                        && <AdminThesisPage />}
+        {!isStaff && tab === 'disciplinary'              && <AdminDisciplinaryPage />}
+        {!isStaff && tab === 'makeup'                    && <AdminMakeupPage />}
+        {!isStaff && tab === 'attendance'                && <AdminAttendancePage />}
         {tab === 'structure'                 && <AdminStructurePage />}
         {isSuperAdmin && tab === 'staff'     && <AdminStaffPage />}
         {!isDeptHead && tab === 'settings'   && <AdminSettingsPage />}
@@ -341,7 +350,7 @@ export default function AdminDashboard() {
 }
 
 // ── Dashboard Home ────────────────────────────────────────────────────
-function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => void }) {
+function AdminHome({ stats, setTab, staff }: { stats: any; setTab: (t: AdminTab) => void; staff?: boolean }) {
   const pct = stats.profs > 0 ? Math.round((stats.locked / stats.profs) * 100) : 0;
 
   return (
@@ -352,7 +361,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
       </div>
 
       {/* Banner */}
-      <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white relative overflow-hidden">
+      {!staff && <div className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] rounded-2xl p-5 text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: 'radial-gradient(#c9a227 1px,transparent 1px)', backgroundSize: '20px 20px' }} />
         <div className="relative flex items-center justify-between flex-wrap gap-4">
@@ -375,7 +384,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -385,7 +394,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
           { l: 'المقاييس',       v: stats.modules, i: BookOpen,      c: '#7c3aed', bg: 'rgba(124,58,237,.08)', t: 'modules'    },
           { l: 'الرغبات المسجّلة', v: stats.wishes,  i: ClipboardList, c: '#059669', bg: 'rgba(5,150,105,.08)',  t: 'wishes'     },
           { l: 'استعراض الرغبات', v: '→',           i: Eye,           c: '#0891b2', bg: 'rgba(8,145,178,.08)',  t: 'wishes'     },
-        ].map(s => {
+        ].filter(s => !staff || s.t === 'professors' || s.t === 'modules').filter(s => !staff || s.l !== 'أكملوا').map(s => {
           const Icon = s.i;
           return (
             <button key={s.l} onClick={() => setTab(s.t as AdminTab)}
@@ -403,7 +412,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
       </div>
 
       {/* Workflow guide */}
-      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      {!staff && <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-display font-bold text-gray-800 text-sm mb-4">
           الخطوات المنهجية — قبل الإسناد
         </h3>
@@ -434,10 +443,10 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Quick actions */}
-      <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+      {!staff && <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
         <h3 className="font-display font-bold text-gray-800 text-sm mb-3">إجراءات سريعة</h3>
         <div className="flex flex-wrap gap-2">
           {[
@@ -452,7 +461,7 @@ function AdminHome({ stats, setTab }: { stats: any; setTab: (t: AdminTab) => voi
             </button>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

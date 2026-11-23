@@ -48,7 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (staffData && staffData.is_active) {
-        setUser({ id: userId, role: 'staff' as UserRole, staff: staffData });
+        // حساب المصلحة يُعامَل كرئيس قسم (نفس الواجهة والنطاق) لكن للعرض فقط
+        const dep = staffData.department || null;
+        setUser({
+          id: userId, role: 'admin' as UserRole, staff: staffData,
+          admin: {
+            id: staffData.user_id, user_id: staffData.user_id, username: staffData.username,
+            full_name: staffData.full_name, role: dep ? 'dept_head' : 'viewer', department: dep,
+            is_active: true, readOnly: true, service: staffData.service,
+          } as any,
+        });
         setLoading(false);
         return;
       }

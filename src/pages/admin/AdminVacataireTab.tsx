@@ -303,7 +303,7 @@ export default function AdminVacataireTab() {
                 </a>
               )}
 
-              {selected.decided_by && (
+              {!user?.admin?.readOnly && selected.decided_by && (
                 <p className="text-xs text-gray-400">القرار بواسطة: <strong>{selected.decided_by}</strong></p>
               )}
 

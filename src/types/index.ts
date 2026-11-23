@@ -222,6 +222,8 @@ export interface Admin {
   role: 'super_admin' | 'admin' | 'viewer' | 'dept_head';
   department?: AdminDepartment | null;
   is_active: boolean;
+  readOnly?: boolean;   // حساب مصلحة: نفس واجهة رئيس القسم لكن للعرض فقط
+  service?: string;
 }
 
 // رموز المستويات التابعة لكل قسم (لحصر صلاحيات رئيس القسم)
