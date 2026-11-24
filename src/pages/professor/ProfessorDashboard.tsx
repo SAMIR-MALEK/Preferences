@@ -1,5 +1,5 @@
 import RemoteSessionsPanel from '../../components/RemoteSessionsPanel';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import AssignmentResults from './AssignmentResults';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
@@ -22,7 +22,7 @@ import jsPDF from 'jspdf';
 import XLSX from 'xlsx-js-style';
 import { unzipSync, strToU8, zipSync } from 'fflate';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary' | 'makeup' | 'tutorat' | 'tutorat_review';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary' | 'makeup' | 'tutorat' | 'tutorat_review' | 'absences';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -37,7 +37,7 @@ function isProfileComplete(p: any): boolean {
 // ─── Navbar Component ────────────────────────────────────────────────
 function ProfNavbar({
   tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount, disciplinaryOpen, makeupOpen,
-  tutoratVisible, tutoratReview
+  tutoratVisible, tutoratReview, hasTD
 }: {
   tab: ProfTab;
   setTab: (t: ProfTab) => void;
@@ -50,6 +50,7 @@ function ProfNavbar({
   makeupOpen: boolean;
   tutoratVisible: boolean;
   tutoratReview: TutMode | null;
+  hasTD: boolean;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -163,6 +164,16 @@ function ProfNavbar({
                 </div>
               )}
             </div>
+
+            {/* الغيابات — وصول مباشر */}
+            {hasTD && (
+              <button onClick={() => go('absences')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all select-none ${
+                  tab === 'absences' ? 'bg-[#c9a227] text-white' : 'text-white bg-white/10 hover:bg-white/20'}`}>
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>الغيابات</span>
+              </button>
+            )}
 
             {/* مذكرات التخرج — للأساتذة الدائمين فقط */}
             {!isVacataire && (
@@ -301,6 +312,7 @@ export default function ProfessorDashboard() {
   const [myRole, setMyRole] = useState<{ role: string; speciality: string | null } | null>(null);
   const [tutCamp, setTutCamp] = useState<any>(null);
   const [tutReview, setTutReview] = useState<TutMode | null>(null);
+  const [hasTD, setHasTD] = useState(false);
   useEffect(() => { setProfData(prof); }, [prof]);
 
   // منصب الأستاذ (عميد، رئيس قسم، مسؤول تخصص...) — يظهر له أعلى حسابه
@@ -311,6 +323,14 @@ export default function ProfessorDashboard() {
       .eq('professor_id', prof.id)
       .limit(1)
       .then(({ data, error }) => { if (!error && data && data[0]) setMyRole(data[0] as any); });
+  }, [prof?.id]);
+
+  // هل للأستاذ أفواج أعمال موجهة (لإظهار «الغيابات»)
+  useEffect(() => {
+    if (!prof?.id) return;
+    supabase.from('assignments').select('id', { count: 'exact', head: true })
+      .eq('professor_id', prof.id).eq('academic_year', '2026-2027').eq('teaching_type', 'أعمال موجهة')
+      .then(({ count }) => setHasTD((count || 0) > 0));
   }, [prof?.id]);
 
   // المرافقة البيداغوجية: حالة الحملة + دور الأستاذ في دراسة الملفات
@@ -402,6 +422,7 @@ export default function ProfessorDashboard() {
         makeupOpen={!isVacataire}
         tutoratVisible={tutoratVisible}
         tutoratReview={tutReview}
+        hasTD={hasTD}
       />
 
       {/* Content */}
@@ -421,6 +442,19 @@ export default function ProfessorDashboard() {
               <p className="text-amber-600 text-xs mt-0.5">سيتم نشر نتائج الإسناد النهائية للسداسي الأول بعد التدقيق.</p>
             </div>
           </div>
+        )}
+        {profileComplete && hasTD && (tab === 'schedule' || tab === 'home') && (
+          <button onClick={() => setTab('absences')}
+            className="w-full mb-4 flex items-center gap-3 bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] text-white rounded-2xl px-5 py-4 text-right shadow-md hover:opacity-95">
+            <div className="w-11 h-11 rounded-xl bg-[#c9a227] flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-sm">تسجيل الغيابات</p>
+              <p className="text-xs text-white/70 mt-0.5">أفواجك في الأعمال الموجهة — سجّل الحصة مباشرة</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-[#c9a227] rotate-180" />
+          </button>
         )}
         {profileComplete && (tab === 'schedule' || tab === 'home') && (
           <ProfessorNotices
@@ -479,6 +513,7 @@ export default function ProfessorDashboard() {
         {tab === 'card' && <WishCard prof={profData} />}
         {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
         {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
+        {tab === 'absences' && profData && <AbsencesHub prof={profData} />}
         {tab === 'thesis' && profData && !isVacataire && <ThesisProposalsTab prof={profData} />}
         {tab === 'disciplinary' && profData && disciplinaryOpen && <DisciplinaryNomination />}
         {tab === 'makeup' && profData && <MakeupRequest />}
@@ -949,7 +984,14 @@ function fmtInsertDate(d?: string | null): string {
   return y && m && day ? `${day}/${m}/${y}` : String(d);
 }
 
-function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment: any }) {
+function AttendanceDownloadButton({ prof, assignment, initialView, autoNext, trigger, onClosed }: {
+  prof: any; assignment: any;
+  initialView?: 'list' | 'attendance';          // فتح النافذة مباشرة على تبويب
+  autoNext?: boolean;                           // فتح الحصة التالية مباشرة
+  trigger?: (open: () => void) => ReactNode;
+  onClosed?: () => void;
+}) {
+  const [autoNextNow, setAutoNextNow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<any[] | null>(null);
@@ -967,8 +1009,10 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
     return data || [];
   }
 
-  async function openList() {
+  async function openList(next?: boolean) {
     setOpen(true);
+    if (initialView) setView(initialView);
+    setAutoNextNow(!!(next ?? autoNext));
     setListLoading(true);
     try { setList(await fetchStudents()); }
     catch { setList([]); }
@@ -1122,7 +1166,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
     .filter((s: any) => !onlyInserted || s.groupe_since)
     .filter((s: any) => !q || `${s.last_name || ''} ${s.first_name || ''} ${s.mat_etudiant || ''}`.includes(q));
 
-  function closeList() { setOpen(false); setQuery(''); setOnlyInserted(false); setView('list'); }
+  function closeList() { setOpen(false); setQuery(''); setOnlyInserted(false); setView('list'); setAutoNextNow(false); onClosed?.(); }
 
   function printList() {
     if (!list || list.length === 0) return;
@@ -1174,14 +1218,16 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
 
   return (
     <div>
+      {trigger ? trigger(() => openList()) : (
       <button
-        onClick={openList}
+        onClick={() => openList(false)}
         className="flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
         style={{ background: 'rgba(201,162,39,0.12)', color: '#92400e', border: '1px solid rgba(201,162,39,0.3)' }}
       >
         <Users className="w-3 h-3" />
         قائمة الطلبة
       </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4" dir="rtl" onClick={closeList}>
@@ -1236,7 +1282,7 @@ function AttendanceDownloadButton({ prof, assignment }: { prof: any; assignment:
               <div className="overflow-y-auto flex-1 px-3 sm:px-5 py-4">
                 {listLoading || !list
                   ? <p className="text-center text-gray-400 text-sm py-16">جارٍ تحميل القائمة...</p>
-                  : <AttendancePanel prof={prof} assignment={assignment} students={list} />}
+                  : <AttendancePanel prof={prof} assignment={assignment} students={list} autoNext={autoNextNow} />}
               </div>
             )}
 
@@ -2274,6 +2320,110 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// ── «الغيابات»: وصول مباشر لأفواج الأعمال الموجهة ──────────────────────
+const ABS_DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+function AbsencesHub({ prof }: any) {
+  const [items, setItems] = useState<any[] | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  async function loadCounts(list: any[]) {
+    const c: Record<string, number> = {};
+    await Promise.all(list.map(async (a: any) => {
+      const { count } = await supabase.from('attendance_sessions').select('id', { count: 'exact', head: true })
+        .eq('module_id', a.module_id).eq('group_number', a.group_number).eq('academic_year', '2026-2027');
+      c[a.assignment_id] = count || 0;
+    }));
+    setCounts(c);
+  }
+
+  useEffect(() => {
+    (async () => {
+      const { data: asg } = await supabase.from('assignments')
+        .select('id, module_id, section_number, group_number, level_id')
+        .eq('professor_id', prof?.id).eq('academic_year', '2026-2027').eq('teaching_type', 'أعمال موجهة');
+      if (!asg || asg.length === 0) { setItems([]); return; }
+      const [{ data: mods }, { data: lvls }, { data: sch }] = await Promise.all([
+        supabase.from('modules').select('id, name_ar').in('id', [...new Set(asg.map((a: any) => a.module_id))]),
+        supabase.from('levels').select('id, name_ar').in('id', [...new Set(asg.map((a: any) => a.level_id).filter(Boolean))]),
+        supabase.from('schedules').select('assignment_id, room:rooms(name), time_slot:time_slots(day, start_time, end_time, slot_number)')
+          .in('assignment_id', asg.map((a: any) => a.id)).eq('academic_year', '2026-2027'),
+      ]);
+      const mMap = new Map((mods || []).map((m: any) => [m.id, m.name_ar]));
+      const lMap = new Map((lvls || []).map((l: any) => [l.id, l.name_ar]));
+      const sMap = new Map((sch || []).map((x: any) => [x.assignment_id, x]));
+      const today = ABS_DAYS[(new Date().getDay() + 1) % 7];   // getDay: الأحد = 0 ← السبت = 0 هنا
+      const dayIdx = (d: string) => { const i = ABS_DAYS.indexOf(d); return i < 0 ? 99 : i; };
+      const list = asg.map((a: any) => {
+        const sc: any = sMap.get(a.id);
+        return {
+          assignment_id: a.id, module_id: a.module_id, level_id: a.level_id,
+          section: a.section_number, group: a.group_number, group_number: a.group_number,
+          module_name: mMap.get(a.module_id) || '—', level_name: lMap.get(a.level_id) || '—',
+          teaching_type: 'أعمال موجهة',
+          room: sc?.room?.name || '—',
+          day: sc?.time_slot?.day || '', slot: sc?.time_slot?.slot_number ?? 99,
+          start_time: sc?.time_slot?.start_time?.slice(0, 5), end_time: sc?.time_slot?.end_time?.slice(0, 5),
+          isToday: !!sc?.time_slot?.day && sc.time_slot.day === today,
+        };
+      }).sort((x: any, y: any) => (Number(y.isToday) - Number(x.isToday)) || (dayIdx(x.day) - dayIdx(y.day)) || (x.slot - y.slot));
+      setItems(list);
+      loadCounts(list);
+    })();
+    /* eslint-disable-next-line */
+  }, [prof?.id]);
+
+  if (!items) return <div className="flex justify-center p-10"><div className="animate-spin h-6 w-6 border-2 border-[#1a3a6b] border-t-transparent rounded-full" /></div>;
+  if (items.length === 0) return <p className="text-center text-gray-400 text-sm py-16">لا توجد لديك أفواج أعمال موجهة</p>;
+
+  return (
+    <div className="space-y-3 animate-fade-in" dir="rtl">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold text-gray-900">تسجيل الغيابات</h2>
+        <p className="text-xs text-gray-500">{items.length} فوج</p>
+      </div>
+      {items.map((a: any) => {
+        const n = counts[a.assignment_id];
+        const done = n !== undefined && n >= 14;
+        return (
+          <div key={a.assignment_id} className={`bg-white rounded-2xl border p-4 ${a.isToday ? 'border-[#c9a227] shadow-md' : 'border-gray-200'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-bold text-sm text-gray-900">{a.module_name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{a.level_name} — الفوج {String(a.group).padStart(2, '0')}</p>
+                {a.day && <p className="text-[11px] text-gray-400 mt-0.5">{a.day} {a.start_time}–{a.end_time} — {a.room}</p>}
+              </div>
+              <div className="text-left flex-shrink-0">
+                {a.isToday && <span className="block text-[10px] font-bold text-[#c9a227] mb-1">اليوم</span>}
+                <span className="text-xs font-bold text-[#1a3a6b]">{n === undefined ? '…' : `${n} / 14`}</span>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <div className="flex-1">
+                <AttendanceDownloadButton prof={prof} assignment={a} initialView="attendance" autoNext
+                  onClosed={() => loadCounts(items)}
+                  trigger={open => (
+                    <button onClick={open} disabled={done || n === undefined}
+                      className="w-full bg-[#c9a227] hover:bg-[#b08d1f] text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50">
+                      {done ? 'سُجّلت الحصص الـ14' : `سجّل الحصة ${n === undefined ? '' : n + 1}`}
+                    </button>
+                  )} />
+              </div>
+              <AttendanceDownloadButton prof={prof} assignment={a} initialView="attendance"
+                onClosed={() => loadCounts(items)}
+                trigger={open => (
+                  <button onClick={open}
+                    className="px-4 border border-gray-300 text-gray-700 rounded-xl py-2.5 text-sm font-semibold hover:bg-gray-50">
+                    الحصص
+                  </button>
+                )} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProfScheduleTab({ prof }: any) {
   const [scheduled, setScheduled] = useState<any[]>([]);
   const [unscheduled, setUnscheduled] = useState<any[]>([]);

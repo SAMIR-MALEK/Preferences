@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   ATT_YEAR, ABSENCE_LIMIT, ST_PRESENT, ST_ABSENT, J_PENDING, J_ACCEPTED, J_REJECTED,
@@ -15,11 +15,12 @@ interface Props {
   prof: any;
   assignment: any;          // module_id, level_id, section, group_number, assignment_id, module_name
   students: any[];          // id, last_name, first_name, mat_etudiant, groupe_since
+  autoNext?: boolean;       // فتح الحصة التالية مباشرة (من صفحة «الغيابات»)
 }
 
 type Mark = typeof ST_PRESENT | typeof ST_ABSENT;
 
-export default function AttendancePanel({ prof, assignment, students }: Props) {
+export default function AttendancePanel({ prof, assignment, students, autoNext }: Props) {
   const moduleId: string | undefined = assignment.module_id;
   const groupNumber: number = Number(assignment.group_number);
 
@@ -191,6 +192,15 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
     }
     setMode('record');
   }
+
+  // فتح الحصة التالية تلقائيا مرة واحدة بعد التحميل
+  const autoDone = useRef(false);
+  useEffect(() => {
+    if (!autoNext || autoDone.current || loading) return;
+    autoDone.current = true;
+    if (numbered.length < TOTAL_SESSIONS) openSlot(numbered.length + 1);
+    /* eslint-disable-next-line */
+  }, [autoNext, loading]);
 
   async function save() {
     if (!moduleId) return;
