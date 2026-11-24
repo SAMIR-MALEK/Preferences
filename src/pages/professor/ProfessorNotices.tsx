@@ -1,16 +1,18 @@
-import { FileText, Shield } from 'lucide-react';
+import { FileText, Shield, HeartHandshake } from 'lucide-react';
 
 interface Props {
   proposalsOpen: boolean;
   nominationOpen: boolean;
   onOpenProposals: () => void;
   onOpenNomination: () => void;
+  tutoratOpen?: boolean;
+  onOpenTutorat?: () => void;
 }
 
 export default function ProfessorNotices({
-  proposalsOpen, nominationOpen, onOpenProposals, onOpenNomination,
+  proposalsOpen, nominationOpen, onOpenProposals, onOpenNomination, tutoratOpen, onOpenTutorat,
 }: Props) {
-  if (!proposalsOpen && !nominationOpen) return null;
+  if (!proposalsOpen && !nominationOpen && !tutoratOpen) return null;
 
   const cardCls =
     'flex items-center gap-4 rounded-2xl px-5 py-4 bg-white border border-gray-200 shadow-sm text-right w-full hover:shadow-md transition-shadow';
@@ -24,6 +26,17 @@ export default function ProfessorNotices({
           <div className="flex-1">
             <p className="font-bold text-sm text-gray-800">فُتح مجال إرسال اقتراحات المذكرات</p>
             <p className="text-xs text-gray-500 mt-0.5">يمكنك الآن إرسال اقتراحاتك لعناوين مذكرات الماستر.</p>
+          </div>
+        </button>
+      )}
+
+      {tutoratOpen && onOpenTutorat && (
+        <button onClick={onOpenTutorat} className={cardCls}
+                style={{ borderRightWidth: 4, borderRightColor: '#16a34a' }}>
+          <HeartHandshake className="w-6 h-6 flex-shrink-0 text-green-600" />
+          <div className="flex-1">
+            <p className="font-bold text-sm text-gray-800">الترشح للمرافقة البيداغوجية مفتوح</p>
+            <p className="text-xs text-gray-500 mt-0.5">مرافقة طلبة السنة الأولى — 4 ساعات أسبوعيا كحد أقصى.</p>
           </div>
         </button>
       )}
