@@ -13,6 +13,10 @@ interface Props {
 }
 
 const MAX_FILE_MB = 5;
+// تبرير غياب قادم (استدعاء رسمي معروف مسبقا): مسموح في حدود 30 يوما
+const FUTURE_DAYS = 30;
+const maxDay = (() => { const d = new Date(); d.setDate(d.getDate() + FUTURE_DAYS);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
 
 export default function StudentAbsences({ student }: Props) {
   const [loading, setLoading] = useState(true);
@@ -81,6 +85,7 @@ export default function StudentAbsences({ student }: Props) {
     if (!kind) { setMsg({ type: 'err', text: 'اختر نوع المبرر' }); return; }
     if (!dateFrom || !dateTo) { setMsg({ type: 'err', text: 'حدد مدة الغياب (من — إلى)' }); return; }
     if (dateTo < dateFrom) { setMsg({ type: 'err', text: 'تاريخ النهاية يجب أن يكون بعد تاريخ البداية أو مساوياً له' }); return; }
+    if (dateFrom > maxDay || dateTo > maxDay) { setMsg({ type: 'err', text: `يمكن تبرير غياب قادم في حدود ${FUTURE_DAYS} يوما من اليوم فقط` }); return; }
     if (!file) { setMsg({ type: 'err', text: 'أرفق الوثيقة المبرِّرة' }); return; }
     if (file.size > MAX_FILE_MB * 1024 * 1024) { setMsg({ type: 'err', text: `حجم الوثيقة يجب ألا يتجاوز ${MAX_FILE_MB} ميغابايت` }); return; }
 
@@ -200,12 +205,12 @@ export default function StudentAbsences({ student }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">من يوم</label>
-                <input type="date" value={dateFrom} max={todayISO()} onChange={e => { setDateFrom(e.target.value); if (!dateTo) setDateTo(e.target.value); }}
+                <input type="date" value={dateFrom} max={maxDay} onChange={e => { setDateFrom(e.target.value); if (!dateTo) setDateTo(e.target.value); }}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">إلى يوم</label>
-                <input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)}
+                <input type="date" value={dateTo} min={dateFrom || undefined} max={maxDay} onChange={e => setDateTo(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
               </div>
             </div>
