@@ -4,6 +4,15 @@ import { TUT_YEAR, TUT_TITLE, tutRpc, fmtDate } from '../../lib/tutorat';
 
 const NAVY = '#1a3a6b';
 
+const TASKS: [string, string][] = [
+  ['الإعلام', 'تعريف الطالب بالكلية وهياكلها، وبالنظام الدراسي وطرق التقييم، وبالإجراءات الإدارية التي تعنيه.'],
+  ['المتابعة البيداغوجية', 'متابعة تقدّمه في الدراسة، ومساعدته على تنظيم عمله وتجاوز الصعوبات.'],
+  ['الدعم المنهجي', 'تدريبه على منهجية العمل الجامعي: تدوين المحاضرات، والبحث، والاستعداد للامتحانات.'],
+  ['الدعم التقني', 'مساعدته على استعمال المنصات الرقمية والمكتبة ومصادر البحث.'],
+  ['الإصغاء', 'الاستماع لانشغالاته، ومساعدته على التكيّف مع الحياة الجامعية.'],
+  ['التوجيه', 'تعريفه بالتخصصات وآفاقها المهنية.'],
+];
+
 // ترشح الأستاذ الدائم للمرافقة البيداغوجية: زر واحد، بلا شروط ولا خانات
 export default function TutoratCandidacy({ prof: _prof }: { prof: any }) {
   const [data, setData] = useState<any>(null);
@@ -49,9 +58,27 @@ export default function TutoratCandidacy({ prof: _prof }: { prof: any }) {
         </div>
         <div className="flex-1">
           <h2 className="font-bold text-gray-900">الترشح لـ{TUT_TITLE} — {TUT_YEAR}</h2>
-          <p className="text-xs text-gray-500 mt-1">مرافقة طلبة السنة الأولى ليسانس.</p>
-          {camp.deadline && <p className="text-xs text-gray-500 mt-1">آخر أجل للترشح: <b>{fmtDate(camp.deadline)}</b></p>}
+          <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+            المرافقة البيداغوجية متابعة دائمة لطلبة السنة الأولى ليسانس، تهدف إلى تسهيل اندماجهم في الحياة الجامعية،
+            وتعريفهم بمحيطها وبآفاق تكوينهم.
+          </p>
+          {camp.deadline && <p className="text-xs text-gray-500 mt-2">آخر أجل للترشح: <b>{fmtDate(camp.deadline)}</b></p>}
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <p className="font-bold text-sm text-gray-900 mb-3">مهام الأستاذ المرافق</p>
+        <ol className="space-y-2.5">
+          {TASKS.map(([t, d], i) => (
+            <li key={t} className="flex gap-3 text-sm leading-relaxed">
+              <span className="w-6 h-6 rounded-full bg-[#1a3a6b] text-[#c9a227] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+              <span className="text-gray-700"><b className="text-gray-900">{t}:</b> {d}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-gray-500 mt-4 pt-3 border-t border-gray-100">
+          الترشح مفتوح للأساتذة الدائمين، وتُدرس الملفات ثم يصادق عليها العميد.
+        </p>
       </div>
 
       {msg && <Note icon={<CheckCircle2 className="w-5 h-5" />} tone="green" text={msg} />}
