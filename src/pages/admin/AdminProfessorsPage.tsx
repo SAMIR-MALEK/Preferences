@@ -249,6 +249,12 @@ export default function AdminProfessorsPage() {
   const { user } = useAuth();
   const isDeptHead = user?.admin?.role === 'dept_head' || user?.admin?.readOnly === true;
   const isStaff = user?.admin?.readOnly === true;
+  // إعادة تعيين كلمة المرور: المشرف العام فقط (يُفحص أيضا في دالة الخادم)
+  const canResetPw = !isStaff && (user?.admin?.role === 'super_admin' || (user?.admin as any)?.is_super === true);
+  const [resetTarget, setResetTarget] = useState<Professor | null>(null);
+  const [resetPw, setResetPw] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetErr, setResetErr] = useState('');
   const [professors, setProfessors] = useState<Professor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -454,14 +460,21 @@ export default function AdminProfessorsPage() {
     }
   }
 
-  async function handleResetPassword(prof: Professor) {
+  async function handleResetPassword() {
+    if (!resetTarget) return;
+    const pw = resetPw.trim();
+    if (pw && pw.length < 6) { setResetErr('كلمة المرور 6 أحرف على الأقل'); return; }
+    setResetBusy(true); setResetErr('');
     try {
-      const result = await callEdgeFunction('reset-professor-password', { user_id: prof.user_id });
-      setNewCredentials({ username: prof.username, password: result.password });
+      const result = await callEdgeFunction('reset-professor-password',
+        { user_id: resetTarget.user_id, ...(pw ? { custom_password: pw } : {}) });
+      setNewCredentials({ username: resetTarget.username, password: result.password });
       setMessage({ type: 'success', text: 'تم إعادة تعيين كلمة المرور' });
+      setResetTarget(null); setResetPw('');
     } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
+      setResetErr(e.message);
     }
+    setResetBusy(false);
   }
 
   async function handleViewDiploma(diplomaPath: string) {
@@ -565,6 +578,28 @@ export default function AdminProfessorsPage() {
           {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           {message.text}
           <button onClick={() => setMessage(null)} className="mr-auto"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" dir="rtl" onClick={() => !resetBusy && setResetTarget(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900">إعادة تعيين كلمة المرور</h3>
+            <p className="text-sm text-gray-600">{resetTarget.last_name} {resetTarget.first_name} — <span dir="ltr">{resetTarget.username}</span></p>
+            <input type="text" value={resetPw} onChange={e => setResetPw(e.target.value)} autoComplete="off" dir="ltr"
+              placeholder="كلمة المرور الجديدة (اختيارية)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#1a3a6b]" />
+            <p className="text-[11px] text-gray-500">6 أحرف على الأقل. إن تُركت فارغة تُولَّد كلمة عشوائية من 8 أرقام.</p>
+            {resetErr && <p className="text-xs text-red-600">{resetErr}</p>}
+            <div className="flex gap-2">
+              <button onClick={handleResetPassword} disabled={resetBusy}
+                className="flex-1 bg-[#1a3a6b] text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50">
+                {resetBusy ? 'جارٍ التنفيذ...' : 'تأكيد'}
+              </button>
+              <button onClick={() => setResetTarget(null)} disabled={resetBusy}
+                className="px-5 border border-gray-300 rounded-xl text-sm text-gray-600">إلغاء</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -880,11 +915,13 @@ export default function AdminProfessorsPage() {
                               className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
                               {prof.wishes_locked_s1 ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                             </button>
-                            <button onClick={() => handleResetPassword(prof)}
+                            {canResetPw && prof.user_id && (
+                            <button onClick={() => { setResetTarget(prof); setResetPw(''); setResetErr(''); }}
                               title="إعادة تعيين كلمة المرور"
                               className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
                               <RefreshCw className="w-4 h-4" />
                             </button>
+                            )}
                             <button onClick={() => askDeleteOne(prof)}
                               title="حذف الأستاذ"
                               className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
