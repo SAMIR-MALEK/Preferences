@@ -1,4 +1,4 @@
-import { FileText, Shield, HeartHandshake } from 'lucide-react';
+import { FileText, Shield, HeartHandshake, CheckCircle } from 'lucide-react';
 
 interface Props {
   proposalsOpen: boolean;
@@ -7,18 +7,32 @@ interface Props {
   onOpenNomination: () => void;
   tutoratOpen?: boolean;
   onOpenTutorat?: () => void;
+  absencesOpen?: boolean;
+  onOpenAbsences?: () => void;
 }
 
 export default function ProfessorNotices({
   proposalsOpen, nominationOpen, onOpenProposals, onOpenNomination, tutoratOpen, onOpenTutorat,
+  absencesOpen, onOpenAbsences,
 }: Props) {
-  if (!proposalsOpen && !nominationOpen && !tutoratOpen) return null;
+  if (!proposalsOpen && !nominationOpen && !tutoratOpen && !absencesOpen) return null;
 
   const cardCls =
     'flex items-center gap-4 rounded-2xl px-5 py-4 bg-white border border-gray-200 shadow-sm text-right w-full hover:shadow-md transition-shadow';
 
   return (
     <div className="flex flex-col gap-3 mb-4" dir="rtl">
+      {absencesOpen && onOpenAbsences && (
+        <button onClick={onOpenAbsences} className={cardCls}
+                style={{ borderRightWidth: 4, borderRightColor: '#dc2626' }}>
+          <CheckCircle className="w-6 h-6 flex-shrink-0 text-red-600" />
+          <div className="flex-1">
+            <p className="font-bold text-sm text-gray-800">تسجيل الغيابات</p>
+            <p className="text-xs text-gray-500 mt-0.5">سجّل غيابات أفواجك في الأعمال الموجهة مباشرة.</p>
+          </div>
+        </button>
+      )}
+
       {proposalsOpen && (
         <button onClick={onOpenProposals} className={cardCls}
                 style={{ borderRightWidth: 4, borderRightColor: '#1a3a6b' }}>

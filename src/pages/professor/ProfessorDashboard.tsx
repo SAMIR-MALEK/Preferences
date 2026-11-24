@@ -443,19 +443,6 @@ export default function ProfessorDashboard() {
             </div>
           </div>
         )}
-        {profileComplete && hasTD && (tab === 'schedule' || tab === 'home') && (
-          <button onClick={() => setTab('absences')}
-            className="w-full mb-4 flex items-center gap-3 bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] text-white rounded-2xl px-5 py-4 text-right shadow-md hover:opacity-95">
-            <div className="w-11 h-11 rounded-xl bg-[#c9a227] flex items-center justify-center flex-shrink-0">
-              <CheckCircle className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-sm">تسجيل الغيابات</p>
-              <p className="text-xs text-white/70 mt-0.5">أفواجك في الأعمال الموجهة — سجّل الحصة مباشرة</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-[#c9a227] rotate-180" />
-          </button>
-        )}
         {profileComplete && (tab === 'schedule' || tab === 'home') && (
           <ProfessorNotices
             proposalsOpen={proposalsOpen}
@@ -464,6 +451,8 @@ export default function ProfessorDashboard() {
             onOpenNomination={() => setTab('disciplinary')}
             tutoratOpen={tutoratOpen}
             onOpenTutorat={() => setTab('tutorat')}
+            absencesOpen={hasTD}
+            onOpenAbsences={() => setTab('absences')}
           />
         )}
         {tab === 'home' && hasResults && resultsPublished && (
