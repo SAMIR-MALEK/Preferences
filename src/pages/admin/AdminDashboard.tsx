@@ -11,6 +11,8 @@ import {
   Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText,
   ChevronDown, UserX, Network
 } from 'lucide-react';
+import { HeartHandshake } from 'lucide-react';
+import TutoratReview from '../professor/TutoratReview';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
 import AdminModulesPage       from './AdminModulesPage';
@@ -38,7 +40,7 @@ import AdminStaffPage         from './AdminStaffPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure' | 'staff';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure' | 'staff' | 'tutorat';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -134,6 +136,7 @@ export default function AdminDashboard() {
       items: [
         { id: 'professors',   label: 'الأساتذة',          icon: Users        },
         { id: 'vacataire',    label: 'الأساتذة المؤقتون', icon: Users        },
+        { id: 'tutorat',      label: 'المرافقة البيداغوجية', icon: HeartHandshake },
         { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays },
         { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays },
       ],
@@ -176,12 +179,16 @@ export default function AdminDashboard() {
 
   // فلترة حسب الصلاحيات
   const isSuperAdmin = user?.admin?.role === 'super_admin' || (user?.admin as any)?.is_super === true;
-  const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit', 'staff'];
+  // المرافقة البيداغوجية: الإدارة (مشرف عام/مدير) أو رئيس قسم القانون العام فقط
+  const tutoratMode: 'admin' | 'dept' | null = isStaff ? null
+    : isDeptHead ? (department === 'عام' ? 'dept' : null)
+    : (user?.admin?.role === 'super_admin' || user?.admin?.role === 'admin') ? 'admin' : null;
+  const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit', 'staff', ...(tutoratMode ? [] : ['tutorat' as AdminTab])];
   const navGroups: NavGroup[] = allGroups.map(g => ({
     ...g,
     items: isStaff ? g.items.filter(i => STAFF_TABS.includes(i.id) && i.id !== 'import')
       : isDeptHead ? g.items.filter(i => !deptHeadHidden.includes(i.id))
-      : isSuperAdmin ? g.items : g.items.filter(i => i.id !== 'staff'),
+      : isSuperAdmin ? g.items : g.items.filter(i => i.id !== 'staff' && (i.id !== 'tutorat' || !!tutoratMode)),
   })).filter(g => g.items.length > 0);
 
   return (
@@ -328,6 +335,7 @@ export default function AdminDashboard() {
       <main ref={mainRef} className="flex-1 overflow-y-auto bg-[#eef1f7] p-5 pt-20 lg:pt-5">
         {tab === 'dashboard'  && <AdminHome stats={stats} setTab={setTab} staff={isStaff} />}
         {canSee(tab) && tab === 'professors' && <AdminProfessorsPage />}
+        {!isStaff && tab === 'tutorat' && tutoratMode && <TutoratReview mode={tutoratMode} />}
         {!isStaff && tab === 'import'     && <AdminImportPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'sections'   && <AdminSectionsPage allowedLevelCodes={allowedLevelCodes} />}
         {tab === 'modules'    && <AdminModulesPage allowedLevelCodes={allowedLevelCodes} />}

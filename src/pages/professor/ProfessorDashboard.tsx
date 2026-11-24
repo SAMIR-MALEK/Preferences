@@ -11,6 +11,9 @@ import DisciplinaryNomination from './DisciplinaryNomination';
 import ProfessorNotices from './ProfessorNotices';
 import MakeupRequest from './MakeupRequest';
 import AttendancePanel from './AttendancePanel';
+import TutoratCandidacy from './TutoratCandidacy';
+import TutoratReview, { type TutMode } from './TutoratReview';
+import { TUT_YEAR, TUT_TITLE, tutRpc } from '../../lib/tutorat';
 import { roleTitle } from '../../lib/roles';
 import type { Wish } from '../../types';
 import { HOURS_LECTURE, HOURS_TD } from '../../types';
@@ -19,7 +22,7 @@ import jsPDF from 'jspdf';
 import XLSX from 'xlsx-js-style';
 import { unzipSync, strToU8, zipSync } from 'fflate';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary' | 'makeup';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary' | 'makeup' | 'tutorat' | 'tutorat_review';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -33,7 +36,8 @@ function isProfileComplete(p: any): boolean {
 
 // ─── Navbar Component ────────────────────────────────────────────────
 function ProfNavbar({
-  tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount, disciplinaryOpen, makeupOpen
+  tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount, disciplinaryOpen, makeupOpen,
+  tutoratVisible, tutoratReview
 }: {
   tab: ProfTab;
   setTab: (t: ProfTab) => void;
@@ -44,6 +48,8 @@ function ProfNavbar({
   pendingThesisCount: number;
   disciplinaryOpen: boolean;
   makeupOpen: boolean;
+  tutoratVisible: boolean;
+  tutoratReview: TutMode | null;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -91,11 +97,17 @@ function ProfNavbar({
     ...(disciplinaryOpen
       ? [{ tab: 'disciplinary' as ProfTab, label: 'الترشح للمجلس التأديبي', desc: 'الكلية وقسم واحد', icon: '🛡️', disabled: !profileComplete }]
       : []),
+    ...(tutoratVisible
+      ? [{ tab: 'tutorat' as ProfTab, label: `الترشح لـ${TUT_TITLE}`, desc: 'مرافقة طلبة السنة الأولى', icon: '🤝', disabled: !profileComplete }]
+      : []),
+    ...(tutoratReview
+      ? [{ tab: 'tutorat_review' as ProfTab, label: `${TUT_TITLE} — دراسة الملفات`, desc: 'قائمة المترشحين', icon: '📑', disabled: false }]
+      : []),
   ];
 
   const isScheduleActive = ['schedule','s1','s2','card','makeup'].includes(tab);
   const isThesisActive = tab === 'thesis';
-  const isProfileActive = ['profile','disciplinary'].includes(tab);
+  const isProfileActive = ['profile','disciplinary','tutorat','tutorat_review'].includes(tab);
 
   return (
     <nav ref={navRef} className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
@@ -287,6 +299,8 @@ export default function ProfessorDashboard() {
   const [pendingThesisCount, setPendingThesisCount] = useState(0);
   const [thesisUnlocked, setThesisUnlocked] = useState(false);
   const [myRole, setMyRole] = useState<{ role: string; speciality: string | null } | null>(null);
+  const [tutCamp, setTutCamp] = useState<any>(null);
+  const [tutReview, setTutReview] = useState<TutMode | null>(null);
   useEffect(() => { setProfData(prof); }, [prof]);
 
   // منصب الأستاذ (عميد، رئيس قسم، مسؤول تخصص...) — يظهر له أعلى حسابه
@@ -297,6 +311,19 @@ export default function ProfessorDashboard() {
       .eq('professor_id', prof.id)
       .limit(1)
       .then(({ data, error }) => { if (!error && data && data[0]) setMyRole(data[0] as any); });
+  }, [prof?.id]);
+
+  // المرافقة البيداغوجية: حالة الحملة + دور الأستاذ في دراسة الملفات
+  useEffect(() => {
+    if (!prof?.id) return;
+    tutRpc('tut_campaign', { p_year: TUT_YEAR }).then(setTutCamp).catch(() => setTutCamp(null));
+    (async () => {
+      try {
+        if (await tutRpc<boolean>('tut_has_role', { p_role: 'dean' })) return setTutReview('dean');
+        if (await tutRpc<boolean>('tut_has_role', { p_role: 'field_head' })) return setTutReview('field');
+        if (await tutRpc<boolean>('tut_is_dept_public')) return setTutReview('dept');
+      } catch { /* الوحدة غير مثبتة بعد */ }
+    })();
   }, [prof?.id]);
 
   // سماح بتعديل مقترحات المذكرات من رئيس القسم أو نائب العميد → يظهر تنبيه الاقتراح
@@ -355,6 +382,8 @@ export default function ProfessorDashboard() {
   // رسالتا الإشعار: اقتراحات المذكرات + الترشح للمجلس التأديبي (للأساتذة الدائمين فقط)
   const proposalsOpen = (settings?.proposals_open === true || thesisUnlocked) && !isVacataire;
   const disciplinaryOpen = settings?.disciplinary_open === true && !isVacataire;
+  const tutoratOpen = tutCamp?.open_now === true && !isVacataire;
+  const tutoratVisible = !isVacataire && !!tutCamp?.created_at;
   const disciplinaryExpired = settings?.disciplinary_deadline
     ? new Date() > new Date(settings.disciplinary_deadline)
     : false;
@@ -371,6 +400,8 @@ export default function ProfessorDashboard() {
         pendingThesisCount={pendingThesisCount}
         disciplinaryOpen={disciplinaryOpen}
         makeupOpen={!isVacataire}
+        tutoratVisible={tutoratVisible}
+        tutoratReview={tutReview}
       />
 
       {/* Content */}
@@ -397,6 +428,8 @@ export default function ProfessorDashboard() {
             nominationOpen={disciplinaryOpen && !disciplinaryExpired}
             onOpenProposals={() => setTab('thesis')}
             onOpenNomination={() => setTab('disciplinary')}
+            tutoratOpen={tutoratOpen}
+            onOpenTutorat={() => setTab('tutorat')}
           />
         )}
         {tab === 'home' && hasResults && resultsPublished && (
@@ -449,6 +482,8 @@ export default function ProfessorDashboard() {
         {tab === 'thesis' && profData && !isVacataire && <ThesisProposalsTab prof={profData} />}
         {tab === 'disciplinary' && profData && disciplinaryOpen && <DisciplinaryNomination />}
         {tab === 'makeup' && profData && <MakeupRequest />}
+        {tab === 'tutorat' && profData && !isVacataire && <TutoratCandidacy prof={profData} />}
+        {tab === 'tutorat_review' && tutReview && <TutoratReview mode={tutReview} />}
       </div>
     </div>
   );
