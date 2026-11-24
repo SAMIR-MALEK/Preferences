@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { HeartHandshake, Loader2, AlertCircle, CheckCircle2, Send, Printer, Download, Lock, RotateCcw } from 'lucide-react';
-import { TUT_YEAR, TUT_TITLE, tutRpc, fmtDate, fmtH, printContracts, printList, tutStatus, type TutRow, type TutCampaign } from '../../lib/tutorat';
+import { TUT_YEAR, TUT_TITLE, tutRpc, fmtDate, printList, tutStatus, type TutRow, type TutCampaign } from '../../lib/tutorat';
 
 export type TutMode = 'field' | 'dept' | 'dean' | 'admin';
 
@@ -20,7 +20,7 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [cf, setCf] = useState({ open: false, deadline: '', semester: 1 });
+  const [cf, setCf] = useState({ open: false, deadline: '' });
   const [confirm, setConfirm] = useState<string | null>(null);
 
   async function load() {
@@ -31,7 +31,7 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
         tutRpc<TutRow[]>('tut_list', { p_year: TUT_YEAR }),
       ]);
       setCamp(c); setRows(l || []);
-      setCf({ open: !!c?.is_open, deadline: c?.deadline || '', semester: c?.semester || 1 });
+      setCf({ open: !!c?.is_open, deadline: c?.deadline || '' });
       setNotes(Object.fromEntries((l || []).map(r => [r.id, r.dept_note || ''])));
     } catch (e: any) { setErr(e.message); }
     setLoading(false);
@@ -73,29 +73,18 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
   const deptMissing = visible.filter(r => !r.dept_opinion).length;
 
   function exportCsv() {
-    const head = ['الاسم واللقب', 'الرتبة', 'الهاتف', 'البريد', 'الإضافية', 'المسموحة', 'رئيس الميدان', 'رأي القسم', 'ملاحظة القسم', 'العميد',
-      'تاريخ الميلاد', 'الشهادة', 'تاريخها', 'العنوان', 'الحساب البريدي', 'تاريخ الترشح'];
+    const head = ['الاسم واللقب', 'الرتبة', 'الهاتف', 'البريد', 'رئيس الميدان', 'رأي القسم', 'ملاحظة القسم', 'العميد', 'تاريخ الترشح'];
     const q = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = rows.map(r => [r.name, r.rank, r.phone, r.email, r.extra_hours, r.allowed_hours, r.field_decision, r.dept_opinion, r.dept_note,
-      r.dean_decision, r.private?.birth_date, r.private?.diploma, r.private?.diploma_date, r.private?.address, r.private?.ccp,
-      fmtDate(r.created_at)].map(q).join(','));
+    const lines = rows.map(r => [r.name, r.rank, r.phone, r.email, r.field_decision, r.dept_opinion, r.dept_note,
+      r.dean_decision, fmtDate(r.created_at)].map(q).join(','));
     const blob = new Blob(['﻿' + [head.map(q).join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `المرافقة_البيداغوجية_${TUT_YEAR}.csv`; a.click();
   }
 
-  async function printApprovedContracts(list: TutRow[]) {
-    try {
-      const cs = await Promise.all(list.map(r => tutRpc('tut_contract', { p_id: r.id })));
-      printContracts(cs);
-    } catch (e: any) { setErr(e.message); }
-  }
-
   const printApproved = () => printList(`قائمة الأساتذة المرافقين المصادق عليها — ${TUT_TITLE} ${TUT_YEAR}`, approved,
-    [{ key: 'name', label: 'الاسم واللقب' }, { key: 'rank', label: 'الرتبة' },
-     { key: 'allowed_hours', label: 'الساعات الأسبوعية', get: r => fmtH(Math.min(4, Number(r.allowed_hours))) }]);
+    [{ key: 'name', label: 'الاسم واللقب' }, { key: 'rank', label: 'الرتبة' }]);
 
   const btn = 'flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-50';
-  const seesPrivate = mode === 'admin' || mode === 'dean';
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -126,16 +115,9 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
               <input type="date" value={cf.deadline} onChange={e => setCf({ ...cf, deadline: e.target.value })}
                 className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
             </div>
-            <div>
-              <p className="text-[11px] text-gray-500 mb-1">سداسي حساب الساعات</p>
-              <select value={cf.semester} onChange={e => setCf({ ...cf, semester: Number(e.target.value) })}
-                className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm">
-                <option value={1}>السداسي 1</option><option value={2}>السداسي 2</option>
-              </select>
-            </div>
             <button disabled={busy === 'camp'} className={`${btn} bg-[#1a3a6b] text-white`}
               onClick={() => run('camp', 'tut_admin_set_campaign',
-                { p_year: TUT_YEAR, p_open: cf.open, p_deadline: cf.deadline || null, p_semester: cf.semester }, 'تم حفظ الحملة')}>
+                { p_year: TUT_YEAR, p_open: cf.open, p_deadline: cf.deadline || null, p_semester: 1 }, 'تم حفظ الحملة')}>
               حفظ
             </button>
           </div>
@@ -192,9 +174,6 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
             <button className={`${btn} border border-gray-300 text-gray-700`} onClick={printApproved}>
               <Printer className="w-3.5 h-3.5" /> القائمة المصادق عليها
             </button>
-            <button className={`${btn} border border-gray-300 text-gray-700`} onClick={() => printApprovedContracts(approved)}>
-              <Printer className="w-3.5 h-3.5" /> كل العقود ({approved.length})
-            </button>
           </>
         )}
         {mode === 'admin' && rows.length > 0 && (
@@ -216,7 +195,7 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <div>
                     <p className="font-bold text-sm text-gray-900">{r.name}</p>
-                    <p className="text-xs text-gray-500">{r.rank || '—'} — الإضافية {fmtH(r.extra_hours)} س — المسموحة <b>{fmtH(r.allowed_hours)} س</b></p>
+                    <p className="text-xs text-gray-500">{r.rank || '—'}{r.phone && <> — <span dir="ltr">{r.phone}</span></>}{r.email && <> — <span dir="ltr">{r.email}</span></>}</p>
                   </div>
                   <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${st.cls}`}>{st.label}</span>
                 </div>
@@ -227,14 +206,6 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
                   </p>
                 )}
 
-                {seesPrivate && r.private && (
-                  <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-gray-600 bg-slate-50 rounded-lg px-3 py-2">
-                    <span>الميلاد: <b>{fmtDate(r.private.birth_date)}</b></span>
-                    <span>الشهادة: <b>{r.private.diploma}</b> ({fmtDate(r.private.diploma_date)})</span>
-                    <span>العنوان: <b>{r.private.address}</b></span>
-                    <span>الحساب البريدي: <b dir="ltr">{r.private.ccp}</b></span>
-                  </div>
-                )}
 
                 {fieldCan && (
                   <div className="flex gap-2">
@@ -277,11 +248,6 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
                   </div>
                 )}
 
-                {(mode === 'admin' || mode === 'dean') && r.dean_decision === 'مصادق' && (
-                  <button onClick={() => printApprovedContracts([r])} className="text-xs text-[#1a3a6b] font-semibold flex items-center gap-1">
-                    <Printer className="w-3.5 h-3.5" /> طباعة العقد
-                  </button>
-                )}
               </div>
             );
           })}

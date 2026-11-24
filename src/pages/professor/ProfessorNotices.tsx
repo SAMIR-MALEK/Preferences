@@ -36,7 +36,7 @@ export default function ProfessorNotices({
           <HeartHandshake className="w-6 h-6 flex-shrink-0 text-green-600" />
           <div className="flex-1">
             <p className="font-bold text-sm text-gray-800">الترشح للمرافقة البيداغوجية مفتوح</p>
-            <p className="text-xs text-gray-500 mt-0.5">مرافقة طلبة السنة الأولى — 4 ساعات أسبوعيا كحد أقصى.</p>
+            <p className="text-xs text-gray-500 mt-0.5">مرافقة طلبة السنة الأولى ليسانس.</p>
           </div>
         </button>
       )}
