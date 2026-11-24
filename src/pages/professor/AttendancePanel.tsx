@@ -6,7 +6,10 @@ import {
   fmtDay, fmtDayShort, todayISO, dayOnly, recordCounts, concernedBy, justificationFor,
   absenceLevel, LEVEL_STYLE, J_STYLE, fetchAll, fetchByIds,
 } from '../../lib/attendance';
-import { Plus, Save, Trash2, X, Check, CalendarDays, AlertCircle, Eye, ArrowRight } from 'lucide-react';
+import { Save, Trash2, X, Check, CalendarDays, AlertCircle, Eye, ArrowRight, AlertTriangle } from 'lucide-react';
+
+// عدد الحصص القانوني في السداسي (الأعمال الموجهة)
+const TOTAL_SESSIONS = 14;
 
 interface Props {
   prof: any;
@@ -31,7 +34,9 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
   // نموذج تسجيل حصة
   const [mode, setMode] = useState<'grid' | 'record'>('grid');
   const [date, setDate] = useState(todayISO());
-  const [isMakeup, setIsMakeup] = useState(false);
+  const [editing, setEditing] = useState<AttSession | null>(null);   // null = حصة جديدة
+  const [orderWarn, setOrderWarn] = useState('');                     // تنبيه فتح حصة قبل التي قبلها
+  const [dateAck, setDateAck] = useState(false);                      // الأستاذ أكّد رغم تنبيه التاريخ
   const [marks, setMarks] = useState<Record<string, Mark>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -121,16 +126,44 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
     return m;
   }, [records, withGroup, groupNumber]);
 
-  const existing = useMemo(
-    () => sessions.find(s => dayOnly(s.session_date) === date && !!s.is_makeup === isMakeup) || null,
-    [sessions, date, isMakeup],
+  // ── الترقيم: الحصص المسجلة (القديمة والجديدة) مرتبة بالتاريخ — ترقيم عرض فقط، لا يُخزَّن ──
+  const numbered = sessions;   // مرتبة من قاعدة البيانات بالتاريخ ثم المعرّف
+  const nextNo = numbered.length + 1;
+  const slots = Math.max(TOTAL_SESSIONS, numbered.length);
+  const existing = editing;
+  const editIdx = editing ? numbered.findIndex(s => s.id === editing.id) : -1;
+  const myNo = editing ? editIdx + 1 : nextNo;
+  const isLast = editing ? editIdx === numbered.length - 1 : false;
+
+  const absentBySession = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of records) if (r.status === ST_ABSENT) m.set(r.session_id, (m.get(r.session_id) || 0) + 1);
+    return m;
+  }, [records]);
+
+  // تنبيه الترتيب الزمني: تاريخ أسبق من الحصة السابقة أو أحدث من اللاحقة
+  const dateWarn = useMemo(() => {
+    if (!date) return '';
+    const prev = editing ? numbered[editIdx - 1] : numbered[numbered.length - 1];
+    const next = editing ? numbered[editIdx + 1] : undefined;
+    if (prev && date < dayOnly(prev.session_date))
+      return `هذا التاريخ أسبق من تاريخ الحصة ${myNo - 1} (${fmtDay(prev.session_date)})، فسيتغيّر ترتيب الحصص.`;
+    if (next && date > dayOnly(next.session_date))
+      return `هذا التاريخ بعد تاريخ الحصة ${myNo + 1} (${fmtDay(next.session_date)})، فسيتغيّر ترتيب الحصص.`;
+    return '';
+  }, [date, editing, editIdx, numbered, myNo]);
+
+  // حصة أخرى بنفس التاريخ (يمنعها قيد قاعدة البيانات)
+  const sameDate = useMemo(
+    () => numbered.find(s => s.id !== editing?.id && !s.is_makeup && dayOnly(s.session_date) === date) || null,
+    [numbered, editing, date],
   );
 
-  // تهيئة العلامات عند فتح النموذج أو تغيير التاريخ/النوع
+  // تهيئة العلامات عند فتح النموذج
   useEffect(() => {
     if (mode !== 'record') return;
     const next: Record<string, Mark> = {};
-    const recs = existing ? recBySession.get(existing.id) : undefined;
+    const recs = editing ? recBySession.get(editing.id) : undefined;
     for (const s of students) {
       const r = recs?.get(s.id);
       next[s.id] = r?.status === ST_ABSENT ? ST_ABSENT : ST_PRESENT;
@@ -138,12 +171,24 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
     setMarks(next);
     setConfirmDelete(false);
     /* eslint-disable-next-line */
-  }, [mode, date, isMakeup, existing?.id]);
+  }, [mode, editing?.id]);
 
-  function openRecord(sess?: AttSession) {
+  useEffect(() => { setDateAck(false); }, [date]);
+
+  // فتح بطاقة: حصة مسجلة (تعديل) أو التالية أو ما بعدها (بتنبيه)
+  function openSlot(no: number) {
     setMsg(null);
-    if (sess) { setDate(dayOnly(sess.session_date)); setIsMakeup(!!sess.is_makeup); }
-    else { setDate(todayISO()); setIsMakeup(false); }
+    setDateAck(false);
+    if (no <= numbered.length) {
+      const s = numbered[no - 1];
+      setEditing(s); setDate(dayOnly(s.session_date)); setOrderWarn('');
+    } else {
+      if (numbered.length >= TOTAL_SESSIONS) return;
+      setEditing(null); setDate(todayISO());
+      setOrderWarn(no > nextNo
+        ? `لم تُسجَّل الحصة ${nextNo} بعد. الحصص تُرقَّم بالترتيب، فستُحفظ هذه الحصة برقم ${nextNo}.`
+        : '');
+    }
     setMode('record');
   }
 
@@ -151,10 +196,17 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
     if (!moduleId) return;
     if (!date) { setMsg({ type: 'err', text: 'حدد تاريخ الحصة' }); return; }
     if (date > todayISO()) { setMsg({ type: 'err', text: 'لا يمكن تسجيل حصة بتاريخ لم يحن بعد' }); return; }
+    if (sameDate) { setMsg({ type: 'err', text: `توجد حصة مسجّلة بنفس التاريخ (${fmtDay(date)}) — افتحها من بطاقتها لتعديلها` }); return; }
+    if (dateWarn && !dateAck) { setDateAck(true); return; }   // الضغطة الأولى تُظهر التنبيه، الثانية تحفظ
+    const isMakeup = !!existing?.is_makeup;
     setSaving(true);
     setMsg(null);
     try {
       let sess = existing;
+      if (sess && dayOnly(sess.session_date) !== date) {
+        const { error } = await supabase.from('attendance_sessions').update({ session_date: date }).eq('id', sess.id);
+        if (error) throw new Error(error.message);
+      }
       if (!sess) {
         const { data, error } = await supabase.from('attendance_sessions').insert({
           assignment_id: assignment.assignment_id || null,
@@ -198,7 +250,8 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
       const absent = rows.filter(r => r.status === ST_ABSENT).length;
       await load();
       setMode('grid');
-      setMsg({ type: 'ok', text: `تم حفظ حصة ${fmtDay(date)}${isMakeup ? ' (تعويضية)' : ''} — ${absent} غائب من ${rows.length}` });
+      setEditing(null);
+      setMsg({ type: 'ok', text: `تم حفظ الحصة ${myNo} بتاريخ ${fmtDay(date)} — ${absent} غائب من ${rows.length}` });
     } catch (e: any) {
       setMsg({ type: 'err', text: 'تعذّر الحفظ: ' + (e?.message || e) });
     }
@@ -206,7 +259,7 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
   }
 
   async function deleteSession() {
-    if (!existing) return;
+    if (!existing || !isLast) return;
     setSaving(true);
     const { error } = await supabase.from('attendance_sessions').delete().eq('id', existing.id);
     if (error) {
@@ -214,7 +267,8 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
     } else {
       await load();
       setMode('grid');
-      setMsg({ type: 'ok', text: `حُذفت حصة ${fmtDay(date)}` });
+      setEditing(null);
+      setMsg({ type: 'ok', text: `حُذفت الحصة ${myNo} (${fmtDay(existing.session_date)})` });
     }
     setConfirmDelete(false);
     setSaving(false);
@@ -271,24 +325,25 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
     const absentCount = concerned.filter(s => marks[s.id] === ST_ABSENT).length;
     return (
       <div className="space-y-3">
-        <button onClick={() => { setMode('grid'); setMsg(null); }}
+        <button onClick={() => { setMode('grid'); setMsg(null); setEditing(null); }}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#1a3a6b]">
-          <ArrowRight className="w-4 h-4" /> رجوع إلى سجل الحصص
+          <ArrowRight className="w-4 h-4" /> رجوع إلى الحصص
         </button>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <div className="flex flex-wrap items-end gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-[#1a3a6b] text-white flex flex-col items-center justify-center flex-shrink-0">
+              <span className="text-[10px] text-[#c9a227] leading-none">الحصة</span>
+              <span className="text-xl font-bold leading-tight">{myNo}</span>
+            </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">تاريخ الحصة</label>
               <input type="date" value={date} max={todayISO()} onChange={e => setDate(e.target.value)}
                 className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]/30" dir="ltr" />
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 cursor-pointer select-none">
-              <input type="checkbox" checked={isMakeup} onChange={e => setIsMakeup(e.target.checked)} className="w-4 h-4" />
-              حصة تعويضية
-            </label>
             <span className={`text-xs font-bold px-3 py-2 rounded-xl ${existing ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'}`}>
-              {existing ? 'تعديل حصة مسجّلة' : 'حصة جديدة'}
+              {existing ? 'تعديل حصة مسجّلة' : 'تسجيل الحصة'}
+              {existing?.is_makeup && ' — تعويضية'}
             </span>
           </div>
           <p className="text-xs text-gray-400 mt-3">
@@ -296,6 +351,18 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
             <span className="font-bold text-gray-600"> الغائبون: {absentCount} من {concerned.length}</span>
           </p>
         </div>
+
+        {orderWarn && !existing && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> {orderWarn}
+          </div>
+        )}
+        {dateWarn && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>{dateWarn}{dateAck && <b> اضغط «حفظ» مرة أخرى للتأكيد.</b>}</span>
+          </div>
+        )}
 
         {msg && msg.type === 'err' && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{msg.text}</div>
@@ -332,15 +399,15 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
         <div className="flex flex-wrap gap-2 sticky bottom-0 bg-[#f1f4f9] py-3">
           <button onClick={save} disabled={saving}
             className="flex-1 min-w-[160px] flex items-center justify-center gap-2 bg-[#1a3a6b] hover:bg-[#0a1628] text-white py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
-            <Save className="w-4 h-4" /> {saving ? 'جارٍ الحفظ...' : existing ? 'حفظ التعديل' : 'حفظ الحصة'}
+            <Save className="w-4 h-4" /> {saving ? 'جارٍ الحفظ...' : dateWarn && dateAck ? 'تأكيد الحفظ' : existing ? 'حفظ التعديل' : `حفظ الحصة ${myNo}`}
           </button>
-          {existing && !confirmDelete && (
+          {existing && isLast && !confirmDelete && (
             <button onClick={() => setConfirmDelete(true)} disabled={saving}
               className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold border border-red-200 text-red-600 bg-white hover:bg-red-50">
               <Trash2 className="w-4 h-4" /> حذف الحصة
             </button>
           )}
-          {existing && confirmDelete && (
+          {existing && isLast && confirmDelete && (
             <>
               <button onClick={deleteSession} disabled={saving}
                 className="px-4 py-3 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700">
@@ -360,14 +427,40 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
   // ── سجل الحصص (الجدول) ───────────────────────────────────────────────────
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => openRecord()}
-          className="flex items-center gap-2 bg-[#c9a227] hover:bg-[#b08d1f] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
-          <Plus className="w-4 h-4" /> تسجيل حصة
-        </button>
-        <span className="text-xs text-gray-500">
-          {sessions.length === 0 ? 'لم تُسجَّل أي حصة بعد' : `${sessions.length} حصة مسجّلة — اضغط على تاريخ الحصة لتعديلها`}
-        </span>
+      <div className="bg-white rounded-2xl border border-gray-200 p-3">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-sm font-bold text-gray-800">الحصص</p>
+          <p className="text-xs text-gray-500">{numbered.length} / {TOTAL_SESSIONS} مسجّلة</p>
+        </div>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          {Array.from({ length: slots }, (_, i) => {
+            const no = i + 1;
+            const s = numbered[i];
+            const isNext = !s && no === nextNo;
+            const locked = !s && numbered.length >= TOTAL_SESSIONS;
+            const abs = s ? (absentBySession.get(s.id) || 0) : 0;
+            return (
+              <button key={no} onClick={() => openSlot(no)} disabled={locked}
+                className={`rounded-xl border px-1 py-2 text-center transition-colors ${
+                  s ? 'bg-white border-[#1a3a6b]/25 hover:bg-[#1a3a6b]/5'
+                  : isNext ? 'bg-[#c9a227] border-[#c9a227] text-white hover:bg-[#b08d1f] shadow-sm'
+                  : 'bg-gray-50 border-dashed border-gray-200 text-gray-300 hover:text-gray-400'}`}>
+                <span className={`block text-[10px] leading-none ${s ? 'text-gray-400' : isNext ? 'text-white/80' : ''}`}>الحصة</span>
+                <span className={`block text-lg font-bold leading-tight ${s ? 'text-[#1a3a6b]' : ''}`}>{no}</span>
+                {s ? (
+                  <>
+                    <span className="block text-[10px] text-gray-600" dir="ltr">{fmtDayShort(s.session_date)}</span>
+                    <span className={`block text-[10px] font-bold ${abs ? 'text-red-600' : 'text-green-600'}`}>{abs ? `${abs} غ` : 'لا غياب'}</span>
+                    {s.is_makeup && <span className="block text-[9px] text-amber-600">تعويضية</span>}
+                  </>
+                ) : (
+                  <span className="block text-[10px] font-bold">{isNext ? 'سجّلها' : '—'}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-gray-400 mt-2 px-1">اضغط على الحصة التالية لتسجيلها، أو على حصة مسجّلة لتعديلها.</p>
       </div>
 
       {msg && (
@@ -384,11 +477,12 @@ export default function AttendancePanel({ prof, assignment, students }: Props) {
                 <th className="px-2 py-3 text-center font-bold w-9 sticky right-0 bg-[#1a3a6b] z-10">#</th>
                 <th className="px-3 py-3 text-right font-bold sticky right-9 bg-[#1a3a6b] z-10 min-w-[150px]">اللقب والاسم</th>
                 <th className="px-2 py-3 text-center font-bold whitespace-nowrap">الغيابات</th>
-                {sessions.map(s => (
+                {sessions.map((s, i) => (
                   <th key={s.id} className="px-1 py-1.5 text-center font-bold">
-                    <button onClick={() => openRecord(s)} title="تعديل الحصة"
-                      className="px-2 py-1.5 rounded-lg hover:bg-white/15 transition-colors whitespace-nowrap">
-                      {fmtDayShort(s.session_date)}
+                    <button onClick={() => openSlot(i + 1)} title="تعديل الحصة"
+                      className="px-2 py-1 rounded-lg hover:bg-white/15 transition-colors whitespace-nowrap">
+                      ح{i + 1}
+                      <span className="block text-[9px] text-gray-300 font-normal">{fmtDayShort(s.session_date)}</span>
                       {s.is_makeup && <span className="block text-[9px] text-amber-300 font-normal">تعويضية</span>}
                     </button>
                   </th>
