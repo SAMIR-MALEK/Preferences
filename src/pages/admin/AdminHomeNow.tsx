@@ -139,7 +139,7 @@ export default function AdminHomeNow({ setTab, department, allowedLevelCodes, tu
       }
 
       if (alive) setD({
-        dayName, dateStr: now.toLocaleDateString('ar-DZ', { day: '2-digit', month: '2-digit' }), today,
+        dayName, dateStr: `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`, today,
         profs: profs.length, perm: permProfs.length, proposed, unassigned, unscheduled, noAbs, pendingJ, pendingMk,
         councils, nomProfs, tut,
       });
@@ -180,11 +180,11 @@ export default function AdminHomeNow({ setTab, department, allowedLevelCodes, tu
         <span className="flex items-center gap-1 font-bold text-[#1a3a6b]"><CalendarDays className="w-3.5 h-3.5" /> اليوم {d.dayName} {d.dateStr}</span>
         {t.has ? (
           <>
-            <span className="text-gray-300">|</span><span><b className="text-gray-900">{t.td}</b> <span className="text-gray-500">عمل موجه</span></span>
+            <span className="text-gray-300">|</span><span><b className="text-gray-900">{t.td}</b> <span className="text-gray-500">حصة أعمال موجهة</span></span>
             <span className="text-gray-300">|</span><span><b className="text-gray-900">{t.lec}</b> <span className="text-gray-500">محاضرة</span></span>
-            <span className="text-gray-300">|</span><span><b className="text-gray-900">{t.perm}</b> <span className="text-gray-500">دائم</span></span>
-            <span className="text-gray-300">|</span><span><b className="text-gray-900">{t.vac}</b> <span className="text-gray-500">مؤقت</span></span>
-            <span className="text-gray-300">|</span><span><span className="text-gray-500">إشغال القاعات</span> <b className="text-gray-900">{t.occ}%</b></span>
+            <span className="text-gray-300">|</span><span><b className="text-gray-900">{t.perm}</b> <span className="text-gray-500">أستاذا دائما اليوم</span></span>
+            <span className="text-gray-300">|</span><span><b className="text-gray-900">{t.vac}</b> <span className="text-gray-500">أستاذا مؤقتا اليوم</span></span>
+            <span className="text-gray-300">|</span><span><span className="text-gray-500">إشغال القاعات اليوم</span> <b className="text-gray-900">{t.occ}%</b></span>
           </>
         ) : <span className="text-gray-500">لا حصص مبرمجة اليوم</span>}
       </button>
