@@ -107,7 +107,7 @@ export default function TutoratCandidacy({ prof: _prof }: { prof: any }) {
               تأكيد السحب
             </button>
           ))}
-          {!open && !c.dean_decision && <p className="text-xs text-gray-500">أُغلقت الحملة، وترشحك قيد الدراسة.</p>}
+          {!open && !c.dean_decision && <p className="text-xs text-gray-500">انتهت فترة الترشح، وترشحك قيد الدراسة.</p>}
         </div>
       ) : open ? (
         <button onClick={apply} disabled={busy}
@@ -115,7 +115,7 @@ export default function TutoratCandidacy({ prof: _prof }: { prof: any }) {
           {busy ? 'جارٍ التسجيل...' : 'أترشح'}
         </button>
       ) : (
-        <Note icon={<Lock className="w-5 h-5" />} tone="gray" text="حملة الترشح للمرافقة البيداغوجية مغلقة حاليا." />
+        <Note icon={<Lock className="w-5 h-5" />} tone="gray" text="الترشح للمرافقة البيداغوجية مغلق حاليا." />
       )}
     </div>
   );

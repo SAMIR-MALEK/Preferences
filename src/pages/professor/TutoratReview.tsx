@@ -8,7 +8,7 @@ const MODE_TITLE: Record<TutMode, string> = {
   field: 'اقتراح قائمة المرافقين — رئيس الميدان',
   dept: 'رأي رئيس قسم القانون العام',
   dean: 'المصادقة على قائمة المرافقين — العميد',
-  admin: 'إدارة الحملة والملفات',
+  admin: 'فترة الترشح والملفات',
 };
 
 // دراسة ملفات الترشح للمرافقة البيداغوجية حسب الدور
@@ -62,7 +62,7 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
   const deptCan = mode === 'dept' && fieldSent && !deptSent;
   const deanCan = mode === 'dean' && deptSent;
   const waiting =
-    mode === 'field' && openNow ? 'الحملة مفتوحة: يمكنك الاطلاع على الملفات فور وصولها، والقرار بعد غلق الحملة.'
+    mode === 'field' && openNow ? 'الترشح مفتوح: يمكنك الاطلاع على الملفات فور وصولها، والقرار بعد انتهاء فترة الترشح.'
     : mode === 'field' && fieldSent ? 'أُرسلت القائمة إلى رئيس قسم القانون العام.'
     : mode === 'dept' && !fieldSent ? 'لم تصل قائمة رئيس الميدان بعد.'
     : mode === 'dept' && deptSent ? 'أُرسلت القائمة إلى العميد.'
@@ -95,20 +95,20 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
         <div className="flex-1">
           <h2 className="font-bold text-gray-900">{TUT_TITLE} — {MODE_TITLE[mode]}</h2>
           <p className="text-xs text-gray-500 mt-1">
-            الحملة: <b className={openNow ? 'text-green-700' : 'text-gray-700'}>{openNow ? 'مفتوحة' : 'مغلقة'}</b>
+            الترشح: <b className={openNow ? 'text-green-700' : 'text-gray-700'}>{openNow ? 'مفتوح' : 'مغلق'}</b>
             {camp?.deadline && <> — آخر أجل: <b>{fmtDate(camp.deadline)}</b></>}
             {' '}— الملفات: <b>{rows.length}</b> — المصادق عليهم: <b>{approved.length}</b>
           </p>
         </div>
       </div>
 
-      {/* ── تحكم الإدارة في الحملة ── */}
+      {/* ── تحكم الإدارة في فترة الترشح ── */}
       {mode === 'admin' && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
-          <p className="font-bold text-sm text-gray-800">الحملة</p>
+          <p className="font-bold text-sm text-gray-800">فترة الترشح</p>
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={cf.open} onChange={e => setCf({ ...cf, open: e.target.checked })} /> مفتوحة
+              <input type="checkbox" checked={cf.open} onChange={e => setCf({ ...cf, open: e.target.checked })} /> الترشح مفتوح
             </label>
             <div>
               <p className="text-[11px] text-gray-500 mb-1">آخر أجل (اختياري)</p>
@@ -117,7 +117,7 @@ export default function TutoratReview({ mode }: { mode: TutMode }) {
             </div>
             <button disabled={busy === 'camp'} className={`${btn} bg-[#1a3a6b] text-white`}
               onClick={() => run('camp', 'tut_admin_set_campaign',
-                { p_year: TUT_YEAR, p_open: cf.open, p_deadline: cf.deadline || null, p_semester: 1 }, 'تم حفظ الحملة')}>
+                { p_year: TUT_YEAR, p_open: cf.open, p_deadline: cf.deadline || null, p_semester: 1 }, 'تم حفظ فترة الترشح')}>
               حفظ
             </button>
           </div>

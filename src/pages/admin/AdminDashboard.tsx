@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { HeartHandshake } from 'lucide-react';
 import TutoratReview from '../professor/TutoratReview';
+import AdminHomeNow from './AdminHomeNow';
 import AdminProfessorsPage    from './AdminProfessorsPage';
 import AdminSectionsPage      from './AdminSectionsPage';
 import AdminModulesPage       from './AdminModulesPage';
@@ -333,7 +334,10 @@ export default function AdminDashboard() {
 
       {/* Main */}
       <main ref={mainRef} className="flex-1 overflow-y-auto bg-[#eef1f7] p-5 pt-20 lg:pt-5">
-        {tab === 'dashboard'  && <AdminHome stats={stats} setTab={setTab} staff={isStaff} />}
+        {tab === 'dashboard'  && (isStaff
+          ? <AdminHome stats={stats} setTab={setTab} staff />
+          : <AdminHomeNow setTab={setTab} department={isDeptHead ? (department || null) : null}
+              allowedLevelCodes={allowedLevelCodes} tutoratMode={tutoratMode} />)}
         {canSee(tab) && tab === 'professors' && <AdminProfessorsPage />}
         {!isStaff && tab === 'tutorat' && tutoratMode && <TutoratReview mode={tutoratMode} />}
         {!isStaff && tab === 'import'     && <AdminImportPage allowedLevelCodes={allowedLevelCodes} />}
