@@ -12,6 +12,7 @@ import ProfessorNotices from './ProfessorNotices';
 import MakeupRequest from './MakeupRequest';
 import AttendancePanel from './AttendancePanel';
 import TutoratCandidacy from './TutoratCandidacy';
+import ProfChecksMine from './ProfChecksMine';
 import TutoratReview, { type TutMode } from './TutoratReview';
 import { TUT_YEAR, TUT_TITLE, tutRpc } from '../../lib/tutorat';
 import { roleTitle } from '../../lib/roles';
@@ -22,7 +23,7 @@ import jsPDF from 'jspdf';
 import XLSX from 'xlsx-js-style';
 import { unzipSync, strToU8, zipSync } from 'fflate';
 
-type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary' | 'makeup' | 'tutorat' | 'tutorat_review' | 'absences';
+type ProfTab = 'home' | 'profile' | 's1' | 's2' | 'card' | 'results' | 'schedule' | 'thesis' | 'disciplinary' | 'makeup' | 'tutorat' | 'tutorat_review' | 'absences' | 'pchecks';
 
 function isProfileComplete(p: any): boolean {
   if (!p) return false;
@@ -37,7 +38,7 @@ function isProfileComplete(p: any): boolean {
 // ─── Navbar Component ────────────────────────────────────────────────
 function ProfNavbar({
   tab, setTab, profileComplete, profData, isVacataire, signOut, pendingThesisCount, disciplinaryOpen, makeupOpen,
-  tutoratVisible, tutoratReview, hasTD
+  tutoratVisible, tutoratReview, hasTD, pcVisible
 }: {
   tab: ProfTab;
   setTab: (t: ProfTab) => void;
@@ -51,6 +52,7 @@ function ProfNavbar({
   tutoratVisible: boolean;
   tutoratReview: TutMode | null;
   hasTD: boolean;
+  pcVisible: boolean;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -101,6 +103,9 @@ function ProfNavbar({
     ...(tutoratVisible
       ? [{ tab: 'tutorat' as ProfTab, label: `الترشح لـ${TUT_TITLE}`, desc: 'مرافقة طلبة السنة الأولى', icon: '🤝', disabled: !profileComplete }]
       : []),
+    ...(pcVisible
+      ? [{ tab: 'pchecks' as ProfTab, label: 'متابعة حضوري', desc: 'نتائج المتابعة عبر القاعات', icon: '📋', disabled: false }]
+      : []),
     ...(tutoratReview
       ? [{ tab: 'tutorat_review' as ProfTab, label: `${TUT_TITLE} — دراسة الملفات`, desc: 'قائمة المترشحين', icon: '📑', disabled: false }]
       : []),
@@ -108,7 +113,7 @@ function ProfNavbar({
 
   const isScheduleActive = ['schedule','s1','s2','card','makeup'].includes(tab);
   const isThesisActive = tab === 'thesis';
-  const isProfileActive = ['profile','disciplinary','tutorat','tutorat_review'].includes(tab);
+  const isProfileActive = ['profile','disciplinary','tutorat','tutorat_review','pchecks'].includes(tab);
 
   return (
     <nav ref={navRef} className="bg-gradient-to-l from-[#0a1628] to-[#1a3a6b] shadow-xl sticky top-0 z-50" dir="rtl">
@@ -313,6 +318,7 @@ export default function ProfessorDashboard() {
   const [tutCamp, setTutCamp] = useState<any>(null);
   const [tutReview, setTutReview] = useState<TutMode | null>(null);
   const [hasTD, setHasTD] = useState(false);
+  const [pcVisible, setPcVisible] = useState(false);
   useEffect(() => { setProfData(prof); }, [prof]);
 
   // منصب الأستاذ (عميد، رئيس قسم، مسؤول تخصص...) — يظهر له أعلى حسابه
@@ -323,6 +329,12 @@ export default function ProfessorDashboard() {
       .eq('professor_id', prof.id)
       .limit(1)
       .then(({ data, error }) => { if (!error && data && data[0]) setMyRole(data[0] as any); });
+  }, [prof?.id]);
+
+  // نتائج متابعة الحضور: تظهر للأستاذ فقط إن سمحت الإدارة
+  useEffect(() => {
+    if (!prof?.id) return;
+    supabase.rpc('pc_visibility').then(({ data, error }) => setPcVisible(!error && data === true));
   }, [prof?.id]);
 
   // هل للأستاذ أفواج أعمال موجهة (لإظهار «الغيابات»)
@@ -423,6 +435,7 @@ export default function ProfessorDashboard() {
         tutoratVisible={tutoratVisible}
         tutoratReview={tutReview}
         hasTD={hasTD}
+        pcVisible={pcVisible}
       />
 
       {/* Content */}
@@ -503,6 +516,7 @@ export default function ProfessorDashboard() {
         {tab === 'results' && profData && resultsPublished && <AssignmentCard prof={profData} />}
         {tab === 'schedule' && profData && <ProfScheduleTab prof={profData} />}
         {tab === 'absences' && profData && <AbsencesHub prof={profData} />}
+        {tab === 'pchecks' && pcVisible && <ProfChecksMine />}
         {tab === 'thesis' && profData && !isVacataire && <ThesisProposalsTab prof={profData} />}
         {tab === 'disciplinary' && profData && disciplinaryOpen && <DisciplinaryNomination />}
         {tab === 'makeup' && profData && <MakeupRequest />}
