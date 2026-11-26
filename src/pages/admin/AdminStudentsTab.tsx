@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, UserCheck, Printer, KeyRound, Activity } from 'lucide-react';
+import { Search, Upload, Download, RefreshCw, Edit2, Key, X, Check, UserCheck, Printer, KeyRound, Activity, Megaphone } from 'lucide-react';
 import AdminMoodleImport from './AdminMoodleImport';
 import AdminLoginStats from './AdminLoginStats';
 import { useAuth } from '../../hooks/useAuth';
@@ -236,7 +236,31 @@ export default function AdminStudentsTab() {
     return errs;
   }, [grpPlan, manualNums, grpDb]);
 
-  useEffect(() => { loadStudents(); }, []);
+  useEffect(() => { loadStudents(); loadReps(); }, []);
+
+  // ── ممثلو الأفواج (من السجل؛ يفشل بصمت لمن ليست له الصلاحية) ──
+  const [repGroups, setRepGroups] = useState<any[]>([]);
+  const [repFor, setRepFor] = useState<Student | null>(null);
+  const [repBusy, setRepBusy] = useState(false);
+  const [repErr, setRepErr] = useState('');
+  async function loadReps() {
+    const { data, error } = await supabase.rpc('gr_registry');
+    if (!error) setRepGroups((data as any[]) || []);
+  }
+  const repRole = useMemo(() => {
+    const m = new Map<string, string>();
+    repGroups.forEach(g => { if (g.rep) m.set(g.rep.id, 'ممثل الفوج'); if (g.deputy) m.set(g.deputy.id, 'نائب الممثل'); });
+    return m;
+  }, [repGroups]);
+  const repGroupOf = (st: Student) => repGroups.find(g => g.level_name === st.specialite && g.section === st.section && g.groupe === st.groupe);
+  async function setRep(st: Student, role: 'ممثل' | 'نائب', remove: boolean) {
+    const g = repGroupOf(st); if (!g) return;
+    setRepBusy(true); setRepErr('');
+    const { error } = await supabase.rpc('gr_assign', { p_level: g.level_id, p_section: g.section, p_groupe: g.groupe, p_role: role, p_student: remove ? null : st.id });
+    setRepBusy(false);
+    if (error) { setRepErr(error.message); return; }
+    await loadReps(); setRepFor(null);
+  }
 
   async function loadStudents() {
     setLoading(true);
@@ -969,6 +993,7 @@ export default function AdminStudentsTab() {
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-800">{s.last_name} {s.first_name}</p>
                     <p className="text-xs text-gray-400">{s.mat_etudiant}</p>
+                    {repRole.get(s.id) && <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"><Megaphone className="w-3 h-3" />{repRole.get(s.id)}</span>}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600">{s.specialite}</td>
                   <td className="px-4 py-3 text-xs text-center">
@@ -993,6 +1018,10 @@ export default function AdminStudentsTab() {
                       className="text-gray-400 hover:text-amber-600 transition-colors p-1">
                       <UserCheck className="w-4 h-4" />
                     </button>}
+                    {!user?.admin?.readOnly && repGroupOf(s) && <button onClick={() => { setRepFor(s); setRepErr(''); }} title="ممثل الفوج"
+                      className="text-gray-400 hover:text-amber-600 transition-colors p-1">
+                      <Megaphone className="w-4 h-4" />
+                    </button>}
                     {s.groupe_since && s.groupe && (
                       <button onClick={() => printInsertion(s)} title="طباعة الإدراج"
                         className="text-gray-400 hover:text-[#1a3a6b] transition-colors p-1">
@@ -1006,6 +1035,35 @@ export default function AdminStudentsTab() {
           </table>
         </div>
       </div>
+
+      {repFor && (() => {
+        const g = repGroupOf(repFor);
+        if (!g) return null;
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !repBusy && setRepFor(null)}>
+            <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-3" dir="rtl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2"><Megaphone className="w-4 h-4 text-amber-600" /> ممثل الفوج</h3>
+                <button onClick={() => setRepFor(null)} className="text-gray-400"><X className="w-5 h-5" /></button>
+              </div>
+              <p className="text-sm text-gray-700"><b>{repFor.last_name} {repFor.first_name}</b>
+                <span className="block text-xs text-gray-500 mt-0.5">{g.level_name} — المجموعة {g.section} — الفوج {g.groupe}</span></p>
+              {(['ممثل', 'نائب'] as const).map(role => {
+                const holder = role === 'ممثل' ? g.rep : g.deputy;
+                const mine = holder?.id === repFor.id;
+                return (
+                  <button key={role} disabled={repBusy} onClick={() => setRep(repFor, role, mine)}
+                    className={`w-full rounded-xl py-2.5 px-3 text-sm font-semibold border text-right disabled:opacity-50 ${mine ? 'border-red-200 text-red-600 bg-red-50' : 'border-[#1a3a6b]/20 text-[#1a3a6b] bg-white'}`}>
+                    {mine ? (role === 'ممثل' ? 'إلغاء صفة الممثل' : 'إلغاء صفة النائب') : (role === 'ممثل' ? 'تعيينه ممثلا للفوج' : 'تعيينه نائبا للممثل')}
+                    {!mine && holder && <span className="block text-xs font-normal text-gray-500 mt-0.5">بدلا من: {holder.name}</span>}
+                  </button>
+                );
+              })}
+              {repErr && <p className="text-xs text-red-600">{repErr}</p>}
+            </div>
+          </div>
+        );
+      })()}
 
       {totalPages > 1 && (
         <div className="flex justify-center gap-2">

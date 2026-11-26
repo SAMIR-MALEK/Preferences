@@ -52,6 +52,12 @@ function Dashboard() {
     setLoading(false);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [from, to]);
+  // أسماء المستويات بدل الرموز
+  const [lvlNames, setLvlNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    supabase.from('levels').select('code, name_ar').then(({ data }) =>
+      setLvlNames(Object.fromEntries((data || []).map((l: any) => [l.code, l.name_ar]))));
+  }, []);
 
   const t = data?.today || {};
   const answered = (t.done || 0) + (t.not_done || 0);
@@ -99,7 +105,7 @@ function Dashboard() {
                   <div key={i} className="px-4 py-3 text-sm">
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <p className="font-semibold text-gray-800 min-w-0">{r.module}
-                        <span className="text-xs font-normal text-gray-500"> — {r.kind === 'محاضرة' ? 'محاضرة' : 'أ.م'} · {r.level} {r.kind === 'محاضرة' ? `م${pad(r.section)}` : `م${pad(r.section)} ف${pad(r.groupe)}`}</span>
+                        <span className="text-xs font-normal text-gray-500"> — {r.kind === 'محاضرة' ? 'محاضرة' : 'أ.م'} · {lvlNames[r.level] || r.level} {r.kind === 'محاضرة' ? `م${pad(r.section)}` : `م${pad(r.section)} ف${pad(r.groupe)}`}</span>
                       </p>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.status === 'لم تتم' ? 'bg-red-100 text-red-700' : r.status === 'تمت' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {r.status || 'بلا جواب'}
@@ -172,7 +178,7 @@ function Registry() {
 
   const levels = useMemo(() => {
     const m = new Map<string, string>();
-    rows.forEach(r => m.set(r.level_id, r.level_code || r.level_name));
+    rows.forEach(r => m.set(r.level_id, r.level_name || r.level_code));
     return [...m.entries()];
   }, [rows]);
   useEffect(() => { if (!level && levels.length) setLevel(levels[0][0]); }, [levels, level]);
@@ -275,7 +281,7 @@ function Picker({ g, role, onClose, onPick }: { g: Group; role: 'ممثل' | 'ن
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()} dir="rtl">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="font-bold text-sm">{role === 'ممثل' ? 'الممثل' : 'النائب'} — {g.level_code} م{pad(g.section)} ف{pad(g.groupe)}</p>
+          <p className="font-bold text-sm">{role === 'ممثل' ? 'الممثل' : 'النائب'} — {g.level_name} م{pad(g.section)} ف{pad(g.groupe)}</p>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
         </div>
         <div className="p-3 border-b border-gray-100 relative">
