@@ -11,7 +11,8 @@ import {
   Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText,
   ChevronDown, UserX, Network
 } from 'lucide-react';
-import { HeartHandshake } from 'lucide-react';
+import { HeartHandshake, ClipboardCheck } from 'lucide-react';
+import AdminRoomCheckPage from './AdminRoomCheckPage';
 import TutoratReview from '../professor/TutoratReview';
 import AdminHomeNow from './AdminHomeNow';
 import AdminProfessorsPage    from './AdminProfessorsPage';
@@ -41,7 +42,7 @@ import AdminStaffPage         from './AdminStaffPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure' | 'staff' | 'tutorat';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure' | 'staff' | 'tutorat' | 'roomcheck';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -104,7 +105,7 @@ export default function AdminDashboard() {
   const department = user?.admin?.department;
   const allowedLevelCodes = isDeptHead && department ? DEPARTMENT_LEVEL_CODES[department] : null;
   const STAFF_TABS: AdminTab[] = ['dashboard', 'sections', 'modules', 'rooms',
-    'professors', 'schedule', 'profschedule', 'students'];
+    'professors', 'schedule', 'profschedule', 'students', 'roomcheck'];
   const canSee = (t: AdminTab) => !isStaff || STAFF_TABS.includes(t);
   useReadOnlyGuard(mainRef, isStaff);
 
@@ -140,6 +141,7 @@ export default function AdminDashboard() {
         { id: 'tutorat',      label: 'المرافقة البيداغوجية', icon: HeartHandshake },
         { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays },
         { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays },
+        { id: 'roomcheck',    label: 'بطاقة متابعة القاعات', icon: ClipboardCheck },
       ],
     },
     {
@@ -160,6 +162,7 @@ export default function AdminDashboard() {
         { id: 'board',        label: 'لوحة الإسناد',      icon: Layers        },
         { id: 'schedule',     label: 'التوقيت',            icon: CalendarDays  },
         { id: 'profschedule', label: 'برامج الأساتذة',    icon: CalendarDays  },
+        { id: 'roomcheck',    label: 'بطاقة متابعة القاعات', icon: ClipboardCheck },
         { id: 'makeup',       label: 'الحصص التعويضية',  icon: Clock         },
         { id: 'attendance',   label: 'الغيابات',          icon: UserX         },
         { id: 'thesis',       label: 'مذكرات التخرج',    icon: ScrollText    },
@@ -359,6 +362,7 @@ export default function AdminDashboard() {
           />
         )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
+        {tab === 'roomcheck'    && <AdminRoomCheckPage />}
         {!isStaff && tab === 'thesis'                        && <AdminThesisPage />}
         {!isStaff && tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {!isStaff && tab === 'makeup'                    && <AdminMakeupPage />}
