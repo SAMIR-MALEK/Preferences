@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ClipboardCheck, Printer, Loader2 } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { ClipboardCheck, Printer, Loader2, BarChart3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchAll } from '../../lib/attendance';
 
@@ -14,19 +14,70 @@ const hm = (t: any) => String(t || '').slice(0, 5);
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
-interface Row { room: string; floor: string; entries: { level: string; module: string; kind: string; prof: string }[] }
+interface Entry { id: string; level: string; module: string; kind: string; prof: string }
+interface Row { room: string; floor: string; entries: Entry[] }
+type PCStatus = 'حاضر' | 'غائب' | 'متأخر';
+const ST_CLS: Record<PCStatus, string> = { 'حاضر': 'bg-green-600 border-green-600', 'غائب': 'bg-red-600 border-red-600', 'متأخر': 'bg-amber-500 border-amber-500' };
 interface Sheet { slotLabel: string; start: string; rows: Row[] }
 
-export default function AdminRoomCheckPage() {
+// mode: record = رئيس القسم يسجّل لقسمه؛ view = الإدارة ترى النتائج والتقرير؛ print = طباعة فقط
+export default function AdminRoomCheckPage({ mode = 'print', department = null }: { mode?: 'record' | 'view' | 'print'; department?: string | null }) {
   const [date, setDate] = useState(todayISO());
   const [slotId, setSlotId] = useState<string>('all');
-  const [dept, setDept] = useState<'all' | 'عام' | 'خاص'>('all');           // فلترة بالقسم
+  const [dept, setDept] = useState<'all' | 'عام' | 'خاص'>(mode === 'record' && department ? department as any : 'all');   // فلترة بالقسم
   const [occ, setOcc] = useState<'all' | 'busy' | 'free'>('all');           // القاعات: الكل / المشغولة / الشاغرة
   const [slots, setSlots] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
   const [sch, setSch] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [checks, setChecks] = useState<Record<string, { status: PCStatus; note: string }>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [showReport, setShowReport] = useState(false);
+  const [rFrom, setRFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`; });
+  const [rTo, setRTo] = useState(todayISO());
+  const [report, setReport] = useState<any[] | null>(null);
+  const [openProf, setOpenProf] = useState<string | null>(null);
+  const [visible, setVisible] = useState<boolean | null>(null);
+
+  // تسجيلات اليوم المختار (لرئيس القسم والإدارة)
+  useEffect(() => {
+    if (mode === 'print') return;
+    supabase.rpc('pc_day', { p_date: date }).then(({ data, error }) => {
+      if (error) { setErr(error.message); return; }
+      const m: Record<string, any> = {}; const n: Record<string, string> = {};
+      (data || []).forEach((c: any) => { m[c.schedule_id] = { status: c.status, note: c.note || '' }; n[c.schedule_id] = c.note || ''; });
+      setChecks(m); setNotes(n);
+    });
+  }, [date, mode]);
+
+  useEffect(() => {
+    if (mode !== 'view') return;
+    supabase.rpc('pc_visibility').then(({ data }) => setVisible(!!data));
+  }, [mode]);
+
+  async function mark(id: string, st: PCStatus | null) {
+    setSaving(id); setErr('');
+    const { error } = await supabase.rpc('pc_set', { p_schedule: id, p_date: date, p_status: st, p_note: notes[id] || '' });
+    if (error) setErr(error.message);
+    else setChecks(c => { const x = { ...c }; if (st) x[id] = { status: st, note: notes[id] || '' }; else delete x[id]; return x; });
+    setSaving(null);
+  }
+  async function saveNote(id: string) {
+    const cur = checks[id];
+    if (!cur || (cur.note || '') === (notes[id] || '')) return;
+    await mark(id, cur.status);
+  }
+  async function loadReport() {
+    setErr('');
+    const { data, error } = await supabase.rpc('pc_report', { p_from: rFrom, p_to: rTo });
+    if (error) setErr(error.message); else setReport(data || []);
+  }
+  async function toggleVisible() {
+    const { error } = await supabase.rpc('pc_set_visibility', { p_show: !visible });
+    if (error) setErr(error.message); else setVisible(!visible);
+  }
 
   const dayName = useMemo(() => { const [y, m, d] = date.split('-').map(Number); return DAYS[new Date(y, m - 1, d).getDay()]; }, [date]);
   const daySlots = useMemo(() => slots.filter(s => s.day === dayName)
@@ -77,6 +128,7 @@ export default function AdminRoomCheckPage() {
           const a = x.assignment;
           const isLec = a?.teaching_type === 'محاضرة';
           return {
+            id: x.id,
             level: a ? `${a.level?.code || a.level?.name_ar || ''} — ${isLec ? 'م' + pad(a.section_number) : 'ف' + pad(a.group_number)}` : '—',
             module: a?.module?.name_ar || x.custom_module || '—',
             kind: a ? (isLec ? 'محاضرة' : 'أ.م') : '—',
@@ -146,7 +198,9 @@ export default function AdminRoomCheckPage() {
         <div className="w-10 h-10 rounded-xl bg-[#1a3a6b] flex items-center justify-center"><ClipboardCheck className="w-5 h-5 text-[#c9a227]" /></div>
         <div>
           <h2 className="font-bold text-gray-900 text-lg">بطاقة متابعة حضور الأساتذة</h2>
-          <p className="text-xs text-gray-500">اختر اليوم والحصة، ثم اطبع البطاقة وطُف بها عبر القاعات.</p>
+          <p className="text-xs text-gray-500">{mode === 'record'
+            ? 'اختر اليوم والحصة، ثم سجّل حضور أساتذة قسمك قاعة قاعة، أو اطبع البطاقة.'
+            : 'اختر اليوم والحصة، ثم اطبع البطاقة وطُف بها عبر القاعات.'}</p>
         </div>
       </div>
 
@@ -165,7 +219,7 @@ export default function AdminRoomCheckPage() {
         </div>
         <div>
           <p className="text-[11px] text-gray-500 mb-1">القسم</p>
-          <select value={dept} onChange={e => setDept(e.target.value as any)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm">
+          <select value={dept} onChange={e => setDept(e.target.value as any)} disabled={mode === 'record'} className="border border-gray-200 rounded-xl px-3 py-2 text-sm disabled:bg-gray-50">
             <option value="all">كل الأقسام</option>
             <option value="عام">قسم القانون العام</option>
             <option value="خاص">قسم القانون الخاص</option>
@@ -186,6 +240,60 @@ export default function AdminRoomCheckPage() {
         </button>
       </div>
 
+      {mode === 'view' && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => { setShowReport(!showReport); if (!report) loadReport(); }}
+              className="flex items-center gap-2 bg-[#c9a227] text-white rounded-xl px-4 py-2 text-sm font-bold">
+              <BarChart3 className="w-4 h-4" /> نتائج المتابعة
+            </button>
+            {visible !== null && (
+              <label className="mr-auto flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={visible} onChange={toggleVisible} />
+                إظهار النتائج للأساتذة
+              </label>
+            )}
+          </div>
+          {showReport && (
+            <>
+              <div className="flex flex-wrap items-end gap-2">
+                <div><p className="text-[11px] text-gray-500 mb-1">من</p>
+                  <input type="date" value={rFrom} onChange={e => setRFrom(e.target.value)} dir="ltr" className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm" /></div>
+                <div><p className="text-[11px] text-gray-500 mb-1">إلى</p>
+                  <input type="date" value={rTo} onChange={e => setRTo(e.target.value)} dir="ltr" className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm" /></div>
+                <button onClick={loadReport} className="bg-[#1a3a6b] text-white rounded-lg px-3 py-1.5 text-sm font-bold">عرض</button>
+              </div>
+              {report && (report.length === 0 ? <p className="text-sm text-gray-400 text-center py-4">لا تسجيلات في هذه الفترة</p> : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 text-gray-600"><tr>
+                      <th className="px-2 py-2 text-right">الأستاذ</th><th className="px-2 py-2">حاضر</th><th className="px-2 py-2">غائب</th><th className="px-2 py-2">متأخر</th>
+                    </tr></thead>
+                    <tbody>
+                      {report.map((r: any) => (
+                        <Fragment key={r.professor_id}>
+                          <tr className="border-t border-gray-100 cursor-pointer hover:bg-gray-50" onClick={() => setOpenProf(openProf === r.professor_id ? null : r.professor_id)}>
+                            <td className="px-2 py-1.5 font-semibold">{r.name}</td>
+                            <td className="px-2 py-1.5 text-center text-green-700 font-bold">{r.present}</td>
+                            <td className="px-2 py-1.5 text-center text-red-700 font-bold">{r.absent}</td>
+                            <td className="px-2 py-1.5 text-center text-amber-600 font-bold">{r.late}</td>
+                          </tr>
+                          {openProf === r.professor_id && (r.details || []).map((d: any, i: number) => (
+                            <tr key={r.professor_id + i} className="bg-slate-50 text-[11px] text-gray-600">
+                              <td colSpan={4} className="px-4 py-1">{String(d.date).split('-').reverse().join('/')} — {d.level} — {d.module} ({d.kind === 'محاضرة' ? 'محاضرة' : 'أ.م'}) — <b>{d.status}</b>{d.note ? ` — ${d.note}` : ''}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
       {err && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{err}</div>}
       {loading ? <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
         : daySlots.length === 0 ? <p className="text-center text-sm text-gray-400 py-10">لا توجد حصص في يوم {dayName}</p>
@@ -194,24 +302,59 @@ export default function AdminRoomCheckPage() {
             <div className="bg-[#1a3a6b] text-white px-4 py-2 text-sm font-bold flex justify-between">
               <span>{sh.slotLabel}</span><span className="text-[#c9a227]">{occ === 'free' ? `${sh.rows.length} قاعة شاغرة` : `${sh.rows.reduce((k, r) => k + r.entries.length, 0)} حصة`}</span>
             </div>
+            {mode === 'record' ? (
+              <div className="divide-y divide-gray-100">
+                {sh.rows.map(r => (
+                  <div key={r.room} className="px-3 py-2.5">
+                    <p className="font-bold text-sm text-[#1a3a6b]">{r.room}</p>
+                    {r.entries.length === 0 ? <p className="text-xs text-gray-400 italic">لا حصة مبرمجة</p> : r.entries.map(e => {
+                      const c = checks[e.id];
+                      return (
+                        <div key={e.id} className="mt-1.5 space-y-1.5">
+                          <p className="text-xs text-gray-700"><b>{e.prof}</b> — {e.module} — {e.level} ({e.kind})</p>
+                          <div className="flex gap-1.5">
+                            {(['حاضر', 'غائب', 'متأخر'] as PCStatus[]).map(st => (
+                              <button key={st} disabled={saving === e.id || date > todayISO()}
+                                onClick={() => mark(e.id, c?.status === st ? null : st)}
+                                className={`flex-1 rounded-lg py-2 text-xs font-bold border disabled:opacity-50 ${c?.status === st ? `${ST_CLS[st]} text-white` : 'border-gray-200 text-gray-600'}`}>
+                                {st}
+                              </button>
+                            ))}
+                          </div>
+                          {c && (
+                            <input value={notes[e.id] || ''} onChange={ev => setNotes({ ...notes, [e.id]: ev.target.value })}
+                              onBlur={() => saveNote(e.id)} placeholder="ملاحظة (اختيارية)"
+                              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-gray-600">
-                  <tr><th className="px-2 py-2 text-right">القاعة</th><th className="px-2 py-2 text-right">المستوى / الفوج</th><th className="px-2 py-2 text-right">المقياس</th><th className="px-2 py-2">النوع</th><th className="px-2 py-2 text-right">الأستاذ</th></tr>
+                  <tr><th className="px-2 py-2 text-right">القاعة</th><th className="px-2 py-2 text-right">المستوى / الفوج</th><th className="px-2 py-2 text-right">المقياس</th><th className="px-2 py-2">النوع</th><th className="px-2 py-2 text-right">الأستاذ</th>{mode === 'view' && <th className="px-2 py-2">المتابعة</th>}</tr>
                 </thead>
                 <tbody>
                   {sh.rows.map(r => r.entries.length === 0 ? (
-                    <tr key={r.room} className="border-t border-gray-100 text-gray-400"><td className="px-2 py-1.5 font-bold">{r.room}</td><td colSpan={4} className="px-2 py-1.5 italic">لا حصة مبرمجة</td></tr>
+                    <tr key={r.room} className="border-t border-gray-100 text-gray-400"><td className="px-2 py-1.5 font-bold">{r.room}</td><td colSpan={mode === 'view' ? 5 : 4} className="px-2 py-1.5 italic">لا حصة مبرمجة</td></tr>
                   ) : r.entries.map((e, i) => (
                     <tr key={r.room + i} className="border-t border-gray-100">
                       {i === 0 && <td rowSpan={r.entries.length} className="px-2 py-1.5 font-bold text-[#1a3a6b] whitespace-nowrap">{r.room}</td>}
                       <td className="px-2 py-1.5 whitespace-nowrap">{e.level}</td><td className="px-2 py-1.5">{e.module}</td>
                       <td className="px-2 py-1.5 text-center">{e.kind}</td><td className="px-2 py-1.5">{e.prof}</td>
+                      {mode === 'view' && <td className="px-2 py-1.5 text-center">{checks[e.id]
+                        ? <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${ST_CLS[checks[e.id].status]}`} title={checks[e.id].note}>{checks[e.id].status}</span>
+                        : <span className="text-gray-300">—</span>}</td>}
                     </tr>
                   )))}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         ))}
     </div>

@@ -362,7 +362,10 @@ export default function AdminDashboard() {
           />
         )}
         {tab === 'profschedule' && <AdminProfScheduleTab />}
-        {tab === 'roomcheck'    && <AdminRoomCheckPage />}
+        {tab === 'roomcheck'    && <AdminRoomCheckPage
+          mode={isStaff ? 'print' : isDeptHead ? (department === 'عام' || department === 'خاص' ? 'record' : 'print')
+            : (user?.admin?.role === 'super_admin' || user?.admin?.role === 'admin') ? 'view' : 'print'}
+          department={isDeptHead ? (department || null) : null} />}
         {!isStaff && tab === 'thesis'                        && <AdminThesisPage />}
         {!isStaff && tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {!isStaff && tab === 'makeup'                    && <AdminMakeupPage />}
