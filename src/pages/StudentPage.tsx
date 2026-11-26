@@ -701,7 +701,7 @@ export default function StudentPage() {
               <span className="flex-1 text-sm font-bold text-gray-800">
                 {rep.data.role === 'ممثل' ? 'ممثل الفوج' : 'نائب ممثل الفوج'}
                 <span className="block text-xs font-normal text-gray-500 mt-0.5">
-                  {rep.pending > 0 ? `${rep.pending} حصة تنتظر تأكيدك` : 'لا توجد حصص تنتظر تأكيدك'}
+                  {!rep.data.phone ? 'سجّل رقم هاتفك (إلزامي)' : rep.pending > 0 ? `${rep.pending} حصة تنتظر تأكيدك` : 'لا توجد حصص تنتظر تأكيدك'}
                 </span>
               </span>
               {rep.pending > 0 && <span className="min-w-[24px] h-6 px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">{rep.pending}</span>}
