@@ -11,7 +11,8 @@ import {
   Layers, Eye, AlertTriangle, Upload, Menu, X, Mail, MapPin, CalendarDays, Shield, ScrollText,
   ChevronDown, UserX, Network
 } from 'lucide-react';
-import { HeartHandshake, ClipboardCheck } from 'lucide-react';
+import { HeartHandshake, ClipboardCheck, Megaphone } from 'lucide-react';
+import AdminGroupRepsPage from './AdminGroupRepsPage';
 import AdminRoomCheckPage from './AdminRoomCheckPage';
 import TutoratReview from '../professor/TutoratReview';
 import AdminHomeNow from './AdminHomeNow';
@@ -42,7 +43,7 @@ import AdminStaffPage         from './AdminStaffPage';
 
 type AdminTab =
   | 'dashboard' | 'professors' | 'import' | 'sections'
-  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure' | 'staff' | 'tutorat' | 'roomcheck';
+  | 'modules' | 'specialties' | 'sessions' | 'wishes' | 'assignment' | 'board' | 'rooms' | 'schedule' | 'audit' | 'vacataire' | 'settings' | 'email' | 'students' | 'profschedule' | 'grouprequests' | 'thesis' | 'disciplinary' | 'makeup' | 'attendance' | 'structure' | 'staff' | 'tutorat' | 'roomcheck' | 'groupreps';
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
@@ -151,6 +152,7 @@ export default function AdminDashboard() {
         { id: 'students',      label: 'الطلبة',         icon: GraduationCap                              },
         { id: 'grouprequests', label: 'تغيير الأفواج',  icon: ClipboardList, badge: stats.groupRequests },
         { id: 'attendance',    label: 'الغيابات',       icon: UserX                                      },
+        { id: 'groupreps',     label: 'ممثلو الأفواج',  icon: Megaphone                                  },
       ],
     },
     {
@@ -187,12 +189,15 @@ export default function AdminDashboard() {
   const tutoratMode: 'admin' | 'dept' | null = isStaff ? null
     : isDeptHead ? (department === 'عام' ? 'dept' : null)
     : (user?.admin?.role === 'super_admin' || user?.admin?.role === 'admin') ? 'admin' : null;
-  const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit', 'staff', ...(tutoratMode ? [] : ['tutorat' as AdminTab])];
+  // ممثلو الأفواج: الإدارة (مشرف عام/مدير) ورئيسا القسمين، لا المصالح
+  const repsVisible = !isStaff && (isDeptHead ? (department === 'عام' || department === 'خاص')
+    : (user?.admin?.role === 'super_admin' || user?.admin?.role === 'admin'));
+  const deptHeadHidden: AdminTab[] = ['assignment', 'settings', 'email', 'audit', 'staff', ...(tutoratMode ? [] : ['tutorat' as AdminTab]), ...(repsVisible ? [] : ['groupreps' as AdminTab])];
   const navGroups: NavGroup[] = allGroups.map(g => ({
     ...g,
     items: isStaff ? g.items.filter(i => STAFF_TABS.includes(i.id) && i.id !== 'import')
       : isDeptHead ? g.items.filter(i => !deptHeadHidden.includes(i.id))
-      : isSuperAdmin ? g.items : g.items.filter(i => i.id !== 'staff' && (i.id !== 'tutorat' || !!tutoratMode)),
+      : isSuperAdmin ? g.items : g.items.filter(i => i.id !== 'staff' && (i.id !== 'tutorat' || !!tutoratMode) && (i.id !== 'groupreps' || repsVisible)),
   })).filter(g => g.items.length > 0);
 
   return (
@@ -366,6 +371,7 @@ export default function AdminDashboard() {
           mode={isStaff ? 'print' : isDeptHead ? (department === 'عام' || department === 'خاص' ? 'record' : 'print')
             : (user?.admin?.role === 'super_admin' || user?.admin?.role === 'admin') ? 'view' : 'print'}
           department={isDeptHead ? (department || null) : null} />}
+        {repsVisible && tab === 'groupreps' && <AdminGroupRepsPage />}
         {!isStaff && tab === 'thesis'                        && <AdminThesisPage />}
         {!isStaff && tab === 'disciplinary'              && <AdminDisciplinaryPage />}
         {!isStaff && tab === 'makeup'                    && <AdminMakeupPage />}
