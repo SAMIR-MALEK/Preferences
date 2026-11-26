@@ -12,7 +12,7 @@ export interface RepSession {
   status: 'تمت' | 'لم تتم' | null; note: string | null; started: boolean;
 }
 export interface RepData {
-  role: 'ممثل' | 'نائب'; level: string; section: number; groupe: number; today: string; sessions: RepSession[];
+  role: 'ممثل' | 'نائب'; level: string; section: number; groupe: number; today: string; phone: string | null; sessions: RepSession[];
 }
 
 export function useRep(student: RepStudent | null) {
@@ -26,7 +26,7 @@ export function useRep(student: RepStudent | null) {
     setLoading(false);
   }
   useEffect(() => { setData(null); load(); /* eslint-disable-next-line */ }, [student?.mat_bac]);
-  const pending = data ? data.sessions.filter(s => !s.status && s.started).length : 0;
+  const pending = data ? (data.phone ? data.sessions.filter(s => !s.status && s.started).length : 1) : 0;
   return { data, loading, pending, reload: load };
 }
 
@@ -38,6 +38,15 @@ export default function StudentRepPanel({ student, data, onChanged }:
   const [rows, setRows] = useState<RepSession[]>(data.sessions);
   const [busy, setBusy] = useState<string>('');
   const [err, setErr] = useState('');
+  const [phone, setPhone] = useState<string | null>(data.phone);
+  const [phDraft, setPhDraft] = useState('');
+  async function savePhone() {
+    setBusy('phone'); setErr('');
+    const { data: v, error } = await supabase.rpc('gr_set_phone', { p_bac: student.mat_bac, p_year: student.annee_bac, p_phone: phDraft });
+    setBusy('');
+    if (error) { setErr(error.message); return; }
+    setPhone(v as string); onChanged();
+  }
   // تُحفظ القائمة كما فُتحت، حتى لا تختفي الحصة المؤكدة قبل إضافة الملاحظة
 
   const key = (s: RepSession) => s.schedule_id + s.date;
@@ -73,6 +82,18 @@ export default function StudentRepPanel({ student, data, onChanged }:
 
       {err && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{err}</div>}
 
+      {!phone ? (
+        <div className="bg-white border-2 border-amber-300 rounded-2xl p-4 space-y-3">
+          <p className="font-bold text-sm text-gray-900">سجّل رقم هاتفك أولا</p>
+          <p className="text-xs text-gray-600 leading-relaxed">رقم هاتف الممثل ونائبه إلزامي، لتتمكن الإدارة من التواصل معك. لن تظهر الحصص قبل تسجيله.</p>
+          <input value={phDraft} onChange={e => setPhDraft(e.target.value)} inputMode="tel" dir="ltr" placeholder="06XXXXXXXX"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base text-center tracking-wider focus:outline-none focus:ring-2 focus:ring-[#c9a227]" />
+          <button onClick={savePhone} disabled={busy === 'phone' || !phDraft.trim()}
+            className="w-full bg-[#1a3a6b] text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
+            {busy === 'phone' ? 'جارٍ الحفظ...' : 'حفظ الرقم'}
+          </button>
+        </div>
+      ) : <>
       <Section title={`حصص اليوم ${fmtDay(data.today)}`} empty="لا توجد حصص لفوجك اليوم">
         {today.map(s => <Card key={key(s)} s={s} busy={busy === key(s)} onSave={save} />)}
       </Section>
@@ -82,6 +103,7 @@ export default function StudentRepPanel({ student, data, onChanged }:
           {past.map(s => <Card key={key(s)} s={s} busy={busy === key(s)} onSave={save} showDate />)}
         </Section>
       )}
+      </>}
     </div>
   );
 }

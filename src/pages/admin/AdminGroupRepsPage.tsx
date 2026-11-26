@@ -187,10 +187,20 @@ function Registry() {
   const all = rows.filter(r => !level || r.level_id === level);
   const done = all.filter(r => r.rep).length;
 
-  async function assign(g: Group, role: 'ممثل' | 'نائب', id: string | null) {
+  async function assign(g: Group, role: 'ممثل' | 'نائب', id: string | null, phone?: string) {
     setErr('');
-    try { await rpc('gr_assign', { p_level: g.level_id, p_section: g.section, p_groupe: g.groupe, p_role: role, p_student: id }); setPicker(null); await load(); }
+    try { await rpc('gr_assign', { p_level: g.level_id, p_section: g.section, p_groupe: g.groupe, p_role: role, p_student: id, p_phone: phone || null }); setPicker(null); await load(); }
     catch (e: any) { setErr(e.message); }
+  }
+  // للنافذة: تُرجع الخطأ بدل عرضه خلفها
+  async function assignFromPicker(g: Group, role: 'ممثل' | 'نائب', id: string, phone?: string) {
+    await rpc('gr_assign', { p_level: g.level_id, p_section: g.section, p_groupe: g.groupe, p_role: role, p_student: id, p_phone: phone || null });
+    setPicker(null); await load();
+  }
+  async function savePhone(id: string, phone: string) {
+    setErr('');
+    try { await rpc('gr_admin_phone', { p_student: id, p_phone: phone }); await load(); return true; }
+    catch (e: any) { setErr(e.message); return false; }
   }
 
   function print() {
@@ -238,20 +248,27 @@ function Registry() {
             <div className="flex-1 grid sm:grid-cols-2 gap-2 min-w-[220px]">
               {(['ممثل', 'نائب'] as const).map(role => {
                 const p = role === 'ممثل' ? g.rep : g.deputy;
+                const lead = role === 'ممثل';
                 return (
-                  <div key={role} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5 min-w-0">
-                    <span className="text-[11px] text-gray-400 w-9 shrink-0">{role === 'ممثل' ? 'الممثل' : 'النائب'}</span>
-                    {p ? (
-                      <>
-                        <button onClick={() => setPicker({ g, role })} className="flex-1 text-right text-sm text-gray-800 truncate">{p.name}
-                          {p.phone && <span className="text-[11px] text-gray-400 mr-1" dir="ltr">{p.phone}</span>}</button>
-                        <button onClick={() => assign(g, role, null)} title="إزالة" className="text-gray-300 hover:text-red-500"><X className="w-4 h-4" /></button>
-                      </>
-                    ) : (
-                      <button onClick={() => setPicker({ g, role })} className="flex-1 flex items-center gap-1 text-sm text-[#1a3a6b] font-semibold">
-                        <UserPlus className="w-4 h-4" /> تعيين
-                      </button>
-                    )}
+                  <div key={role} className={`rounded-lg px-2.5 py-2 min-w-0 border ${
+                    !p ? 'bg-white border-dashed border-gray-300'
+                    : lead ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] w-10 shrink-0 font-bold ${lead ? 'text-amber-700' : 'text-slate-500'}`}>{lead ? 'الممثل' : 'النائب'}</span>
+                      {p ? (
+                        <>
+                          <button onClick={() => setPicker({ g, role })} className={`flex-1 text-right truncate ${lead ? 'text-[15px] font-bold text-gray-900' : 'text-sm text-gray-700'}`}>{p.name}</button>
+                          <button onClick={() => assign(g, role, null)} title="إزالة" className="text-gray-300 hover:text-red-500"><X className="w-4 h-4" /></button>
+                        </>
+                      ) : (
+                        <button onClick={() => setPicker({ g, role })} className="flex-1 flex items-center gap-1 text-sm text-[#1a3a6b] font-semibold">
+                          <UserPlus className="w-4 h-4" /> تعيين
+                        </button>
+                      )}
+                    </div>
+                    {p && (p.phone
+                      ? <p className="text-sm font-semibold text-gray-800 mt-1 mr-12 tabular-nums" dir="ltr" style={{ textAlign: 'right' }}>{p.phone}</p>
+                      : <PhoneFix onSave={v => savePhone(p.id, v)} />)}
                   </div>
                 );
               })}
@@ -260,12 +277,30 @@ function Registry() {
         ))}
       </div>
 
-      {picker && <Picker g={picker.g} role={picker.role} onClose={() => setPicker(null)} onPick={id => assign(picker.g, picker.role, id)} />}
+      {picker && <Picker g={picker.g} role={picker.role} onClose={() => setPicker(null)} onPick={(id, ph) => assignFromPicker(picker.g, picker.role, id, ph)} />}
     </div>
   );
 }
 
-function Picker({ g, role, onClose, onPick }: { g: Group; role: 'ممثل' | 'نائب'; onClose: () => void; onPick: (id: string) => void }) {
+// خانة إدخال الهاتف عند غيابه (إلزامي للممثل والنائب)
+function PhoneFix({ onSave }: { onSave: (v: string) => Promise<boolean> }) {
+  const [v, setV] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5">
+      <span className="text-[11px] font-bold text-white bg-red-500 rounded-full px-2 py-0.5 shrink-0">بلا هاتف</span>
+      <input value={v} onChange={e => setV(e.target.value)} inputMode="tel" dir="ltr" placeholder="06XXXXXXXX"
+        className="flex-1 min-w-0 border border-red-300 rounded-md px-2 py-1 text-sm" />
+      <button disabled={busy || !v.trim()} onClick={async () => { setBusy(true); if (await onSave(v)) setV(''); setBusy(false); }}
+        className="text-xs font-bold bg-[#1a3a6b] text-white rounded-md px-2.5 py-1.5 disabled:opacity-40">حفظ</button>
+    </div>
+  );
+}
+
+function Picker({ g, role, onClose, onPick }: { g: Group; role: 'ممثل' | 'نائب'; onClose: () => void; onPick: (id: string, phone?: string) => Promise<void> }) {
+  const [sel, setSel] = useState<any>(null);     // طالب بلا هاتف: يُطلب رقمه قبل التعيين
+  const [ph, setPh] = useState('');
+  const [busy, setBusy] = useState(false);
   const [list, setList] = useState<any[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -276,6 +311,13 @@ function Picker({ g, role, onClose, onPick }: { g: Group; role: 'ممثل' | 'ن
   }, [g]);
   const other = role === 'ممثل' ? g.deputy?.id : g.rep?.id;
   const shown = list.filter(s => !q || (s.name + ' ' + (s.mat || '')).includes(q.trim()));
+  async function go(s: any, phone?: string) {
+    setErr('');
+    if (!s.phone && !phone) { setSel(s); setPh(''); return; }
+    setBusy(true);
+    try { await onPick(s.id, phone); } catch (e: any) { setErr(e.message); }
+    setBusy(false);
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
@@ -293,11 +335,24 @@ function Picker({ g, role, onClose, onPick }: { g: Group; role: 'ممثل' | 'ن
           {loading && <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>}
           {err && <p className="text-sm text-red-600 p-4">{err}</p>}
           {shown.map(s => (
-            <button key={s.id} disabled={s.id === other} onClick={() => onPick(s.id)}
-              className="w-full text-right px-4 py-2.5 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-between gap-2">
-              <span className="text-sm text-gray-800">{s.name}{s.id === other && <span className="text-xs text-gray-400"> (معيّن {role === 'ممثل' ? 'نائبا' : 'ممثلا'})</span>}</span>
-              <span className="text-[11px] text-gray-400" dir="ltr">{s.mat || ''}</span>
-            </button>
+            <div key={s.id}>
+              <button disabled={s.id === other || busy} onClick={() => go(s)}
+                className={`w-full text-right px-4 py-2.5 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-between gap-2 ${sel?.id === s.id ? 'bg-amber-50' : ''}`}>
+                <span className="text-sm text-gray-800">{s.name}{s.id === other && <span className="text-xs text-gray-400"> (معيّن {role === 'ممثل' ? 'نائبا' : 'ممثلا'})</span>}</span>
+                <span className={`text-[11px] ${s.phone ? 'text-gray-500' : 'text-red-500 font-semibold'}`} dir="ltr">{s.phone || 'بلا هاتف'}</span>
+              </button>
+              {sel?.id === s.id && (
+                <div className="px-4 pb-3 bg-amber-50 space-y-1.5">
+                  <p className="text-xs text-amber-800">الهاتف إلزامي للممثل والنائب. أدخل رقمه للتعيين:</p>
+                  <div className="flex gap-2">
+                    <input autoFocus value={ph} onChange={e => setPh(e.target.value)} inputMode="tel" dir="ltr" placeholder="06XXXXXXXX"
+                      className="flex-1 min-w-0 border border-amber-300 rounded-lg px-3 py-2 text-sm" />
+                    <button disabled={busy || !ph.trim()} onClick={() => go(s, ph)}
+                      className="bg-[#1a3a6b] text-white rounded-lg px-4 text-sm font-bold disabled:opacity-40">تعيين</button>
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
         </div>
         <p className="text-[11px] text-gray-400 px-4 py-2 border-t border-gray-100">إن كان الطالب معيّنا في فوج آخر يُنقل إلى هذا الفوج.</p>

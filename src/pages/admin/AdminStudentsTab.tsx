@@ -243,6 +243,7 @@ export default function AdminStudentsTab() {
   const [repFor, setRepFor] = useState<Student | null>(null);
   const [repBusy, setRepBusy] = useState(false);
   const [repErr, setRepErr] = useState('');
+  const [repPhone, setRepPhone] = useState('');
   async function loadReps() {
     const { data, error } = await supabase.rpc('gr_registry');
     if (!error) setRepGroups((data as any[]) || []);
@@ -256,10 +257,11 @@ export default function AdminStudentsTab() {
   async function setRep(st: Student, role: 'ممثل' | 'نائب', remove: boolean) {
     const g = repGroupOf(st); if (!g) return;
     setRepBusy(true); setRepErr('');
-    const { error } = await supabase.rpc('gr_assign', { p_level: g.level_id, p_section: g.section, p_groupe: g.groupe, p_role: role, p_student: remove ? null : st.id });
+    const { error } = await supabase.rpc('gr_assign', { p_level: g.level_id, p_section: g.section, p_groupe: g.groupe, p_role: role, p_student: remove ? null : st.id, p_phone: remove ? null : (repPhone.trim() || null) });
     setRepBusy(false);
     if (error) { setRepErr(error.message); return; }
     await loadReps(); setRepFor(null);
+    if (!remove && repPhone.trim()) loadStudents();
   }
 
   async function loadStudents() {
@@ -1018,7 +1020,7 @@ export default function AdminStudentsTab() {
                       className="text-gray-400 hover:text-amber-600 transition-colors p-1">
                       <UserCheck className="w-4 h-4" />
                     </button>}
-                    {!user?.admin?.readOnly && repGroupOf(s) && <button onClick={() => { setRepFor(s); setRepErr(''); }} title="ممثل الفوج"
+                    {!user?.admin?.readOnly && repGroupOf(s) && <button onClick={() => { setRepFor(s); setRepErr(''); setRepPhone(''); }} title="ممثل الفوج"
                       className="text-gray-400 hover:text-amber-600 transition-colors p-1">
                       <Megaphone className="w-4 h-4" />
                     </button>}
@@ -1048,11 +1050,18 @@ export default function AdminStudentsTab() {
               </div>
               <p className="text-sm text-gray-700"><b>{repFor.last_name} {repFor.first_name}</b>
                 <span className="block text-xs text-gray-500 mt-0.5">{g.level_name} — المجموعة {g.section} — الفوج {g.groupe}</span></p>
+              {!repFor.phone?.trim() && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-1.5">
+                  <p className="text-xs font-bold text-red-700">لا يوجد رقم هاتف لهذا الطالب، وهو إلزامي للممثل والنائب:</p>
+                  <input value={repPhone} onChange={e => setRepPhone(e.target.value)} inputMode="tel" dir="ltr" placeholder="06XXXXXXXX"
+                    className="w-full border border-red-300 rounded-lg px-3 py-2 text-sm bg-white" />
+                </div>
+              )}
               {(['ممثل', 'نائب'] as const).map(role => {
                 const holder = role === 'ممثل' ? g.rep : g.deputy;
                 const mine = holder?.id === repFor.id;
                 return (
-                  <button key={role} disabled={repBusy} onClick={() => setRep(repFor, role, mine)}
+                  <button key={role} disabled={repBusy || (!mine && !repFor.phone?.trim() && !repPhone.trim())} onClick={() => setRep(repFor, role, mine)}
                     className={`w-full rounded-xl py-2.5 px-3 text-sm font-semibold border text-right disabled:opacity-50 ${mine ? 'border-red-200 text-red-600 bg-red-50' : 'border-[#1a3a6b]/20 text-[#1a3a6b] bg-white'}`}>
                     {mine ? (role === 'ممثل' ? 'إلغاء صفة الممثل' : 'إلغاء صفة النائب') : (role === 'ممثل' ? 'تعيينه ممثلا للفوج' : 'تعيينه نائبا للممثل')}
                     {!mine && holder && <span className="block text-xs font-normal text-gray-500 mt-0.5">بدلا من: {holder.name}</span>}
