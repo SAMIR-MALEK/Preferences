@@ -198,8 +198,8 @@ export default function AdminRoomCheckPage({ mode = 'print', department = null }
         <div className="w-10 h-10 rounded-xl bg-[#1a3a6b] flex items-center justify-center"><ClipboardCheck className="w-5 h-5 text-[#c9a227]" /></div>
         <div>
           <h2 className="font-bold text-gray-900 text-lg">بطاقة متابعة حضور الأساتذة</h2>
-          <p className="text-xs text-gray-500">{mode === 'record'
-            ? 'اختر اليوم والحصة، ثم سجّل حضور أساتذة قسمك قاعة قاعة، أو اطبع البطاقة.'
+          <p className="text-xs text-gray-500">{mode !== 'print'
+            ? `اختر اليوم والحصة، ثم سجّل حضور ${mode === 'record' ? 'أساتذة قسمك' : 'الأساتذة'} قاعة قاعة، أو اطبع البطاقة.`
             : 'اختر اليوم والحصة، ثم اطبع البطاقة وطُف بها عبر القاعات.'}</p>
         </div>
       </div>
@@ -302,7 +302,7 @@ export default function AdminRoomCheckPage({ mode = 'print', department = null }
             <div className="bg-[#1a3a6b] text-white px-4 py-2 text-sm font-bold flex justify-between">
               <span>{sh.slotLabel}</span><span className="text-[#c9a227]">{occ === 'free' ? `${sh.rows.length} قاعة شاغرة` : `${sh.rows.reduce((k, r) => k + r.entries.length, 0)} حصة`}</span>
             </div>
-            {mode === 'record' ? (
+            {mode !== 'print' ? (
               <div className="divide-y divide-gray-100">
                 {sh.rows.map(r => (
                   <div key={r.room} className="px-3 py-2.5">
@@ -336,19 +336,16 @@ export default function AdminRoomCheckPage({ mode = 'print', department = null }
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-gray-600">
-                  <tr><th className="px-2 py-2 text-right">القاعة</th><th className="px-2 py-2 text-right">المستوى / الفوج</th><th className="px-2 py-2 text-right">المقياس</th><th className="px-2 py-2">النوع</th><th className="px-2 py-2 text-right">الأستاذ</th>{mode === 'view' && <th className="px-2 py-2">المتابعة</th>}</tr>
+                  <tr><th className="px-2 py-2 text-right">القاعة</th><th className="px-2 py-2 text-right">المستوى / الفوج</th><th className="px-2 py-2 text-right">المقياس</th><th className="px-2 py-2">النوع</th><th className="px-2 py-2 text-right">الأستاذ</th></tr>
                 </thead>
                 <tbody>
                   {sh.rows.map(r => r.entries.length === 0 ? (
-                    <tr key={r.room} className="border-t border-gray-100 text-gray-400"><td className="px-2 py-1.5 font-bold">{r.room}</td><td colSpan={mode === 'view' ? 5 : 4} className="px-2 py-1.5 italic">لا حصة مبرمجة</td></tr>
+                    <tr key={r.room} className="border-t border-gray-100 text-gray-400"><td className="px-2 py-1.5 font-bold">{r.room}</td><td colSpan={4} className="px-2 py-1.5 italic">لا حصة مبرمجة</td></tr>
                   ) : r.entries.map((e, i) => (
                     <tr key={r.room + i} className="border-t border-gray-100">
                       {i === 0 && <td rowSpan={r.entries.length} className="px-2 py-1.5 font-bold text-[#1a3a6b] whitespace-nowrap">{r.room}</td>}
                       <td className="px-2 py-1.5 whitespace-nowrap">{e.level}</td><td className="px-2 py-1.5">{e.module}</td>
                       <td className="px-2 py-1.5 text-center">{e.kind}</td><td className="px-2 py-1.5">{e.prof}</td>
-                      {mode === 'view' && <td className="px-2 py-1.5 text-center">{checks[e.id]
-                        ? <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${ST_CLS[checks[e.id].status]}`} title={checks[e.id].note}>{checks[e.id].status}</span>
-                        : <span className="text-gray-300">—</span>}</td>}
                     </tr>
                   )))}
                 </tbody>
