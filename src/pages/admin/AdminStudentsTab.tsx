@@ -244,6 +244,7 @@ export default function AdminStudentsTab() {
   const [repBusy, setRepBusy] = useState(false);
   const [repErr, setRepErr] = useState('');
   const [repPhone, setRepPhone] = useState('');
+  const [repRm, setRepRm] = useState('');   // إلغاء صفة ينتظر التأكيد
   async function loadReps() {
     const { data, error } = await supabase.rpc('gr_registry');
     if (!error) setRepGroups((data as any[]) || []);
@@ -1020,7 +1021,7 @@ export default function AdminStudentsTab() {
                       className="text-gray-400 hover:text-amber-600 transition-colors p-1">
                       <UserCheck className="w-4 h-4" />
                     </button>}
-                    {!user?.admin?.readOnly && repGroupOf(s) && <button onClick={() => { setRepFor(s); setRepErr(''); setRepPhone(''); }} title="ممثل الفوج"
+                    {!user?.admin?.readOnly && repGroupOf(s) && <button onClick={() => { setRepFor(s); setRepErr(''); setRepPhone(''); setRepRm(''); }} title="ممثل الفوج"
                       className="text-gray-400 hover:text-amber-600 transition-colors p-1">
                       <Megaphone className="w-4 h-4" />
                     </button>}
@@ -1061,9 +1062,9 @@ export default function AdminStudentsTab() {
                 const holder = role === 'ممثل' ? g.rep : g.deputy;
                 const mine = holder?.id === repFor.id;
                 return (
-                  <button key={role} disabled={repBusy || (!mine && !repFor.phone?.trim() && !repPhone.trim())} onClick={() => setRep(repFor, role, mine)}
+                  <button key={role} disabled={repBusy || (!mine && !repFor.phone?.trim() && !repPhone.trim())} onClick={() => { if (mine && repRm !== role) { setRepRm(role); return; } setRepRm(''); setRep(repFor, role, mine); }}
                     className={`w-full rounded-xl py-2.5 px-3 text-sm font-semibold border text-right disabled:opacity-50 ${mine ? 'border-red-200 text-red-600 bg-red-50' : 'border-[#1a3a6b]/20 text-[#1a3a6b] bg-white'}`}>
-                    {mine ? (role === 'ممثل' ? 'إلغاء صفة الممثل' : 'إلغاء صفة النائب') : (role === 'ممثل' ? 'تعيينه ممثلا للفوج' : 'تعيينه نائبا للممثل')}
+                    {mine ? (repRm === role ? 'اضغط مرة أخرى لتأكيد الإلغاء' : role === 'ممثل' ? 'إلغاء صفة الممثل' : 'إلغاء صفة النائب') : (role === 'ممثل' ? 'تعيينه ممثلا للفوج' : 'تعيينه نائبا للممثل')}
                     {!mine && holder && <span className="block text-xs font-normal text-gray-500 mt-0.5">بدلا من: {holder.name}</span>}
                   </button>
                 );
