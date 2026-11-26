@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import StudentAbsences from './StudentAbsences';
 import StudentMoodle from './StudentMoodle';
+import StudentRepPanel, { useRep } from './StudentRepPanel';
 import {
   BookOpen, Clock, MapPin, User, LogOut, AlertCircle,
   CheckCircle, XCircle, Upload, Send, ChevronDown, ChevronUp,
-  Calendar, Users, FileText, Bell, UserX, KeyRound
+  Calendar, Users, FileText, Bell, UserX, KeyRound, Megaphone
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -513,7 +514,8 @@ export default function StudentPage() {
   });
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
-  const [activeTab, setActiveTab] = useState<'schedule' | 'info' | 'requests' | 'absences' | 'moodle'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'info' | 'requests' | 'absences' | 'moodle' | 'rep'>('schedule');
+  const rep = useRep(student);
 
   function handleLogin(s: Student) {
     try { sessionStorage.setItem('student_session', JSON.stringify(s)); } catch {}
@@ -690,6 +692,23 @@ export default function StudentPage() {
 
           {student.sit_ins === 'Validée' && <RemoteLiveBanner student={student} />}
 
+          {/* ممثل الفوج */}
+          {rep.data && (
+            <button onClick={() => setActiveTab(activeTab === 'rep' ? 'schedule' : 'rep')}
+              className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 text-right"
+              style={{ background: activeTab === 'rep' ? '#fdf8e8' : '#fffdf5' }}>
+              <Megaphone className="w-5 h-5 shrink-0" style={{ color: '#c9a227' }} />
+              <span className="flex-1 text-sm font-bold text-gray-800">
+                {rep.data.role === 'ممثل' ? 'ممثل الفوج' : 'نائب ممثل الفوج'}
+                <span className="block text-xs font-normal text-gray-500 mt-0.5">
+                  {rep.pending > 0 ? `${rep.pending} حصة تنتظر تأكيدك` : 'لا توجد حصص تنتظر تأكيدك'}
+                </span>
+              </span>
+              {rep.pending > 0 && <span className="min-w-[24px] h-6 px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">{rep.pending}</span>}
+              <span className="text-xs font-semibold text-[#1a3a6b]">{activeTab === 'rep' ? 'إغلاق' : 'افتح'}</span>
+            </button>
+          )}
+
           {/* Tabs */}
           <div className="flex border-b border-gray-100">
             {tabs.map(({ key, label, icon: Icon }) => (
@@ -790,6 +809,10 @@ export default function StudentPage() {
 
             {activeTab === 'moodle' && (
               <StudentMoodle student={student} />
+            )}
+
+            {activeTab === 'rep' && rep.data && (
+              <StudentRepPanel student={student} data={rep.data} onChanged={rep.reload} />
             )}
           </div>
         </div>
