@@ -16,14 +16,14 @@ async function rpc<T = any>(fn: string, args: Record<string, any> = {}): Promise
 }
 
 export default function AdminGroupRepsPage() {
-  const [view, setView] = useState<'dash' | 'registry'>('dash');
+  const [view, setView] = useState<'dash' | 'registry'>('registry');
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#1a3a6b]"><Megaphone className="w-5 h-5 text-[#c9a227]" /></div>
         <h1 className="text-lg font-bold text-gray-900 flex-1">ممثلو الأفواج</h1>
         <div className="flex bg-gray-100 rounded-xl p-1 text-sm">
-          {([['dash', 'المتابعة'], ['registry', 'السجل']] as const).map(([k, l]) => (
+          {([['registry', 'قائمة الممثلين'], ['dash', 'المتابعة']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setView(k)}
               className={`px-4 py-1.5 rounded-lg font-semibold ${view === k ? 'bg-white shadow text-[#1a3a6b]' : 'text-gray-500'}`}>{l}</button>
           ))}
@@ -168,6 +168,7 @@ function Registry() {
   const [level, setLevel] = useState('');
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [picker, setPicker] = useState<{ g: Group; role: 'ممثل' | 'نائب' } | null>(null);
+  const [rmKey, setRmKey] = useState('');   // إزالة تنتظر التأكيد
 
   async function load() {
     setLoading(true); setErr('');
@@ -258,7 +259,7 @@ function Registry() {
                       {p ? (
                         <>
                           <button onClick={() => setPicker({ g, role })} className={`flex-1 text-right truncate ${lead ? 'text-[15px] font-bold text-gray-900' : 'text-sm text-gray-700'}`}>{p.name}</button>
-                          <button onClick={() => assign(g, role, null)} title="إزالة" className="text-gray-300 hover:text-red-500"><X className="w-4 h-4" /></button>
+                          <button onClick={() => setRmKey(g.level_id + g.section + '-' + g.groupe + role)} title="إزالة" className="text-gray-300 hover:text-red-500"><X className="w-4 h-4" /></button>
                         </>
                       ) : (
                         <button onClick={() => setPicker({ g, role })} className="flex-1 flex items-center gap-1 text-sm text-[#1a3a6b] font-semibold">
@@ -266,6 +267,15 @@ function Registry() {
                         </button>
                       )}
                     </div>
+                    {p && rmKey === g.level_id + g.section + '-' + g.groupe + role && (
+                      <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-2 space-y-1.5">
+                        <p className="text-xs text-red-700">إزالة <b>{p.name}</b> من صفة {lead ? 'الممثل' : 'النائب'}؟</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setRmKey(''); assign(g, role, null); }} className="flex-1 bg-red-600 text-white rounded-md py-1.5 text-xs font-bold">تأكيد الإزالة</button>
+                          <button onClick={() => setRmKey('')} className="flex-1 border border-gray-300 bg-white text-gray-600 rounded-md py-1.5 text-xs font-semibold">تراجع</button>
+                        </div>
+                      </div>
+                    )}
                     {p && (p.phone
                       ? <p className="text-sm font-semibold text-gray-800 mt-1 mr-12 tabular-nums" dir="ltr" style={{ textAlign: 'right' }}>{p.phone}</p>
                       : <PhoneFix onSave={v => savePhone(p.id, v)} />)}
@@ -323,7 +333,10 @@ function Picker({ g, role, onClose, onPick }: { g: Group; role: 'ممثل' | 'ن
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()} dir="rtl">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="font-bold text-sm">{role === 'ممثل' ? 'الممثل' : 'النائب'} — {g.level_name} م{pad(g.section)} ف{pad(g.groupe)}</p>
+          <div>
+            <p className="font-bold text-sm">{role === 'ممثل' ? 'الممثل' : 'النائب'} — {g.level_name} م{pad(g.section)} ف{pad(g.groupe)}</p>
+            {(role === 'ممثل' ? g.rep : g.deputy) && <p className="text-xs text-amber-700 mt-0.5">الحالي: {(role === 'ممثل' ? g.rep : g.deputy)!.name} — سيُستبدل بمن تختاره</p>}
+          </div>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
         </div>
         <div className="p-3 border-b border-gray-100 relative">
