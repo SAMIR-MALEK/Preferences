@@ -9,10 +9,11 @@ import {
 } from '../../lib/attendance';
 import {
   Search, Printer, RefreshCw, Check, X, Eye, FileText, AlertTriangle,
-  ChevronDown, ChevronUp, UserX, ClipboardList, Users,
+  ChevronDown, ChevronUp, UserX, Layers, GraduationCap,
 } from 'lucide-react';
+import AttendanceBrowser from './AttendanceBrowser';
 
-type Tab = 'follow' | 'justs' | 'views' | 'profs';
+type Tab = 'follow' | 'justs' | 'views';
 
 const normalize = (s: string) => String(s || '').replace(/\s+/g, ' ').replace(/ال/g, '').trim();
 
@@ -51,7 +52,8 @@ export default function AdminAttendancePage() {
   // فلاتر التبريرات
   const [jFilter, setJFilter] = useState<string>(J_PENDING);
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [onlyMissing, setOnlyMissing] = useState(false);
+  // طريقة التصفح في المتابعة: بالمستوى، بالأستاذ، أو بحث وحالات
+  const [fMode, setFMode] = useState<'level' | 'prof' | 'search'>('level');
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -308,36 +310,6 @@ export default function AdminAttendancePage() {
     setBusy(null);
   }
 
-  // ── تسجيل الأساتذة ───────────────────────────────────────────────────────
-  const profRows = useMemo(() => {
-    const sessByKey = new Map<string, AttSession[]>();
-    for (const s of sessions) {
-      const k = `${s.module_id}|${s.group_number}`;
-      if (!sessByKey.has(k)) sessByKey.set(k, []);
-      sessByKey.get(k)!.push(s);
-    }
-    const seen = new Set<string>();
-    const out: any[] = [];
-    for (const a of tdAssignments) {
-      if (!scopeLevelIds.has(a.level_id)) continue;
-      const k = `${a.module_id}|${a.group_number}`;
-      if (seen.has(k)) continue;
-      seen.add(k);
-      const ss = sessByKey.get(k) || [];
-      const last = ss.map(s => dayOnly(s.session_date)).sort().pop() || '';
-      out.push({
-        key: k, level: levelMap.get(a.level_id), module: moduleMap.get(a.module_id),
-        section: a.section_number, group: a.group_number,
-        prof: a.professor_id ? (profMap.get(a.professor_id) || '—') : 'غير مُسنَد',
-        count: ss.length, last,
-      });
-    }
-    out.sort((a, b) => ((a.level?.display_order ?? 99) - (b.level?.display_order ?? 99))
-      || (a.module?.name_ar || '').localeCompare(b.module?.name_ar || '', 'ar')
-      || (a.group - b.group));
-    return out;
-  }, [tdAssignments, sessions, scopeLevelIds, levelMap, moduleMap, profMap]);
-  const missingCount = profRows.filter(r => r.count === 0).length;
 
   // ═══════════════════════════════════════════════════════════════════════
   if (loading) return (
@@ -360,7 +332,6 @@ export default function AdminAttendancePage() {
     { key: 'follow', label: 'متابعة الغيابات', icon: UserX, badge: stats.limit },
     { key: 'justs', label: 'التبريرات', icon: FileText, badge: pendingJusts },
     { key: 'views', label: 'طلبات الاطلاع', icon: Eye, badge: pendingViews },
-    { key: 'profs', label: 'تسجيل الأساتذة', icon: ClipboardList, badge: missingCount },
   ];
 
   return (
@@ -415,6 +386,21 @@ export default function AdminAttendancePage() {
 
       {/* ════════ المتابعة ════════ */}
       {tab === 'follow' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-1.5 flex flex-wrap gap-1">
+          {([['level', 'بالمستوى', Layers], ['prof', 'بالأستاذ', GraduationCap], ['search', 'بحث وحالات', Search]] as const).map(([k, l, Icon]) => (
+            <button key={k} onClick={() => setFMode(k)}
+              className={`flex-1 min-w-[110px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold ${fMode === k ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'text-gray-500 hover:bg-gray-50 border border-transparent'}`}>
+              <Icon className="w-3.5 h-3.5" /> {l}
+            </button>
+          ))}
+        </div>
+      )}
+      {tab === 'follow' && fMode !== 'search' && (
+        <AttendanceBrowser mode={fMode} levels={scopedLevels} modules={modules} records={records} sessions={sessions}
+          tdAssignments={tdAssignments} profMap={profMap} exclusionMap={exclusionMap} justsByStudent={justsByStudent}
+          department={department} onModeChange={setFMode} />
+      )}
+      {tab === 'follow' && fMode === 'search' && (
         <>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[180px]">
@@ -696,49 +682,6 @@ export default function AdminAttendancePage() {
         </div>
       )}
 
-      {/* ════════ تسجيل الأساتذة ════════ */}
-      {tab === 'profs' && (
-        <>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex flex-wrap items-center gap-3">
-            <Users className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-600">{profRows.length} فوج أعمال موجهة — <span className="font-bold text-red-600">{missingCount}</span> لم تُسجَّل فيه أي حصة</span>
-            <button onClick={() => setOnlyMissing(v => !v)}
-              className={`mr-auto px-3 py-2 rounded-xl text-xs font-bold border ${onlyMissing ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-200 hover:bg-red-50'}`}>
-              من لم يسجّل فقط
-            </button>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#1a3a6b]/5 border-b border-gray-100 text-xs text-[#1a3a6b]">
-                    <th className="px-3 py-2.5 text-right font-bold">المستوى</th>
-                    <th className="px-3 py-2.5 text-right font-bold">المقياس</th>
-                    <th className="px-3 py-2.5 text-center font-bold">الفوج</th>
-                    <th className="px-3 py-2.5 text-right font-bold">الأستاذ</th>
-                    <th className="px-3 py-2.5 text-center font-bold">الحصص المسجّلة</th>
-                    <th className="px-3 py-2.5 text-center font-bold">آخر حصة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {profRows.filter(r => !onlyMissing || r.count === 0).map(r => (
-                    <tr key={r.key} className={r.count === 0 ? 'bg-red-50/40' : 'hover:bg-gray-50/60'}>
-                      <td className="px-3 py-2.5 text-xs text-gray-600">{r.level?.name_ar || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs text-gray-800">{r.module?.name_ar || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs text-center text-gray-600">{r.group}</td>
-                      <td className="px-3 py-2.5 text-xs font-bold text-gray-700">{r.prof}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${r.count === 0 ? 'bg-red-100 text-red-700' : 'bg-green-50 text-green-700'}`}>{r.count}</span>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-center text-gray-500">{r.last ? fmtDay(r.last) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }
