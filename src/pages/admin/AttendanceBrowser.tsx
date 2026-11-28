@@ -61,10 +61,17 @@ function ByLevel(p: Props & { tds: any[]; levelMap: Map<string, any>; moduleMap:
     const seen = new Map<string, any>();
     for (const a of p.tds) {
       if (a.level_id !== sel.level || a.section_number !== sel.section || a.group_number !== sel.group) continue;
-      if (!seen.has(a.module_id)) seen.set(a.module_id, { id: a.module_id, name: p.moduleMap.get(a.module_id)?.name_ar || '—', prof: a.professor_id ? (p.profMap.get(a.professor_id) || '—') : 'غير مُسنَد' });
+      if (!seen.has(a.module_id)) seen.set(a.module_id, {
+        id: a.module_id, name: p.moduleMap.get(a.module_id)?.name_ar || '—',
+        prof: a.professor_id ? (p.profMap.get(a.professor_id) || '—') : 'غير مُسنَد',
+        // عدد الحصص المسجلة لهذا المقياس في هذا الفوج
+        done: p.sessions.filter(s => s.module_id === a.module_id && s.group_number === sel.group
+          && (s.level_id == null || s.level_id === sel.level) && (s.section_number == null || s.section_number === sel.section)).length,
+      });
     }
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  }, [p.tds, sel, p.moduleMap, p.profMap]);
+  }, [p.tds, sel, p.moduleMap, p.profMap, p.sessions]);
+  const doneTotal = groupMods.reduce((t, m) => t + m.done, 0);
 
   // طلبة الفوج كاملين
   const [studs, setStuds] = useState<any[]>([]);
@@ -110,7 +117,7 @@ function ByLevel(p: Props & { tds: any[]; levelMap: Map<string, any>; moduleMap:
       groupMods.map(m => { const n = (counts.get(s.id + '|' + m.id) || []).length; const l = lvlOf(s.id, m.id);
         return `<td class="c${l === 'limit' || l === 'excluded' ? ' r' : l === 'warn' ? ' w' : ''}">${n || ''}${l === 'excluded' ? ' م' : ''}</td>`; }).join('')}</tr>`).join('');
     printDoc(`غيابات الفوج — ${head}`, p.department,
-      `<table><thead><tr><th class="c" style="width:30px">الرقم</th><th>اللقب والاسم</th><th class="c">رقم التسجيل</th>${groupMods.map(m => `<th class="c">${escHtml(m.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>
+      `<table><thead><tr><th class="c" style="width:30px">الرقم</th><th>اللقب والاسم</th><th class="c">رقم التسجيل</th>${groupMods.map(m => `<th class="c">${escHtml(m.name)}<br><span class="sm">${m.done} / ${TOTAL} حصة</span></th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>
        <p class="note">الأرقام: عدد الغيابات المحتسبة. حد الإقصاء ${ABSENCE_LIMIT}. «م»: إقصاء مثبَّت.</p>`, groupMods.length > 4);
   }
 
@@ -156,7 +163,7 @@ function ByLevel(p: Props & { tds: any[]; levelMap: Map<string, any>; moduleMap:
         <Empty text="اختر المستوى ثم المجموعة ثم الفوج" />
       ) : loading ? <Spin /> : err ? <p className="text-sm text-red-600 bg-red-50 rounded-xl p-3">{err}</p> : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <p className="px-4 py-3 text-sm font-bold text-gray-800 border-b border-gray-100">{head} <span className="text-xs font-normal text-gray-400">({studs.length} طالبا)</span></p>
+          <p className="px-4 py-3 text-sm font-bold text-gray-800 border-b border-gray-100">{head} <span className="text-xs font-normal text-gray-400">({studs.length} طالبا — الحصص المسجلة: {doneTotal} / {groupMods.length * TOTAL})</span></p>
           {groupMods.length === 0 ? <Empty text="لا توجد أعمال موجهة مسندة لهذا الفوج" /> : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -167,6 +174,7 @@ function ByLevel(p: Props & { tds: any[]; levelMap: Map<string, any>; moduleMap:
                       <th key={m.id} className="px-2 py-2 text-center font-bold min-w-[90px]">
                         <button onClick={() => setSel({ ...sel, module: m.id })} className="underline decoration-dotted underline-offset-4 hover:text-amber-700" title="ورقة الحضور">{m.name}</button>
                         <span className="block text-[10px] font-normal text-gray-400 mt-0.5">{m.prof}</span>
+                        <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${m.done === 0 ? 'bg-red-100 text-red-700' : m.done >= TOTAL ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{m.done} / {TOTAL} حصة</span>
                       </th>
                     ))}
                   </tr>
@@ -378,6 +386,7 @@ function ByProf(p: Props & { tds: any[]; levelMap: Map<string, any>; moduleMap: 
 
   const shown = rows.filter(r => (!fLevel || r.a.level_id === fLevel) && (!fProf || r.profId === fProf) && (!onlyMissing || r.count === 0));
   const missing = shown.filter(r => r.count === 0).length;
+  const doneTotal = shown.reduce((t, r) => t + r.count, 0);
   const levelOpts = p.levels.filter(l => p.tds.some(a => a.level_id === l.id));
 
   function print() {
@@ -401,7 +410,7 @@ function ByProf(p: Props & { tds: any[]; levelMap: Map<string, any>; moduleMap: 
           className={`px-3 py-2 rounded-xl text-xs font-bold border ${onlyMissing ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-200'}`}>
           لم يسجّل أي حصة
         </button>
-        <span className="text-xs text-gray-500 mr-auto flex items-center gap-1"><Users className="w-3.5 h-3.5" />{shown.length} فوجا — <b className="text-red-600">{missing}</b> بلا تسجيل</span>
+        <span className="text-xs text-gray-500 mr-auto flex items-center gap-1"><Users className="w-3.5 h-3.5" />{shown.length} فوجا — <b className="text-red-600">{missing}</b> بلا تسجيل — الحصص المسجلة: <b className="text-gray-800">{doneTotal} / {shown.length * TOTAL}</b></span>
         <button onClick={print} disabled={!shown.length} className="flex items-center gap-1.5 bg-[#1a3a6b] text-white px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-40">
           <Printer className="w-3.5 h-3.5" /> طباعة
         </button>
